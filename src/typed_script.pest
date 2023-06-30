@@ -1,0 +1,26 @@
+number = { ASCII_DIGIT+ }
+
+string = { "\""	~ inner ~ "\"" }
+
+identifier = {
+	ASCII_ALPHA+
+}
+
+assignment = { "let " ~ identifier  ~ " = " ~  expression ~ ";" }
+
+inner = @{ char* }
+
+expression = {
+	number | string
+}
+
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+stmt = _{ expression | assignment }
+
+program = _{ SOI ~ "\n"* ~ (stmt ~ "\n"+) * ~ stmt? ~ EOI }
+         
