@@ -1,17 +1,18 @@
 number = { ASCII_DIGIT+ }
 
+WHITESPACE = _{ " " }
 string = { "\""	~ inner ~ "\"" }
 
 identifier = {
 	ASCII_ALPHA+
 }
 
-assignment = { "let " ~ identifier  ~ " = " ~  expression ~ ";" }
+assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
 inner = @{ char* }
 
 expression = {
-	number | string
+	 number | string | identifier  
 }
 
 char = {
@@ -20,7 +21,7 @@ char = {
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
 
-stmt = _{ expression | assignment }
+stmt = _{ assignment | expression  }
 
-program = _{ SOI ~ "\n"* ~ (stmt ~ "\n"+) * ~ stmt? ~ EOI }
+program = _{ SOI ~ "\n"* ~ (stmt ~ ";") * ~ stmt? ~ EOI }
          

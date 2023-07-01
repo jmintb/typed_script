@@ -6,22 +6,9 @@ pkgs.mkShell {
     rustfmt 
     clippy 
     just 
-    kube3d 
     openssl 
     pkgconfig 
-    python310Packages.ipython
-    protobuf
-    kustomize
-    kubectl
-    operator-sdk
-    postgresql
-    s3cmd
-    minio-client
-    argo
-    python310Packages.mlflow
-    kubernetes-helm
-    grpcurl
-    sass
+    rust-analyzer
   ];
 
   # Certain Rust tools won't work without this
