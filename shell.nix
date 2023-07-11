@@ -9,6 +9,7 @@ pkgs.mkShell {
     openssl 
     pkgconfig 
     rust-analyzer
+    (pkgs.callPackage ./mlir.nix {})
   ];
 
   # Certain Rust tools won't work without this
