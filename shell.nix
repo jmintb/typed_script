@@ -1,5 +1,7 @@
-{ pkgs ? import <nixpkgs> {} }:
-pkgs.mkShell {
+let 
+ pkgs = import <nixpkgs> {};
+ llvm = (pkgs.callPackage "/home/jmintb/Sync/lab/typed_script/mlir.nix") {};
+in pkgs.mkShell {
   nativeBuildInputs = with pkgs; [ rustup cargo gcc ];
   buildInputs = with pkgs; [ 
     clang 
@@ -9,8 +11,7 @@ pkgs.mkShell {
     openssl 
     pkgconfig 
     rust-analyzer
-    (pkgs.callPackage ./mlir.nix {})
-  ];
+    llvm ];
 
   # Certain Rust tools won't work without this
   # This can also be fixed by using oxalica/rust-overlay and specifying the rust-src extension
