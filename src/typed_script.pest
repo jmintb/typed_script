@@ -21,7 +21,9 @@ char = {
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
 
-stmt = _{ assignment | expression  }
+function = { "fn " ~ identifier ~ "()" ~ "{" ~ (stmt ~ ";") * ~ stmt? ~ "}" }
+
+stmt = _{ function | assignment | expression  }
 
 program = _{ SOI ~ "\n"* ~ (stmt ~ ";") * ~ stmt? ~ EOI }
          
