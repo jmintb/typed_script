@@ -62,8 +62,10 @@ pub enum TypedAst {
 
 fn main() {
     let parsed_res = TSParser::parse(
-        Rule::program,
-        "fn test () {   let myvar = \"test\"; myvar  }",
+        Rule::function,
+        "fn test () { 
+            printf(\"hello\");
+         }",
     )
     .unwrap();
 
