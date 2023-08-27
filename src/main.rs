@@ -1,3 +1,5 @@
+use std::iter::FlatMap;
+
 use pest::{iterators::Pair, Parser};
 use pest_derive::{self, Parser};
 
@@ -8,9 +10,10 @@ use melior::{
         DialectRegistry,
     },
     ir::{
-        attribute::{StringAttribute, TypeAttribute},
-        r#type::{FunctionType, IntegerType},
-        *,
+        attribute::{FlatSymbolRefAttribute, StringAttribute, TypeAttribute},
+        operation::OperationBuilder,
+        r#type::{FunctionType, IntegerType, MemRefType},
+        Location, *,
     },
     pass::{
         self,
@@ -58,8 +61,11 @@ pub enum TypedAst {
 }
 
 fn main() {
-    let parsed_res =
-        TSParser::parse(Rule::program, "fn test () {  let myvar = \"test\"; myvar }").unwrap();
+    let parsed_res = TSParser::parse(
+        Rule::program,
+        "fn test () {   let myvar = \"test\"; myvar  }",
+    )
+    .unwrap();
 
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
@@ -67,6 +73,7 @@ fn main() {
     context.append_dialect_registry(&registry);
     context.get_or_load_dialect("func");
     context.get_or_load_dialect("arith");
+    context.get_or_load_dialect("llvm");
     register_all_llvm_translations(&context);
 
     let location = Location::unknown(&context);
@@ -80,13 +87,9 @@ fn main() {
             Rule::expression => TypedAst::Expression(parse_expression(rule).unwrap()),
             Rule::assignment => parse_assignment(rule).unwrap(),
             Rule::function => {
-                println!("function: {}", rule);
-
                 let mut inner = rule.into_inner();
 
                 let identifer = TSIdentifier(inner.next().unwrap().as_str().to_string());
-
-                println!("id: {:?}", identifer);
 
                 let mut fn_body = vec![];
 
@@ -112,14 +115,10 @@ fn main() {
 
     println!("ast: {:?}", ast);
 
-    for node in ast {
+    for node in ast.iter() {
         match node {
-            TypedAst::Function(id, body) => {
-               for node in ast {
-                    
-                } 
-            }
-            _ =>
+            TypedAst::Function(id, body) => for node in ast.iter() {},
+            _ => (),
         }
     }
 
@@ -159,7 +158,83 @@ fn main() {
         )
     };
 
+    let printf_decl = llvm::func(
+        &context,
+        StringAttribute::new(&context, "printf"),
+        TypeAttribute::new(
+            llvm::r#type::function(
+                IntegerType::new(&context, 32).into(),
+                &[llvm::r#type::pointer(
+                    IntegerType::new(&context, 8).into(),
+                    0,
+                )],
+                true,
+            )
+            .into(),
+            // FunctionType::new(&context, &[r#type::Type::none(&context)], &[]).into(),
+        ),
+        Region::new(),
+        &[
+            (
+                Identifier::new(&context, "sym_visibility"),
+                StringAttribute::new(&context, "private").into(),
+            ),
+            (
+                Identifier::new(&context, "llvm.emit_c_interface"),
+                Attribute::unit(&context),
+            ),
+        ],
+        location,
+    );
+
+    let region = Region::new();
+    let block = Block::new(&[(
+        llvm::r#type::pointer(IntegerType::new(&context, 8).into(), 0).into(),
+        location,
+    )]);
+
+    let arg1 = block.argument(0).unwrap().into();
+    unsafe {
+        let res = block.append_operation(
+            OperationBuilder::new("llvm.call", location)
+                .add_operands(&[arg1])
+                .add_attributes(&[(
+                    Identifier::new(&context, "callee"),
+                    FlatSymbolRefAttribute::new(&context, "printf").into(),
+                )])
+                .add_results(&[IntegerType::new(&context, 32).into()])
+                .build(),
+        );
+        block.append_operation(llvm::r#return(
+            Some(res.result(0).unwrap().into()),
+            location,
+        ));
+    }
+
+    region.append_block(block);
+    let print_decl = llvm::func(
+        &context,
+        StringAttribute::new(&context, "print"),
+        TypeAttribute::new(
+            llvm::r#type::function(
+                IntegerType::new(&context, 32).into(),
+                &[llvm::r#type::pointer(IntegerType::new(&context, 8).into(), 0).into()],
+                false,
+            )
+            .into(),
+            // FunctionType::new(&context, &[r#type::Type::none(&context)], &[]).into(),
+        ),
+        region,
+        &[(
+            Identifier::new(&context, "llvm.emit_c_interface"),
+            Attribute::unit(&context),
+        )],
+        location,
+    );
+
+    module.body().append_operation(printf_decl);
     module.body().append_operation(function);
+    module.body().append_operation(print_decl);
 
     assert!(module.as_operation().verify());
 
@@ -172,31 +247,37 @@ fn main() {
     pass_manager.add_pass(pass::conversion::create_mem_ref_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
+    // pass_manager.enable_ir_printing();
+
     pass_manager
         .nested_under("func.func")
         .add_pass(pass::conversion::create_arith_to_llvm());
     pass_manager.run(&mut module).unwrap();
 
-    let engine = ExecutionEngine::new(&module, 2, &[], false);
+    println!("module {:?}", module.as_operation());
+    let mut result: i32 = 4;
 
-    let mut argument1: i64 = 2;
-    let mut argument2: i64 = 4;
-    let mut result: i64 = -1;
+    let mut val = std::ffi::CString::new("jj").unwrap();
+
+    let mut ptr = val.as_ptr();
+
+    let engine = ExecutionEngine::new(
+        &module,
+        0,
+        &["/nix/store/46m4xx889wlhsdj72j38fnlyyvvvvbyb-glibc-2.37-8/lib/libc.so.6"],
+        true,
+    );
+
+    engine.dump_to_object_file("llvmtest.ir");
 
     unsafe {
         engine
             .invoke_packed(
-                "add",
-                &mut [
-                    &mut argument1 as *mut i64 as *mut (),
-                    &mut argument2 as *mut i64 as *mut (),
-                    &mut result as *mut i64 as *mut (),
-                ],
+                "print",
+                &mut [ptr as *mut (), &mut result as *mut i32 as *mut ()],
             )
             .unwrap();
     };
-
-    assert_eq!(result, 6);
 }
 
 fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst, Box<dyn std::error::Error>> {
