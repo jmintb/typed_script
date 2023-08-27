@@ -12,7 +12,7 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
 inner = @{ char* }
 
-expression = {
+expression = _{
 	 call | number | string | identifier    
 }
 
