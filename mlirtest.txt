@@ -1,15 +1,13 @@
 module attributes {llvm.data_layout = ""} {
-  llvm.func @printf(!llvm.ptr<i8>, ...) -> i32 attributes {sym_visibility = "private"}
-  llvm.func @add(%arg0: i64, %arg1: i64) -> i64 attributes {llvm.emit_c_interface} {
-    %0 = llvm.add %arg0, %arg1  : i64
-    llvm.return %0 : i64
-  }
-  llvm.func @_mlir_ciface_add(%arg0: i64, %arg1: i64) -> i64 attributes {llvm.emit_c_interface} {
-    %0 = llvm.call @add(%arg0, %arg1) : (i64, i64) -> i64
-    llvm.return %0 : i64
-  }
-  llvm.func @print(%arg0: !llvm.ptr<i8>, ...) attributes {llvm.emit_c_interface} {
-    %0 = llvm.call @printf(%arg0) : (!llvm.ptr<i8>) -> i32
+  llvm.mlir.global internal @annon("hello") {addr_space = 0 : i32}
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.mlir.addressof @annon : !llvm.ptr
+    %1 = llvm.call @printf(%0) : (!llvm.ptr) -> i32
     llvm.return
   }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+  llvm.func @printf(!llvm.ptr, ...) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
 }
