@@ -1,6 +1,5 @@
 ---
 source: tests/e2e.rs
-assertion_line: 11
 expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
 Hello World! on a new line

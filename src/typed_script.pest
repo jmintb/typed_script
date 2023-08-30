@@ -14,7 +14,7 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 inner = @{ char* }
 
 expression = _{
-	 call | struct | integer | string | identifier    
+	 call | structInit | integer | string | identifier    
 }
 
 char = {
@@ -35,9 +35,11 @@ functionBody = { (stmt)* }
 
 function = { "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ "{" ~ functionBody ~ "}" }
 
-stmt = _{ function |( (assignment  | expression  ) ~ ";"? ) }
+stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
 
 struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
+
+structInit = { identifier ~ "{" ~ ( expression ~ ",")* ~ expression? ~ "}" }
 
 program = _{ SOI ~  (stmt )*  ~ EOI }
          

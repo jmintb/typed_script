@@ -39,6 +39,8 @@ pub enum TypedAst {
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
     Function(TSIdentifier, Vec<TSIdentifier>, Vec<TypedAst>),
+    StructType(TSIdentifier, Vec<TSIdentifier>),
+    Struct(TSIdentifier, Vec<TSExpression>),
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -54,6 +56,8 @@ pub fn parse(input: &str) -> Result<Ast> {
             Rule::expression => TypedAst::Expression(parse_expression(rule).unwrap()),
             Rule::assignment => parse_assignment(rule).unwrap(),
             Rule::function => parse_function_decl(rule)?,
+            Rule::r#struct => parse_struct_decl(rule)?,
+            Rule::structInit => parse_struct(rule)?,
             Rule::EOI => break,
             _ => panic!("unexpected rule {:?}", rule.as_rule()),
         };
@@ -62,6 +66,24 @@ pub fn parse(input: &str) -> Result<Ast> {
     }
 
     Ok(Ast(ast))
+}
+
+fn parse_struct(rstruct: Pair<'_, Rule>) -> Result<TypedAst> {
+    let mut rstruct = rstruct.into_inner();
+
+    let identifier = TSIdentifier(rstruct.next().unwrap().as_str().to_string());
+    let fields = rstruct.map(|f| parse_expression(f).unwrap()).collect();
+
+    Ok(TypedAst::Struct(identifier, fields))
+}
+
+fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
+    let mut decl = decl.into_inner();
+
+    let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
+    let fields = decl.map(|d| TSIdentifier(d.as_str().to_string())).collect();
+
+    Ok(TypedAst::StructType(identifer, fields))
 }
 
 fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
