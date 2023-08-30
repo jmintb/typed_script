@@ -69,6 +69,9 @@ pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
                                 .iter()
                                 .map(|arg| match arg {
                                     TSExpression::Value(TSValue::String(ref val)) => {
+                                        // TODO: \n is getting escaped, perhap we need a raw string?
+                                        let val = if val == "\\n" { "\n" } else { val };
+
                                         gen_pointer_to_annon_str(
                                             &context,
                                             &mut gen_annon_string,
@@ -111,8 +114,6 @@ pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
                                     .build(),
                             );
 
-                            exp_block.append_operation(llvm::r#return(None, location));
-
                             // let call = llvm::ca(
                             //     &context,
                             //     FlatSymbolRefAttribute::new(&context, "printf"),
@@ -126,6 +127,7 @@ pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
                         _ => todo!(),
                     }
                 }
+                function_block.append_operation(llvm::r#return(None, location));
 
                 let function = func::func(
                     &context,
