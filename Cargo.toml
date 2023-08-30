@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+clap = { version = "4.4.1", features = ["derive"] }
 melior = "0.9.9"
 mlir-sys = "0.2.0"
 pest = "2.5.5"
