@@ -107,7 +107,10 @@ fn parse_fn_call(call_expression: Pair<Rule>) -> Result<TSExpression> {
 
     // println!("inner {call_expression:?}");
     let id = inner.next().unwrap();
-    let args = inner.map(|arg| parse_expression(arg).unwrap()).collect();
+
+    let args = inner.next().unwrap().into_inner().into_iter();
+
+    let args = args.map(|arg| parse_expression(arg).unwrap()).collect();
 
     Ok(TSExpression::Call(
         TSIdentifier(id.as_str().to_string()),

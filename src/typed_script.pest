@@ -1,8 +1,9 @@
-number = { ASCII_DIGIT+ }
+integer = { ASCII_DIGIT+ }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
 string = { "\""	~ inner ~ "\"" }
+
 
 identifier = {
 	ASCII_ALPHA+
@@ -13,7 +14,7 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 inner = @{ char* }
 
 expression = _{
-	 call | number | string | identifier    
+	 call | struct | integer | string | identifier    
 }
 
 char = {
@@ -22,11 +23,19 @@ char = {
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
 
-call = { identifier ~ "(" ~ expression ~ ")" }
+callArgs = { (expression ~ ",")* ~  expression? }
 
-function = { "fn " ~ identifier ~ "()" ~ "{" ~ (stmt ~ ";")* ~ "}" }
+call = { identifier ~ "(" ~ callArgs? ~ ")" }
+
+functionArg = { identifier ~ ":" ~ identifier}
+
+functionArgs = { ( functionArg ~ ",")* ~ functionArg }
+
+function = { "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ "{" ~ (stmt ~ ";")* ~ "}" }
 
 stmt = _{ function | assignment | expression  }
+
+struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
 
 program = _{ SOI ~  (stmt ~ ";") * ~ stmt? ~ EOI }
          
