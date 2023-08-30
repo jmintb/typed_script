@@ -3,6 +3,6 @@ use anyhow::Result;
 
 pub fn jit(input: &str) -> Result<()> {
     let ast = parse(input)?;
-    let engine = generate_mlir(ast)?;
+    let engine = generate_mlir(ast, false)?;
     Ok(unsafe { engine.invoke_packed("main", &mut []) }?)
 }

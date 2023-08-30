@@ -1,7 +1,8 @@
+use anyhow::Result;
 use typed_script::cli::exec_cli;
 
-fn main() {
-    exec_cli().unwrap();
+fn main() -> Result<()> {
+    exec_cli()
 
     // let program = "fn main () {
     //         printf(\"hello\");

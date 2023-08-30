@@ -27,15 +27,17 @@ callArgs = { (expression ~ ",")* ~  expression? }
 
 call = { identifier ~ "(" ~ callArgs? ~ ")" }
 
-functionArg = { identifier ~ ":" ~ identifier}
+functionArg = { identifier }
 
 functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 
-function = { "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ "{" ~ (stmt ~ ";")* ~ "}" }
+functionBody = { (stmt)* }
 
-stmt = _{ function | assignment | expression  }
+function = { "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ "{" ~ functionBody ~ "}" }
+
+stmt = _{ function |( (assignment  | expression  ) ~ ";"? ) }
 
 struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
 
-program = _{ SOI ~  (stmt ~ ";") * ~ stmt? ~ EOI }
+program = _{ SOI ~  (stmt )*  ~ EOI }
          

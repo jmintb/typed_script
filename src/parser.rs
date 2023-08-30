@@ -1,4 +1,6 @@
-use anyhow::Result;
+use core::panic;
+
+use anyhow::{bail, Result};
 use pest::{iterators::Pair, Parser};
 use pest_derive::Parser;
 
@@ -36,7 +38,7 @@ pub enum TypedAst {
     Value(TSValue, TSType),
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
-    Function(TSIdentifier, Vec<TypedAst>),
+    Function(TSIdentifier, Vec<TSIdentifier>, Vec<TypedAst>),
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -51,17 +53,7 @@ pub fn parse(input: &str) -> Result<Ast> {
             Rule::program => todo!(),
             Rule::expression => TypedAst::Expression(parse_expression(rule).unwrap()),
             Rule::assignment => parse_assignment(rule).unwrap(),
-            Rule::function => {
-                let mut inner = rule.into_inner();
-
-                let identifer = TSIdentifier(inner.next().unwrap().as_str().to_string());
-
-                let body = inner
-                    .map(|exp| TypedAst::Expression(parse_expression(exp).unwrap()))
-                    .collect();
-
-                TypedAst::Function(identifer, body)
-            }
+            Rule::function => parse_function_decl(rule)?,
             Rule::EOI => break,
             _ => panic!("unexpected rule {:?}", rule.as_rule()),
         };
@@ -70,6 +62,37 @@ pub fn parse(input: &str) -> Result<Ast> {
     }
 
     Ok(Ast(ast))
+}
+
+fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
+    let mut decl = decl.into_inner();
+
+    let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
+
+    let mut next = decl.next().unwrap();
+
+    let function_args: Vec<TSIdentifier> = if let Rule::functionArgs = next.as_rule() {
+        let args = next.into_inner();
+        next = decl.next().unwrap();
+        args.map(|p| TSIdentifier(p.into_inner().as_str().to_string()))
+            .collect()
+    } else {
+        vec![]
+    };
+
+    let body = if let Rule::functionBody = next.as_rule() {
+        next.into_inner()
+            .map(|exp| TypedAst::Expression(parse_expression(exp).unwrap()))
+            .collect()
+    } else {
+        bail!(
+            "expected to find function body, found {:?} instead, in function declaration {}",
+            next.as_rule(),
+            identifer.0
+        );
+    };
+
+    Ok(TypedAst::Function(identifer, function_args, body))
 }
 
 fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
@@ -90,11 +113,9 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
 }
 
 fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
-    let inner_rules = expression.clone().into_inner().next().unwrap();
-
     let typed_exp = match expression.as_rule() {
-        Rule::string => TSExpression::Value(TSValue::String(inner_rules.as_str().into())),
-        Rule::identifier => TSExpression::Value(TSValue::Variable(inner_rules.as_str().into())),
+        Rule::string => TSExpression::Value(parse_string(expression)?),
+        Rule::identifier => TSExpression::Value(TSValue::Variable(expression.as_str().into())),
         Rule::call => parse_fn_call(expression)?,
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
@@ -102,10 +123,17 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
     Ok(typed_exp)
 }
 
+fn parse_string(string: Pair<Rule>) -> Result<TSValue> {
+    if let Rule::string = string.as_rule() {
+        Ok(TSValue::String(string.into_inner().as_str().to_string()))
+    } else {
+        bail!("expected string , got {:?}", string.as_rule())
+    }
+}
+
 fn parse_fn_call(call_expression: Pair<Rule>) -> Result<TSExpression> {
     let mut inner = call_expression.clone().into_inner().into_iter();
 
-    // println!("inner {call_expression:?}");
     let id = inner.next().unwrap();
 
     let args = inner.next().unwrap().into_inner().into_iter();

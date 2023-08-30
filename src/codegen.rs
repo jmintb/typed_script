@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 use anyhow::Result;
 use melior::{
     dialect::{
@@ -9,19 +11,19 @@ use melior::{
         attribute::{FlatSymbolRefAttribute, StringAttribute, TypeAttribute},
         operation::{OperationBuilder, OperationResult},
         r#type::{FunctionType, IntegerType},
-        Attribute, Block, Identifier, Location, Module, Region,
+        Attribute, Block, Identifier, Location, Module, Region, Type, Value,
     },
     pass,
     utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
     Context, ExecutionEngine,
 };
 
-use crate::parser::{Ast, TSExpression, TSValue, TypedAst};
+use crate::parser::{Ast, TSExpression, TSIdentifier, TSValue, TypedAst};
 
 // TODO: something inside the module is dropped when it is returned.
 // That is why we return the exection engine at the moment.
 
-pub fn generate_mlir<'c>(ast: Ast) -> Result<ExecutionEngine> {
+pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
     let context = Context::new();
@@ -46,102 +48,113 @@ pub fn generate_mlir<'c>(ast: Ast) -> Result<ExecutionEngine> {
     };
 
     for node in ast.0 {
-        if let TypedAst::Function(id, body) = node {
-            let region = Region::new();
+        match node {
+            TypedAst::Function(id, fargs, body) => {
+                let region = Region::new();
+                let function_block = Block::new(
+                    fargs
+                        .iter()
+                        .map(|_| (llvm::r#type::opaque_pointer(&context), location))
+                        .collect::<Vec<(Type, Location)>>()
+                        .as_slice(),
+                );
 
-            for exp in body {
-                match exp {
-                    TypedAst::Expression(TSExpression::Call(id, args)) => {
-                        let exp_block = Block::new(&[]);
-                        let TSExpression::Value(TSValue::String(ref val)) =
-                            args[0] else {todo!()};
+                let function_block = region.append_block(function_block);
 
-                        let ptr_to_str = gen_pointer_to_annon_str(
-                            &context,
-                            &mut gen_annon_string,
-                            &exp_block,
-                            location.clone(),
-                            val.to_string(),
-                            &mut module,
-                        )
-                        .unwrap();
-                        let res = exp_block.append_operation(
-                            OperationBuilder::new("llvm.call", location)
-                                .add_operands(&[ptr_to_str.into()])
-                                .add_attributes(&[(
-                                    Identifier::new(&context, "callee"),
-                                    FlatSymbolRefAttribute::new(&context, "printf").into(),
-                                )])
-                                .add_results(&[IntegerType::new(&context, 32).into()])
-                                .build(),
-                        );
+                for exp in body {
+                    match exp.clone() {
+                        TypedAst::Expression(TSExpression::Call(id, args)) => {
+                            let exp_block = function_block;
+                            let actual_args: Vec<Value> = args
+                                .iter()
+                                .map(|arg| match arg {
+                                    TSExpression::Value(TSValue::String(ref val)) => {
+                                        gen_pointer_to_annon_str(
+                                            &context,
+                                            &mut gen_annon_string,
+                                            &exp_block,
+                                            location.clone(),
+                                            val.to_string(),
+                                            &mut module,
+                                        )
+                                        .unwrap()
+                                        .into()
+                                    }
+                                    TSExpression::Value(TSValue::Variable(ref id)) => exp_block
+                                        .argument(
+                                            fargs
+                                                .iter()
+                                                .position(|farg| &farg.0 == id)
+                                                .ok_or(format!(
+                                                    "failed to match argument: {:?} {id}",
+                                                    fargs
+                                                        .iter()
+                                                        .map(|farg| farg.clone())
+                                                        .collect::<Vec<TSIdentifier>>()
+                                                ))
+                                                .unwrap(),
+                                        )
+                                        .unwrap()
+                                        .into(),
+                                    _ => todo!(),
+                                })
+                                .collect();
 
-                        exp_block.append_operation(llvm::r#return(None, location));
+                            let res = exp_block.append_operation(
+                                OperationBuilder::new("llvm.call", location)
+                                    .add_operands(&actual_args)
+                                    .add_attributes(&[(
+                                        Identifier::new(&context, "callee"),
+                                        FlatSymbolRefAttribute::new(&context, "printf").into(),
+                                    )])
+                                    .add_results(&[IntegerType::new(&context, 32).into()])
+                                    .build(),
+                            );
 
-                        // let call = llvm::ca(
-                        //     &context,
-                        //     FlatSymbolRefAttribute::new(&context, "printf"),
-                        //     &[op.result(0).unwrap().into()],
-                        //     &[Type::none(&context)],
-                        //     location,
-                        // );
+                            exp_block.append_operation(llvm::r#return(None, location));
 
-                        // block.append_operation(func::r#return(&[], location));
-                        region.append_block(exp_block);
+                            // let call = llvm::ca(
+                            //     &context,
+                            //     FlatSymbolRefAttribute::new(&context, "printf"),
+                            //     &[op.result(0).unwrap().into()],
+                            //     &[Type::none(&context)],
+                            //     location,
+                            // );
+
+                            // block.append_operation(func::r#return(&[], location));
+                        }
+                        _ => todo!(),
                     }
-                    _ => todo!(),
                 }
+
+                let function = func::func(
+                    &context,
+                    StringAttribute::new(&context, &id.0),
+                    TypeAttribute::new(
+                        FunctionType::new(
+                            &context,
+                            fargs
+                                .iter()
+                                .map(|_| llvm::r#type::opaque_pointer(&context).into())
+                                .collect::<Vec<Type>>()
+                                .as_slice(),
+                            &[],
+                        )
+                        .into(),
+                    ),
+                    region,
+                    &[(
+                        Identifier::new(&context, "llvm.emit_c_interface"),
+                        Attribute::unit(&context),
+                    )],
+                    location,
+                );
+
+                module.body().append_operation(function);
             }
-
-            let function = func::func(
-                &context,
-                StringAttribute::new(&context, &id.0),
-                TypeAttribute::new(FunctionType::new(&context, &[], &[]).into()),
-                region,
-                &[(
-                    Identifier::new(&context, "llvm.emit_c_interface"),
-                    Attribute::unit(&context),
-                )],
-                location,
-            );
-
-            module.body().append_operation(function);
+            _ => todo!(),
         }
     }
-
-    // let function = {
-    //     let region = Region::new();
-    //     let block = Block::new(&[
-    //         (integer_type.into(), location),
-    //         (integer_type.into(), location),
-    //     ]);
-    //     let arg1 = block.argument(0).unwrap().into();
-    //     let arg2 = block.argument(1).unwrap().into();
-
-    //     let sum = block.append_operation(arith::addi(arg1, arg2, location));
-
-    //     block.append_operation(func::r#return(&[sum.result(0).unwrap().into()], location));
-
-    //     region.append_block(block);
-    //     func::func(
-    //         &context,
-    //         StringAttribute::new(&context, "add"),
-    //         TypeAttribute::new(
-    //             FunctionType::new(
-    //                 &context,
-    //                 &[integer_type.into(), integer_type.into()],
-    //                 &[integer_type.into()],
-    //             )
-    //             .into(),
-    //         ),
-    //         region,
-    //         &[(
-    //             Identifier::new(&context, "llvm.emit_c_interface"),
-    //             Attribute::unit(&context),
-    //         )],
-    //         location,
-    //     )
-    // };
 
     let printf_decl = llvm::func(
         &context,
@@ -153,7 +166,6 @@ pub fn generate_mlir<'c>(ast: Ast) -> Result<ExecutionEngine> {
                 true,
             )
             .into(),
-            // FunctionType::new(&context, &[r#type::Type::none(&context)], &[]).into(),
         ),
         Region::new(),
         &[
@@ -169,54 +181,7 @@ pub fn generate_mlir<'c>(ast: Ast) -> Result<ExecutionEngine> {
         location,
     );
 
-    // let region = Region::new();
-    // let block = Block::new(&[(
-    //     llvm::r#type::pointer(IntegerType::new(&context, 8).into(), 0).into(),
-    //     location,
-    // )]);
-
-    // let arg1 = block.argument(0).unwrap().into();
-    // unsafe {
-    //     let res = block.append_operation(
-    //         OperationBuilder::new("llvm.call", location)
-    //             .add_operands(&[arg1])
-    //             .add_attributes(&[(
-    //                 Identifier::new(&context, "callee"),
-    //                 FlatSymbolRefAttribute::new(&context, "printf").into(),
-    //             )])
-    //             .add_results(&[IntegerType::new(&context, 32).into()])
-    //             .build(),
-    //     );
-    //     block.append_operation(llvm::r#return(
-    //         Some(res.result(0).unwrap().into()),
-    //         location,
-    //     ));
-    // }
-
-    // region.append_block(block);
-    // let print_decl = llvm::func(
-    //     &context,
-    //     StringAttribute::new(&context, "print"),
-    //     TypeAttribute::new(
-    //         llvm::r#type::function(
-    //             IntegerType::new(&context, 32).into(),
-    //             &[llvm::r#type::pointer(IntegerType::new(&context, 8).into(), 0).into()],
-    //             false,
-    //         )
-    //         .into(),
-    //         // FunctionType::new(&context, &[r#type::Type::none(&context)], &[]).into(),
-    //     ),
-    //     region,
-    //     &[(
-    //         Identifier::new(&context, "llvm.emit_c_interface"),
-    //         Attribute::unit(&context),
-    //     )],
-    //     location,
-    // );
-
     module.body().append_operation(printf_decl);
-    // module.body().append_operation(function);
-    // module.body().append_operation(print_decl);
 
     assert!(module.as_operation().verify());
 
@@ -235,6 +200,11 @@ pub fn generate_mlir<'c>(ast: Ast) -> Result<ExecutionEngine> {
         .nested_under("func.func")
         .add_pass(pass::conversion::create_arith_to_llvm());
     pass_manager.run(&mut module).unwrap();
+
+    if emit_mlir {
+        println!("{}", module.as_operation());
+    }
+
     let engine = ExecutionEngine::new(&module, 0, &[], true);
 
     Ok(engine)
