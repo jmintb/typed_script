@@ -154,6 +154,7 @@ pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
 
                 module.body().append_operation(function);
             }
+            TypedAst::StructType(id, fields) => todo!("next up: structs"),
             _ => todo!(),
         }
     }

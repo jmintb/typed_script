@@ -12,6 +12,7 @@ struct TSParser;
 pub enum TSExpression {
     Value(TSValue),
     Call(TSIdentifier, Vec<TSExpression>),
+    Struct(TSIdentifier, Vec<TSExpression>),
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +41,6 @@ pub enum TypedAst {
     Assignment(TSIdentifier, TSExpression),
     Function(TSIdentifier, Vec<TSIdentifier>, Vec<TypedAst>),
     StructType(TSIdentifier, Vec<TSIdentifier>),
-    Struct(TSIdentifier, Vec<TSExpression>),
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -57,7 +57,6 @@ pub fn parse(input: &str) -> Result<Ast> {
             Rule::assignment => parse_assignment(rule).unwrap(),
             Rule::function => parse_function_decl(rule)?,
             Rule::r#struct => parse_struct_decl(rule)?,
-            Rule::structInit => parse_struct(rule)?,
             Rule::EOI => break,
             _ => panic!("unexpected rule {:?}", rule.as_rule()),
         };
@@ -68,15 +67,6 @@ pub fn parse(input: &str) -> Result<Ast> {
     Ok(Ast(ast))
 }
 
-fn parse_struct(rstruct: Pair<'_, Rule>) -> Result<TypedAst> {
-    let mut rstruct = rstruct.into_inner();
-
-    let identifier = TSIdentifier(rstruct.next().unwrap().as_str().to_string());
-    let fields = rstruct.map(|f| parse_expression(f).unwrap()).collect();
-
-    Ok(TypedAst::Struct(identifier, fields))
-}
-
 fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     let mut decl = decl.into_inner();
 
@@ -84,6 +74,17 @@ fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     let fields = decl.map(|d| TSIdentifier(d.as_str().to_string())).collect();
 
     Ok(TypedAst::StructType(identifer, fields))
+}
+
+fn parse_struct_init(init: Pair<Rule>) -> Result<TSExpression> {
+    let mut init = init.into_inner();
+
+    let identifier = TSIdentifier(init.next().unwrap().as_str().to_string());
+    let fields = init
+        .map(|f| parse_expression(f))
+        .collect::<Result<Vec<TSExpression>>>()?;
+
+    Ok(TSExpression::Struct(identifier, fields))
 }
 
 fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
@@ -104,8 +105,8 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
 
     let body = if let Rule::functionBody = next.as_rule() {
         next.into_inner()
-            .map(|exp| TypedAst::Expression(parse_expression(exp).unwrap()))
-            .collect()
+            .map(|statement| parse_statement(statement))
+            .collect::<Result<Vec<TypedAst>>>()?
     } else {
         bail!(
             "expected to find function body, found {:?} instead, in function declaration {}",
@@ -134,11 +135,22 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
     Ok(assignment)
 }
 
+fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
+    Ok(match statement.as_rule() {
+        Rule::assignment => parse_assignment(statement)?,
+        Rule::call => TypedAst::Expression(parse_expression(statement)?),
+        Rule::string => TypedAst::Expression(parse_expression(statement)?),
+        Rule::function => parse_function_decl(statement)?,
+        _ => bail!("Recieved unexpected rule: {:?}", statement.as_rule()),
+    })
+}
+
 fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
     let typed_exp = match expression.as_rule() {
         Rule::string => TSExpression::Value(parse_string(expression)?),
         Rule::identifier => TSExpression::Value(TSValue::Variable(expression.as_str().into())),
         Rule::call => parse_fn_call(expression)?,
+        Rule::structInit => parse_struct_init(expression)?,
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
