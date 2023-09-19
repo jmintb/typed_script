@@ -31,7 +31,7 @@ pub enum TSType {
     Function,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub struct TSIdentifier(pub String);
 
 #[derive(Debug, Clone)]
@@ -57,6 +57,7 @@ pub fn parse(input: &str) -> Result<Ast> {
             Rule::assignment => parse_assignment(rule).unwrap(),
             Rule::function => parse_function_decl(rule)?,
             Rule::r#struct => parse_struct_decl(rule)?,
+            Rule::structInit => TypedAst::Expression(parse_expression(rule)?),
             Rule::EOI => break,
             _ => panic!("unexpected rule {:?}", rule.as_rule()),
         };
@@ -138,8 +139,9 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
 fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
     Ok(match statement.as_rule() {
         Rule::assignment => parse_assignment(statement)?,
-        Rule::call => TypedAst::Expression(parse_expression(statement)?),
-        Rule::string => TypedAst::Expression(parse_expression(statement)?),
+        Rule::call | Rule::structInit | Rule::string => {
+            TypedAst::Expression(parse_expression(statement)?)
+        }
         Rule::function => parse_function_decl(statement)?,
         _ => bail!("Recieved unexpected rule: {:?}", statement.as_rule()),
     })
