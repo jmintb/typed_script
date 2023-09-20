@@ -317,11 +317,13 @@ impl<'ctx> CodeGen<'ctx> {
                     let string_type =
                         llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
 
+                    let string_type_ptr = llvm::r#type::pointer(string_type, 0);
+
                     let struct_ty = llvm::r#type::r#struct(
                         &self.context,
                         fields
                             .iter()
-                            .map(|f| string_type)
+                            .map(|f| string_type_ptr)
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         true,
@@ -366,21 +368,37 @@ impl<'ctx> CodeGen<'ctx> {
                     bail!("Failed to find struct type for {struct_id:?}")
                 };
 
+                let struct_type = llvm::r#type::r#struct(
+                    self.context,
+                    &[string_type_ptr.clone(), string_type_ptr.clone()],
+                    true,
+                );
+
                 let gep = llvm::get_element_ptr(
                     self.context,
                     struct_ptr,
                     DenseI32ArrayAttribute::new(self.context, &[0, 0]),
-                    string_type,
+                    struct_type,
                     llvm::r#type::opaque_pointer(self.context),
                     location,
                 );
 
-                function_block.append_operation(gep).result(0).unwrap()
+                let struct_field_ref = function_block.append_operation(gep).result(0).unwrap();
+
+                let v = llvm::load(
+                    &self.context,
+                    struct_field_ref.into(),
+                    llvm::r#type::opaque_pointer(self.context),
+                    location,
+                    LoadStoreOptions::new(),
+                );
+
+                function_block.append_operation(v).result(0).unwrap()
             }
             TSExpression::Struct(id, fields) => {
                 let size = melior::dialect::arith::constant(
                     &self.context,
-                    IntegerAttribute::new(0, IntegerType::new(&self.context, 0).into()).into(),
+                    IntegerAttribute::new(1, IntegerType::new(&self.context, 32).into()).into(),
                     location,
                 );
 
@@ -394,6 +412,12 @@ impl<'ctx> CodeGen<'ctx> {
                 let string_type =
                     llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
                 let string_type_ptr = llvm::r#type::pointer(string_type, 0);
+
+                let struct_type = llvm::r#type::r#struct(
+                    self.context,
+                    &[string_type_ptr.clone(), string_type_ptr.clone()],
+                    true,
+                );
                 let empty_struct = llvm::alloca(
                     &self.context,
                     res.result(0).unwrap().into(),
@@ -409,7 +433,7 @@ impl<'ctx> CodeGen<'ctx> {
                         &self.context,
                         struct_ptr.into(),
                         DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
-                        string_type,
+                        struct_type,
                         llvm::r#type::opaque_pointer(&self.context),
                         location,
                     );
