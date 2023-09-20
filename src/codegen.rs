@@ -27,6 +27,24 @@ use crate::parser::{Ast, TSExpression, TSIdentifier, TSValue, TypedAst};
 // TODO: something inside the module is dropped when it is returned.
 // That is why we return the exection engine at the moment.
 
+/// Creates a `llvm.getelementptr` operation.
+pub fn get_element_ptr_typed<'c>(
+    context: &'c Context,
+    ptr: Value<'c, '_>,
+    indices: DenseI32ArrayAttribute<'c>,
+    result_type: Type<'c>,
+    location: Location<'c>,
+) -> Operation<'c> {
+    OperationBuilder::new("llvm.getelementptr", location)
+        .add_attributes(&[(
+            Identifier::new(context, "rawConstantIndices"),
+            indices.into(),
+        )])
+        .add_operands(&[ptr])
+        .add_results(&[result_type])
+        .build()
+}
+
 struct CodeGen<'ctx> {
     context: &'ctx Context,
     annon_string_counter: RefCell<usize>,
@@ -52,6 +70,7 @@ impl<'ctx> CodeGen<'ctx> {
     fn gen_ast_code(&self, ast: Ast, emit_mlir: bool) -> Result<Module> {
         let location = Location::unknown(&self.context);
         let mut llvm_type_store: HashMap<TSIdentifier, Type<'_>> = HashMap::new();
+        let mut type_store: HashMap<TSIdentifier, TypedAst> = HashMap::new();
 
         let mut module = Module::new(location);
 
@@ -84,7 +103,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         for node in ast.0 {
             let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
-            match node {
+            match node.clone() {
                 TypedAst::Function(id, fargs, body) => {
                     let region = Region::new();
                     let mut function_block = Block::new(
@@ -138,6 +157,18 @@ impl<'ctx> CodeGen<'ctx> {
                                                 .unwrap()
                                                 .into()
                                         }
+                                        e @ TSExpression::StructFieldRef(_, _) => self
+                                            .gen_struct_expression_block(
+                                                e.clone(),
+                                                location,
+                                                &module,
+                                                &llvm_type_store,
+                                                variable_store.clone(),
+                                                &type_store,
+                                                &function_block,
+                                            )
+                                            .unwrap()
+                                            .into(),
                                         _ => todo!(),
                                     })
                                     .collect();
@@ -168,8 +199,8 @@ impl<'ctx> CodeGen<'ctx> {
                                 let size = melior::dialect::arith::constant(
                                     &self.context,
                                     IntegerAttribute::new(
-                                        0,
-                                        IntegerType::new(&self.context, 0).into(),
+                                        4, // TODO why do we need 4 here?
+                                        IntegerType::new(&self.context, 32).into(),
                                     )
                                     .into(),
                                     location,
@@ -192,12 +223,25 @@ impl<'ctx> CodeGen<'ctx> {
                                 let struct_ptr =
                                     function_block.append_operation(empty_struct).result(0)?;
 
+                                let string_type = llvm::r#type::array(
+                                    IntegerType::new(&self.context, 8).into(),
+                                    2 as u32,
+                                );
+
+                                let string_ptr = llvm::r#type::pointer(string_type, 0);
+
+                                let ele_type = llvm::r#type::r#struct(
+                                    self.context,
+                                    &[string_type.clone(), string_type],
+                                    true,
+                                );
+
                                 for (i, f) in fields.into_iter().enumerate() {
                                     let field_ptr_op = llvm::get_element_ptr(
                                         &self.context,
                                         struct_ptr.into(),
-                                        DenseI32ArrayAttribute::new(&self.context, &[i as i32]),
-                                        llvm::r#type::opaque_pointer(&self.context),
+                                        DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
+                                        ele_type,
                                         llvm::r#type::opaque_pointer(&self.context),
                                         location,
                                     );
@@ -229,6 +273,8 @@ impl<'ctx> CodeGen<'ctx> {
                                     location,
                                     &module,
                                     &llvm_type_store,
+                                    variable_store.clone(),
+                                    &type_store,
                                     &function_block,
                                 )?;
 
@@ -268,17 +314,21 @@ impl<'ctx> CodeGen<'ctx> {
                     module.body().append_operation(function);
                 }
                 TypedAst::StructType(id, fields) => {
+                    let string_type =
+                        llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
+
                     let struct_ty = llvm::r#type::r#struct(
                         &self.context,
                         fields
-                            .into_iter()
-                            .map(|f| llvm::r#type::opaque_pointer(&self.context))
+                            .iter()
+                            .map(|f| string_type)
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         true,
                     );
 
-                    llvm_type_store.insert(id, struct_ty);
+                    llvm_type_store.insert(id.clone(), struct_ty);
+                    type_store.insert(id, node.clone());
                 }
                 _ => todo!(),
             }
@@ -292,13 +342,41 @@ impl<'ctx> CodeGen<'ctx> {
         exp: TSExpression,
         location: Location<'a>,
         module: &Module,
-        llvm_type_store: &HashMap<TSIdentifier, Type<'a>>,
+        llvm_type_store: &'a HashMap<TSIdentifier, Type>,
+        llvm_value_store: HashMap<TSIdentifier, OperationResult<'a, 'a>>,
+        type_store: &HashMap<TSIdentifier, TypedAst>,
         function_block: &'a Block,
     ) -> Result<(OperationResult)>
     where
         'a: 'c,
     {
         let res = match exp {
+            TSExpression::StructFieldRef(struct_id, field_id) => {
+                let struct_ptr: Value = llvm_value_store.get(&struct_id).unwrap().to_owned().into();
+                let string_type =
+                    llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
+                let string_type_ptr = llvm::r#type::pointer(string_type, 0);
+                let Some(field_index) = (if let Some(TypedAst::StructType(id, fields)) =
+                    type_store.get(&TSIdentifier("Test".to_string()))
+                {
+                    fields.iter().position(|f| f == &field_id)
+                } else {
+                    None
+                }) else {
+                    bail!("Failed to find struct type for {struct_id:?}")
+                };
+
+                let gep = llvm::get_element_ptr(
+                    self.context,
+                    struct_ptr,
+                    DenseI32ArrayAttribute::new(self.context, &[0, 0]),
+                    string_type,
+                    llvm::r#type::opaque_pointer(self.context),
+                    location,
+                );
+
+                function_block.append_operation(gep).result(0).unwrap()
+            }
             TSExpression::Struct(id, fields) => {
                 let size = melior::dialect::arith::constant(
                     &self.context,
@@ -313,6 +391,9 @@ impl<'ctx> CodeGen<'ctx> {
                     bail!("Could not find an LLVM type for ID: {id:?}")
                 };
 
+                let string_type =
+                    llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
+                let string_type_ptr = llvm::r#type::pointer(string_type, 0);
                 let empty_struct = llvm::alloca(
                     &self.context,
                     res.result(0).unwrap().into(),
@@ -327,8 +408,8 @@ impl<'ctx> CodeGen<'ctx> {
                     let field_ptr_op = llvm::get_element_ptr(
                         &self.context,
                         struct_ptr.into(),
-                        DenseI32ArrayAttribute::new(&self.context, &[i as i32]),
-                        llvm::r#type::opaque_pointer(&self.context),
+                        DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
+                        string_type,
                         llvm::r#type::opaque_pointer(&self.context),
                         location,
                     );

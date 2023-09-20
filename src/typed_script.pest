@@ -14,7 +14,7 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 inner = @{ char* }
 
 expression = _{
-	 call | structInit | integer | string | identifier    
+	 call | structInit | structFieldRef | integer | string | identifier     
 }
 
 char = {
@@ -40,6 +40,8 @@ stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
 struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
 
 structInit = { identifier ~ "{" ~ ( expression ~ ",")* ~ expression? ~ "}" }
+
+structFieldRef = ${ identifier ~ "." ~ identifier }
 
 program = _{ SOI ~  (stmt )*  ~ EOI }
          
