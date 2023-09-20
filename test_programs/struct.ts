@@ -4,5 +4,5 @@ struct Test {
 }
 
 fn main() {
-  Test { "ac", "bc" };
+  let test = Test { "ac", "bc" };
 }

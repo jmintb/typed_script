@@ -14,7 +14,8 @@ use melior::{
         },
         operation::{OperationBuilder, OperationResult},
         r#type::{FunctionType, IntegerType},
-        Attribute, Block, Identifier, Location, Module, Operation, Region, Type, Value,
+        Attribute, Block, BlockRef, Identifier, Location, Module, Operation, OperationRef, Region,
+        Type, Value,
     },
     pass,
     utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
@@ -26,22 +27,13 @@ use crate::parser::{Ast, TSExpression, TSIdentifier, TSValue, TypedAst};
 // TODO: something inside the module is dropped when it is returned.
 // That is why we return the exection engine at the moment.
 
-struct CodeGen {
-    context: Context,
+struct CodeGen<'ctx> {
+    context: &'ctx Context,
     annon_string_counter: RefCell<usize>,
 }
 
-impl CodeGen {
-    fn new() -> Self {
-        let registry = DialectRegistry::new();
-        register_all_dialects(&registry);
-        let context = Context::new();
-        context.append_dialect_registry(&registry);
-        context.get_or_load_dialect("func");
-        context.get_or_load_dialect("arith");
-        context.get_or_load_dialect("llvm");
-        register_all_llvm_translations(&context);
-
+impl<'ctx> CodeGen<'ctx> {
+    fn new(context: &'ctx Context) -> Self {
         Self {
             context: context,
             annon_string_counter: 0.into(),
@@ -91,10 +83,11 @@ impl CodeGen {
         module.body().append_operation(printf_decl);
 
         for node in ast.0 {
+            let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
             match node {
                 TypedAst::Function(id, fargs, body) => {
                     let region = Region::new();
-                    let function_block = Block::new(
+                    let mut function_block = Block::new(
                         fargs
                             .iter()
                             .map(|_| (llvm::r#type::opaque_pointer(&self.context), location))
@@ -102,12 +95,10 @@ impl CodeGen {
                             .as_slice(),
                     );
 
-                    let mut function_block = region.append_block(function_block);
-
                     for exp in body {
                         match exp.clone() {
                             TypedAst::Expression(TSExpression::Call(id, args)) => {
-                                let mut exp_block = function_block;
+                                // let mut exp_block = function_block;
                                 let actual_args: Vec<Value> = args
                                     .iter()
                                     .map(|arg| match arg {
@@ -123,33 +114,35 @@ impl CodeGen {
                                                 )
                                                 .unwrap();
 
-                                            exp_block
+                                            function_block
                                                 .append_operation(ptr_op)
                                                 .result(0)
                                                 .unwrap()
                                                 .into()
                                         }
-                                        TSExpression::Value(TSValue::Variable(ref id)) => exp_block
-                                            .argument(
-                                                fargs
-                                                    .iter()
-                                                    .position(|farg| &farg.0 == id)
-                                                    .ok_or(format!(
-                                                        "failed to match argument: {:?} {id}",
-                                                        fargs
-                                                            .iter()
-                                                            .map(|farg| farg.clone())
-                                                            .collect::<Vec<TSIdentifier>>()
-                                                    ))
-                                                    .unwrap(),
-                                            )
-                                            .unwrap()
-                                            .into(),
+                                        TSExpression::Value(TSValue::Variable(ref id)) => {
+                                            function_block
+                                                .argument(
+                                                    fargs
+                                                        .iter()
+                                                        .position(|farg| &farg.0 == id)
+                                                        .ok_or(format!(
+                                                            "failed to match argument: {:?} {id}",
+                                                            fargs
+                                                                .iter()
+                                                                .map(|farg| farg.clone())
+                                                                .collect::<Vec<TSIdentifier>>()
+                                                        ))
+                                                        .unwrap(),
+                                                )
+                                                .unwrap()
+                                                .into()
+                                        }
                                         _ => todo!(),
                                     })
                                     .collect();
 
-                                let res = exp_block.append_operation(
+                                let res = function_block.append_operation(
                                     OperationBuilder::new("llvm.call", location)
                                         .add_operands(&actual_args)
                                         .add_attributes(&[(
@@ -182,7 +175,7 @@ impl CodeGen {
                                     location,
                                 );
                                 let res = function_block.append_operation(size);
-                                let ptr_type = if let Some(&ty) = llvm_type_store.get(&id) {
+                                let ptr_type = if let Some(ty) = llvm_type_store.get(&id).cloned() {
                                     llvm::r#type::pointer(ty, 0)
                                 } else {
                                     bail!("Could not find an LLVM type for ID: {id:?}")
@@ -229,11 +222,26 @@ impl CodeGen {
                                     function_block.append_operation(store_op);
                                 }
                             }
+
+                            TypedAst::Assignment(id, exp) => {
+                                let exp_op = self.gen_struct_expression_block(
+                                    exp,
+                                    location,
+                                    &module,
+                                    &llvm_type_store,
+                                    &function_block,
+                                )?;
+
+                                variable_store.insert(id, exp_op);
+                            }
+
                             e => todo!("not yet ready for {:?}", e),
                         }
                     }
+
                     function_block.append_operation(llvm::r#return(None, location));
 
+                    let mut function_block = region.append_block(function_block);
                     let function = func::func(
                         &self.context,
                         StringAttribute::new(&self.context, &id.0),
@@ -279,12 +287,86 @@ impl CodeGen {
         Ok(module)
     }
 
-    fn gen_expression_code<'a>(
+    fn gen_struct_expression_block<'a, 'c>(
         &'a self,
         exp: TSExpression,
         location: Location<'a>,
         module: &Module,
-    ) -> Result<Operation> {
+        llvm_type_store: &HashMap<TSIdentifier, Type<'a>>,
+        function_block: &'a Block,
+    ) -> Result<(OperationResult)>
+    where
+        'a: 'c,
+    {
+        let res = match exp {
+            TSExpression::Struct(id, fields) => {
+                let size = melior::dialect::arith::constant(
+                    &self.context,
+                    IntegerAttribute::new(0, IntegerType::new(&self.context, 0).into()).into(),
+                    location,
+                );
+
+                let res = function_block.append_operation(size);
+                let ptr_type = if let Some(&ty) = llvm_type_store.get(&id) {
+                    llvm::r#type::pointer(ty, 0)
+                } else {
+                    bail!("Could not find an LLVM type for ID: {id:?}")
+                };
+
+                let empty_struct = llvm::alloca(
+                    &self.context,
+                    res.result(0).unwrap().into(),
+                    ptr_type,
+                    location,
+                    AllocaOptions::new(),
+                );
+
+                let struct_ptr = function_block.append_operation(empty_struct).result(0)?;
+
+                for (i, f) in fields.into_iter().enumerate() {
+                    let field_ptr_op = llvm::get_element_ptr(
+                        &self.context,
+                        struct_ptr.into(),
+                        DenseI32ArrayAttribute::new(&self.context, &[i as i32]),
+                        llvm::r#type::opaque_pointer(&self.context),
+                        llvm::r#type::opaque_pointer(&self.context),
+                        location,
+                    );
+
+                    let field_ptr = function_block.append_operation(field_ptr_op).result(0)?;
+
+                    let exp_ptr_op = self.gen_expression_code(f, location, &module)?;
+
+                    let exp_ptr = function_block.append_operation(exp_ptr_op).result(0)?;
+
+                    let store_op = llvm::store(
+                        &self.context,
+                        exp_ptr.into(),
+                        field_ptr.into(),
+                        location,
+                        LoadStoreOptions::new(),
+                    );
+
+                    function_block.append_operation(store_op);
+                }
+
+                (struct_ptr)
+            }
+            _ => todo!(),
+        };
+
+        Ok(res)
+    }
+
+    fn gen_expression_code<'a, 'c>(
+        &'a self,
+        exp: TSExpression,
+        location: Location<'a>,
+        module: &Module,
+    ) -> Result<Operation<'c>>
+    where
+        'a: 'c,
+    {
         let res: Operation = match exp {
             TSExpression::Value(TSValue::String(val)) => {
                 // TODO: \n is getting escaped, perhap we need a raw string?
@@ -292,6 +374,7 @@ impl CodeGen {
 
                 self.gen_pointer_to_annon_str(location, val.to_string(), &module)?
             }
+
             _ => todo!(),
         };
 
@@ -361,7 +444,15 @@ impl CodeGen {
 }
 
 pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
-    let code_gen = CodeGen::new();
+    let context = Context::new();
+    let registry = DialectRegistry::new();
+    register_all_dialects(&registry);
+    context.append_dialect_registry(&registry);
+    context.get_or_load_dialect("func");
+    context.get_or_load_dialect("arith");
+    context.get_or_load_dialect("llvm");
+    register_all_llvm_translations(&context);
+    let code_gen = CodeGen::new(&context);
 
     let mut module = code_gen.gen_ast_code(ast, emit_mlir)?;
     assert!(module.as_operation().verify());
