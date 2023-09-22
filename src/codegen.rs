@@ -71,6 +71,7 @@ impl<'ctx> CodeGen<'ctx> {
         let location = Location::unknown(&self.context);
         let mut llvm_type_store: HashMap<TSIdentifier, Type<'_>> = HashMap::new();
         let mut type_store: HashMap<TSIdentifier, TypedAst> = HashMap::new();
+        let mut var_to_type: HashMap<TSIdentifier, TSIdentifier> = HashMap::new();
 
         let mut module = Module::new(location);
 
@@ -166,6 +167,7 @@ impl<'ctx> CodeGen<'ctx> {
                                                 variable_store.clone(),
                                                 &type_store,
                                                 &function_block,
+                                                var_to_type.clone(),
                                             )
                                             .unwrap()
                                             .into(),
@@ -268,6 +270,10 @@ impl<'ctx> CodeGen<'ctx> {
                             }
 
                             TypedAst::Assignment(id, exp) => {
+                                if let TSExpression::Struct(type_id, _) = exp.clone() {
+                                    var_to_type.insert(id.clone(), type_id);
+                                }
+
                                 let exp_op = self.gen_struct_expression_block(
                                     exp,
                                     location,
@@ -276,6 +282,7 @@ impl<'ctx> CodeGen<'ctx> {
                                     variable_store.clone(),
                                     &type_store,
                                     &function_block,
+                                    var_to_type.clone(),
                                 )?;
 
                                 variable_store.insert(id, exp_op);
@@ -314,16 +321,12 @@ impl<'ctx> CodeGen<'ctx> {
                     module.body().append_operation(function);
                 }
                 TypedAst::StructType(id, fields) => {
-                    let string_type =
-                        llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
-
-                    let string_type_ptr = llvm::r#type::pointer(string_type, 0);
-
+                    let field_type = llvm::r#type::opaque_pointer(self.context);
                     let struct_ty = llvm::r#type::r#struct(
                         &self.context,
                         fields
                             .iter()
-                            .map(|f| string_type_ptr)
+                            .map(|f| field_type)
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         true,
@@ -348,16 +351,17 @@ impl<'ctx> CodeGen<'ctx> {
         llvm_value_store: HashMap<TSIdentifier, OperationResult<'a, 'a>>,
         type_store: &HashMap<TSIdentifier, TypedAst>,
         function_block: &'a Block,
+        var_to_type: HashMap<TSIdentifier, TSIdentifier>,
     ) -> Result<(OperationResult)>
     where
         'a: 'c,
     {
         let res = match exp {
             TSExpression::StructFieldRef(struct_id, field_id) => {
-                let struct_ptr: Value = llvm_value_store.get(&struct_id).unwrap().to_owned().into();
-                let string_type =
-                    llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
-                let string_type_ptr = llvm::r#type::pointer(string_type, 0);
+                let type_id = var_to_type.get(&struct_id).unwrap();
+                let struct_type = llvm_type_store.get(type_id).unwrap();
+                let struct_ptr = llvm_value_store.get(&struct_id).unwrap().to_owned();
+
                 let Some(field_index) = (if let Some(TypedAst::StructType(id, fields)) =
                     type_store.get(&TSIdentifier("Test".to_string()))
                 {
@@ -368,17 +372,11 @@ impl<'ctx> CodeGen<'ctx> {
                     bail!("Failed to find struct type for {struct_id:?}")
                 };
 
-                let struct_type = llvm::r#type::r#struct(
-                    self.context,
-                    &[string_type_ptr.clone(), string_type_ptr.clone()],
-                    true,
-                );
-
                 let gep = llvm::get_element_ptr(
                     self.context,
-                    struct_ptr,
-                    DenseI32ArrayAttribute::new(self.context, &[0, 0]),
-                    struct_type,
+                    struct_ptr.into(),
+                    DenseI32ArrayAttribute::new(self.context, &[0, field_index as i32]),
+                    struct_type.to_owned(),
                     llvm::r#type::opaque_pointer(self.context),
                     location,
                 );
@@ -409,15 +407,28 @@ impl<'ctx> CodeGen<'ctx> {
                     bail!("Could not find an LLVM type for ID: {id:?}")
                 };
 
-                let string_type =
-                    llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
-                let string_type_ptr = llvm::r#type::pointer(string_type, 0);
+                let str_type = |val: String| {
+                    llvm::r#type::array(IntegerType::new(&self.context, 8).into(), val.len() as u32)
+                };
+
+                let str_ptr_type = |val: String| llvm::r#type::pointer(str_type(val), 0);
+
+                let exp_ptr = |exp: TSExpression| match exp {
+                    TSExpression::Value(TSValue::String(val)) => str_ptr_type(val),
+                    _ => todo!("missing implementation"),
+                };
 
                 let struct_type = llvm::r#type::r#struct(
                     self.context,
-                    &[string_type_ptr.clone(), string_type_ptr.clone()],
+                    fields
+                        .clone()
+                        .into_iter()
+                        .map(exp_ptr)
+                        .collect::<Vec<Type>>()
+                        .as_slice(),
                     true,
                 );
+
                 let empty_struct = llvm::alloca(
                     &self.context,
                     res.result(0).unwrap().into(),

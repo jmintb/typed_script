@@ -27,6 +27,7 @@ pub enum TSValue {
 #[derive(Debug, Clone)]
 pub enum TSType {
     String,
+    StringLiteral,
     Number,
     Boolean,
     Function,
@@ -37,7 +38,6 @@ pub struct TSIdentifier(pub String);
 
 #[derive(Debug, Clone)]
 pub enum TypedAst {
-    Value(TSValue, TSType),
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
     Function(TSIdentifier, Vec<TSIdentifier>, Vec<TypedAst>),
@@ -73,6 +73,7 @@ fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     let mut decl = decl.into_inner();
 
     let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
+
     let fields = decl.map(|d| TSIdentifier(d.as_str().to_string())).collect();
 
     Ok(TypedAst::StructType(identifer, fields))
