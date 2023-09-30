@@ -19,7 +19,7 @@ pub enum TSExpression {
 #[derive(Debug, Clone)]
 pub enum TSValue {
     String(String),
-    Variable(String),
+    Variable(TSIdentifier),
     Number,
     Boolean,
 }
@@ -161,7 +161,9 @@ fn parse_struct_field_ref(sref: Pair<Rule>) -> Result<TSExpression> {
 fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
     let typed_exp = match expression.as_rule() {
         Rule::string => TSExpression::Value(parse_string(expression)?),
-        Rule::identifier => TSExpression::Value(TSValue::Variable(expression.as_str().into())),
+        Rule::identifier => {
+            TSExpression::Value(TSValue::Variable(TSIdentifier(expression.as_str().into())))
+        }
         Rule::call => parse_fn_call(expression)?,
         Rule::structInit => parse_struct_init(expression)?,
         Rule::structFieldRef => parse_struct_field_ref(expression)?,

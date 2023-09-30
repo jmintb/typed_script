@@ -22,7 +22,10 @@ use melior::{
     Context, ExecutionEngine,
 };
 
-use crate::parser::{Ast, TSExpression, TSIdentifier, TSValue, TypedAst};
+use crate::{
+    parser::{Ast, TSExpression, TSIdentifier, TSValue},
+    typed_ast::{Decl, TypedAst, TypedExpression, TypedProgram},
+};
 
 // TODO: something inside the module is dropped when it is returned.
 // That is why we return the exection engine at the moment.
@@ -67,7 +70,7 @@ impl<'ctx> CodeGen<'ctx> {
         id
     }
 
-    fn gen_ast_code(&self, ast: Ast, emit_mlir: bool) -> Result<Module> {
+    fn gen_ast_code(&self, ast: TypedProgram, emit_mlir: bool) -> Result<Module> {
         let location = Location::unknown(&self.context);
         let mut llvm_type_store: HashMap<TSIdentifier, Type<'_>> = HashMap::new();
         let mut type_store: HashMap<TSIdentifier, TypedAst> = HashMap::new();
@@ -102,10 +105,10 @@ impl<'ctx> CodeGen<'ctx> {
 
         module.body().append_operation(printf_decl);
 
-        for node in ast.0 {
+        for node in ast.ast {
             let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
             match node.clone() {
-                TypedAst::Function(id, fargs, body) => {
+                TypedAst::Decl(Decl::Function(id, fargs, body, rtype)) => {
                     let region = Region::new();
                     let mut function_block = Block::new(
                         fargs
@@ -117,12 +120,12 @@ impl<'ctx> CodeGen<'ctx> {
 
                     for exp in body {
                         match exp.clone() {
-                            TypedAst::Expression(TSExpression::Call(id, args)) => {
+                            TypedAst::Expression(TypedExpression::Call(id, args)) => {
                                 // let mut exp_block = function_block;
                                 let actual_args: Vec<Value> = args
                                     .iter()
                                     .map(|arg| match arg {
-                                        TSExpression::Value(TSValue::String(ref val)) => {
+                                        TypedExpression::Value(TSValue::String(ref val), Type) => {
                                             // TODO: \n is getting escaped, perhap we need a raw string?
                                             let val = if val == "\\n" { "\n" } else { val };
 
@@ -140,17 +143,17 @@ impl<'ctx> CodeGen<'ctx> {
                                                 .unwrap()
                                                 .into()
                                         }
-                                        TSExpression::Value(TSValue::Variable(ref id)) => {
+                                        TypedExpression::Value(TSValue::Variable(ref id), Type) => {
                                             function_block
                                                 .argument(
                                                     fargs
                                                         .iter()
                                                         .position(|farg| &farg.0 == id)
                                                         .ok_or(format!(
-                                                            "failed to match argument: {:?} {id}",
+                                                            "failed to match argument: {:?} {id:?}",
                                                             fargs
                                                                 .iter()
-                                                                .map(|farg| farg.clone())
+                                                                .map(|farg| farg.clone().0)
                                                                 .collect::<Vec<TSIdentifier>>()
                                                         ))
                                                         .unwrap(),
@@ -158,7 +161,7 @@ impl<'ctx> CodeGen<'ctx> {
                                                 .unwrap()
                                                 .into()
                                         }
-                                        e @ TSExpression::StructFieldRef(_, _) => self
+                                        e @ TypedExpression::StructFieldRef(_, _) => self
                                             .gen_struct_expression_block(
                                                 e.clone(),
                                                 location,
@@ -197,7 +200,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                                 // block.append_operation(func::r#return(&[], location));
                             }
-                            TypedAst::Expression(TSExpression::Struct(id, fields)) => {
+                            TypedAst::Expression(TypedExpression::Struct(id, fields)) => {
                                 let size = melior::dialect::arith::constant(
                                     &self.context,
                                     IntegerAttribute::new(
@@ -235,7 +238,7 @@ impl<'ctx> CodeGen<'ctx> {
                                 let ele_type = llvm::r#type::r#struct(
                                     self.context,
                                     &[string_type.clone(), string_type],
-                                    true,
+                                    false,
                                 );
 
                                 for (i, f) in fields.into_iter().enumerate() {
@@ -269,8 +272,8 @@ impl<'ctx> CodeGen<'ctx> {
                                 }
                             }
 
-                            TypedAst::Assignment(id, exp) => {
-                                if let TSExpression::Struct(type_id, _) = exp.clone() {
+                            TypedAst::Assignment(id, exp, type_anno) => {
+                                if let TypedExpression::Struct(type_id, _) = exp.clone() {
                                     var_to_type.insert(id.clone(), type_id);
                                 }
 
@@ -320,7 +323,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                     module.body().append_operation(function);
                 }
-                TypedAst::StructType(id, fields) => {
+                TypedAst::Decl(Decl::Struct(id, fields)) => {
                     let field_type = llvm::r#type::opaque_pointer(self.context);
                     let struct_ty = llvm::r#type::r#struct(
                         &self.context,
@@ -344,7 +347,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_struct_expression_block<'a, 'c>(
         &'a self,
-        exp: TSExpression,
+        exp: TypedExpression,
         location: Location<'a>,
         module: &Module,
         llvm_type_store: &'a HashMap<TSIdentifier, Type>,
@@ -357,15 +360,15 @@ impl<'ctx> CodeGen<'ctx> {
         'a: 'c,
     {
         let res = match exp {
-            TSExpression::StructFieldRef(struct_id, field_id) => {
+            TypedExpression::StructFieldRef(struct_id, field_id) => {
                 let type_id = var_to_type.get(&struct_id).unwrap();
                 let struct_type = llvm_type_store.get(type_id).unwrap();
                 let struct_ptr = llvm_value_store.get(&struct_id).unwrap().to_owned();
 
-                let Some(field_index) = (if let Some(TypedAst::StructType(id, fields)) =
+                let Some(field_index) = (if let Some(TypedAst::Decl(Decl::Struct(id, fields)) ) =
                     type_store.get(&TSIdentifier("Test".to_string()))
                 {
-                    fields.iter().position(|f| f == &field_id)
+                    fields.iter().position(|f| f.0 == field_id)
                 } else {
                     None
                 }) else {
@@ -393,7 +396,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 function_block.append_operation(v).result(0).unwrap()
             }
-            TSExpression::Struct(id, fields) => {
+            TypedExpression::Struct(id, fields) => {
                 let size = melior::dialect::arith::constant(
                     &self.context,
                     IntegerAttribute::new(1, IntegerType::new(&self.context, 32).into()).into(),
@@ -413,8 +416,8 @@ impl<'ctx> CodeGen<'ctx> {
 
                 let str_ptr_type = |val: String| llvm::r#type::pointer(str_type(val), 0);
 
-                let exp_ptr = |exp: TSExpression| match exp {
-                    TSExpression::Value(TSValue::String(val)) => str_ptr_type(val),
+                let exp_ptr = |exp: TypedExpression| match exp {
+                    TypedExpression::Value(TSValue::String(val), etype) => str_ptr_type(val),
                     _ => todo!("missing implementation"),
                 };
 
@@ -476,7 +479,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_expression_code<'a, 'c>(
         &'a self,
-        exp: TSExpression,
+        exp: TypedExpression,
         location: Location<'a>,
         module: &Module,
     ) -> Result<Operation<'c>>
@@ -484,7 +487,7 @@ impl<'ctx> CodeGen<'ctx> {
         'a: 'c,
     {
         let res: Operation = match exp {
-            TSExpression::Value(TSValue::String(val)) => {
+            TypedExpression::Value(TSValue::String(val), vtype) => {
                 // TODO: \n is getting escaped, perhap we need a raw string?
                 let val = if val == "\\n" { "\n" } else { &val };
 
@@ -511,14 +514,14 @@ impl<'ctx> CodeGen<'ctx> {
         let id = self.gen_annon_string_id();
         let string_type = llvm::r#type::array(
             IntegerType::new(&self.context, 8).into(),
-            value.len() as u32,
+            (value.len()) as u32,
         );
         let op = OperationBuilder::new("llvm.mlir.global", location)
             .add_regions(vec![Region::new()])
             .add_attributes(&[
                 (
                     Identifier::new(&self.context, "value"),
-                    StringAttribute::new(&self.context, &value).into(),
+                    StringAttribute::new(&self.context, &format!("{value}")).into(),
                 ),
                 (
                     Identifier::new(&self.context, "sym_name"),
@@ -559,7 +562,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 }
 
-pub fn generate_mlir<'c>(ast: Ast, emit_mlir: bool) -> Result<ExecutionEngine> {
+pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<ExecutionEngine> {
     let context = Context::new();
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);

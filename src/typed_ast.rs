@@ -8,6 +8,7 @@ pub enum Type {
     Struct(Vec<(TSIdentifier, Type)>),
     Function(Vec<(TSIdentifier, Option<Type>)>, Option<TSIdentifier>),
     String,
+    Unknown,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,7 @@ pub enum Decl {
     Function(
         TSIdentifier,
         Vec<(TSIdentifier, Option<Type>)>,
+        Vec<TypedAst>,
         Option<TSIdentifier>,
     ),
 }
@@ -42,42 +44,45 @@ pub struct TypedAstBuilder {
 
 #[derive(Debug, Clone)]
 pub struct TypedProgram {
-    types: HashMap<TSIdentifier, Type>,
-    ast: Vec<TypedAst>,
+    pub types: HashMap<TSIdentifier, Type>,
+    pub ast: Vec<TypedAst>,
+}
+
+fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
+    Ok(match node {
+        parser::TypedAst::Expression(exp) => TypedAst::Expression(type_expression(exp)?),
+        parser::TypedAst::StructType(struct_id, fields) => TypedAst::Decl(Decl::Struct(
+            struct_id,
+            fields.into_iter().map(|f| (f, Type::String)).collect(),
+        )),
+        parser::TypedAst::Assignment(var_id, init_expression) => {
+            TypedAst::Assignment(var_id, type_expression(init_expression)?, None)
+        }
+        parser::TypedAst::Function(function_id, fields, body) => TypedAst::Decl(Decl::Function(
+            function_id,
+            fields.into_iter().map(|f| (f, None)).collect(),
+            body.into_iter()
+                .map(ast_to_typed)
+                .collect::<Result<Vec<TypedAst>>>()?,
+            None,
+        )),
+    })
 }
 
 pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
     let typed_ast = ast
         .0
         .into_iter()
-        .map(|node| {
-            Ok(match node {
-                parser::TypedAst::Expression(exp) => TypedAst::Expression(type_expression(exp)?),
-                parser::TypedAst::StructType(struct_id, fields) => TypedAst::Decl(Decl::Struct(
-                    struct_id,
-                    fields.into_iter().map(|f| (f, Type::String)).collect(),
-                )),
-                parser::TypedAst::Assignment(var_id, init_expression) => {
-                    TypedAst::Assignment(var_id, type_expression(init_expression)?, None)
-                }
-                parser::TypedAst::Function(function_id, fields, return_type) => {
-                    TypedAst::Decl(Decl::Function(
-                        function_id,
-                        fields.into_iter().map(|f| (f, None)).collect(),
-                        None,
-                    ))
-                }
-            })
-        })
+        .map(ast_to_typed)
         .collect::<Result<Vec<TypedAst>>>()?;
 
     let mut types: HashMap<TSIdentifier, Type> = HashMap::new();
-    for node in typed_ast {
+    for node in typed_ast.clone() {
         match node {
             TypedAst::Decl(decl) => {
                 match decl {
                     Decl::Struct(id, fields) => types.insert(id, Type::Struct(fields)),
-                    Decl::Function(id, fields, return_type) => {
+                    Decl::Function(id, fields, body, return_type) => {
                         types.insert(id, Type::Function(fields, return_type))
                     }
                 };
@@ -103,7 +108,8 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
                 .collect::<Result<Vec<TypedExpression>>>()?,
         ),
         TSExpression::Value(val) => match val.clone() {
-            TSValue::String(string) => TypedExpression::Value(val, Type::String),
+            TSValue::String(_) => TypedExpression::Value(val, Type::String),
+            TSValue::Variable(_) => TypedExpression::Value(val, Type::Unknown),
             _ => todo!("missing type expression for {:?}", val),
         },
         TSExpression::Call(function_id, arguments) => TypedExpression::Call(
