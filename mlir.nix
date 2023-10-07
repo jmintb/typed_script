@@ -17,8 +17,8 @@ stdenv.mkDerivation rec {
     src = fetchFromGitHub {
       owner = "llvm";
       repo = pname;
-      rev = "08d094a0e457360ad8b94b017d2dc277e697ca76";
-      hash = "sha256-9AIucM/7Fm7ayQaW/6ZeldtJKK+j2BsASG3IaQwaY1M=";
+      rev = "b2417f51dbbd7435eb3aaf203de24de6754da50e";
+      hash = "sha256-1pIULcViMIINrFDnpUyGnKyA0HvFawjh0HzWU/WshiM=";
     };
     cmakeDir = "../llvm";
     cmakeFlags = [
