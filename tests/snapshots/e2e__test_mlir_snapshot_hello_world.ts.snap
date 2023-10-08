@@ -1,0 +1,19 @@
+---
+source: tests/e2e.rs
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+module attributes {llvm.data_layout = ""} {
+  llvm.func @printf(!llvm.ptr, ...) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.mlir.global internal @annonstr0("hello world!") {addr_space = 0 : i32}
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %1 = llvm.call @printf(%0) : (!llvm.ptr) -> i32
+    llvm.return
+  }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+}
+
+

@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = { version = "1.0.75", features = ["backtrace"] }
 clap = { version = "4.4.1", features = ["derive"] }
 insta = "1.31.0"
-melior = "0.9.9"
+melior = "0.12.2"
 mlir-sys = "0.2.0"
 pest = "2.5.5"
 pest_derive = "2.5.5"

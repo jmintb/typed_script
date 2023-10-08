@@ -27,13 +27,14 @@ callArgs = { (expression ~ ",")* ~  expression? }
 
 call = { identifier ~ "(" ~ callArgs? ~ ")" }
 
-functionArg = { identifier }
+// TODO make function arg types parse properly
+functionArg = { identifier ~ ( ":" ~ identifier)? }
 
 functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 
 functionBody = { (stmt)* }
 
-function = { "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ "{" ~ functionBody ~ "}" }
+function = { "pub "? ~ "extern "? ~ "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~  ( "{" ~ functionBody ~ "}" | ";") }
 
 stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
 

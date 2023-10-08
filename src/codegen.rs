@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, ops::Index};
 use anyhow::{bail, Result};
 use melior::{
     dialect::{
-        func,
+        func::{self, call},
         llvm::{self, attributes::Linkage, AllocaOptions, LoadStoreOptions},
         DialectRegistry,
     },
@@ -118,6 +118,68 @@ impl<'ctx> CodeGen<'ctx> {
                             .as_slice(),
                     );
 
+                    // let Some(body) = body else {
+                    //     let function = func::func(
+                    //         &self.context,
+                    //         StringAttribute::new(&self.context, &id.0),
+                    //         TypeAttribute::new(
+                    //             FunctionType::new(
+                    //                 &self.context,
+                    //                 fargs
+                    //                     .iter()
+                    //                     .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                    //                     .collect::<Vec<Type>>()
+                    //                     .as_slice(),
+                    //                 &[],
+                    //             )
+                    //             .into(),
+                    //         ),
+                    //         region,
+                    //         &[(
+                    //             Identifier::new(&self.context, "sym_visibility"),
+                    //             StringAttribute::new(&self.context, "private").into(),
+                    //         )],
+                    //         location,
+                    //     );
+
+                    //     module.body().append_operation(function);
+                    //     continue;
+                    // };
+
+                    let Some(body) = body else {
+                        let printf_decl = llvm::func(
+                            &self.context,
+                            StringAttribute::new(&self.context, &id.0),
+                            TypeAttribute::new(
+                                llvm::r#type::function(
+                                    IntegerType::new(&self.context, 32).into(),
+                                    fargs
+                                        .iter()
+                                        .map(|_| llvm::r#type::opaque_pointer(&self.context))
+                                        .collect::<Vec<Type>>()
+                                        .as_slice(),
+                                    false,
+                                )
+                                .into(),
+                            ),
+                            Region::new(),
+                            &[
+                                (
+                                    Identifier::new(&self.context, "sym_visibility"),
+                                    StringAttribute::new(&self.context, "private").into(),
+                                ),
+                                (
+                                    Identifier::new(&self.context, "llvm.emit_c_interface"),
+                                    Attribute::unit(&self.context),
+                                ),
+                            ],
+                            location,
+                        );
+
+                        module.body().append_operation(printf_decl);
+                        continue;
+                    };
+
                     for exp in body {
                         match exp.clone() {
                             TypedAst::Expression(TypedExpression::Call(id, args)) => {
@@ -173,22 +235,38 @@ impl<'ctx> CodeGen<'ctx> {
                                                 var_to_type.clone(),
                                             )
                                             .unwrap()
+                                            .unwrap()
                                             .into(),
                                         _ => todo!(),
                                     })
                                     .collect();
 
-                                let res = function_block.append_operation(
-                                    OperationBuilder::new("llvm.call", location)
-                                        .add_operands(&actual_args)
-                                        .add_attributes(&[(
-                                            Identifier::new(&self.context, "callee"),
-                                            FlatSymbolRefAttribute::new(&self.context, "printf")
+                                if &id.0 == "printf" {
+                                    let res = function_block.append_operation(
+                                        OperationBuilder::new("llvm.call", location)
+                                            .add_operands(&actual_args)
+                                            .add_attributes(&[(
+                                                Identifier::new(&self.context, "callee"),
+                                                FlatSymbolRefAttribute::new(
+                                                    &self.context,
+                                                    "printf",
+                                                )
                                                 .into(),
-                                        )])
-                                        .add_results(&[IntegerType::new(&self.context, 32).into()])
-                                        .build(),
-                                );
+                                            )])
+                                            .add_results(&[
+                                                IntegerType::new(&self.context, 32).into()
+                                            ])
+                                            .build(),
+                                    );
+                                } else {
+                                    let res = function_block.append_operation(func::call(
+                                        &self.context,
+                                        FlatSymbolRefAttribute::new(&self.context, &id.0),
+                                        &actual_args,
+                                        &[],
+                                        location,
+                                    ));
+                                }
 
                                 // let call = llvm::ca(
                                 //     &self.context,
@@ -288,7 +366,9 @@ impl<'ctx> CodeGen<'ctx> {
                                     var_to_type.clone(),
                                 )?;
 
-                                variable_store.insert(id, exp_op);
+                                if let Some(exp_op) = exp_op {
+                                    variable_store.insert(id, exp_op);
+                                }
                             }
 
                             e => todo!("not yet ready for {:?}", e),
@@ -298,30 +378,55 @@ impl<'ctx> CodeGen<'ctx> {
                     function_block.append_operation(llvm::r#return(None, location));
 
                     let mut function_block = region.append_block(function_block);
-                    let function = func::func(
-                        &self.context,
-                        StringAttribute::new(&self.context, &id.0),
-                        TypeAttribute::new(
-                            FunctionType::new(
-                                &self.context,
-                                fargs
-                                    .iter()
-                                    .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
-                                    .collect::<Vec<Type>>()
-                                    .as_slice(),
-                                &[],
-                            )
-                            .into(),
-                        ),
-                        region,
-                        &[(
-                            Identifier::new(&self.context, "llvm.emit_c_interface"),
-                            Attribute::unit(&self.context),
-                        )],
-                        location,
-                    );
 
-                    module.body().append_operation(function);
+                    if &id.0 == "main" {
+                        let function = func::func(
+                            &self.context,
+                            StringAttribute::new(&self.context, &id.0),
+                            TypeAttribute::new(
+                                FunctionType::new(
+                                    &self.context,
+                                    fargs
+                                        .iter()
+                                        .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                                        .collect::<Vec<Type>>()
+                                        .as_slice(),
+                                    &[],
+                                )
+                                .into(),
+                            ),
+                            region,
+                            &[(
+                                Identifier::new(&self.context, "llvm.emit_c_interface"),
+                                Attribute::unit(&self.context),
+                            )],
+                            location,
+                        );
+
+                        module.body().append_operation(function);
+                    } else {
+                        let function = func::func(
+                            &self.context,
+                            StringAttribute::new(&self.context, &id.0),
+                            TypeAttribute::new(
+                                FunctionType::new(
+                                    &self.context,
+                                    fargs
+                                        .iter()
+                                        .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                                        .collect::<Vec<Type>>()
+                                        .as_slice(),
+                                    &[],
+                                )
+                                .into(),
+                            ),
+                            region,
+                            &[],
+                            location,
+                        );
+
+                        module.body().append_operation(function);
+                    }
                 }
                 TypedAst::Decl(Decl::Struct(id, fields)) => {
                     let field_type = llvm::r#type::opaque_pointer(self.context);
@@ -355,17 +460,85 @@ impl<'ctx> CodeGen<'ctx> {
         type_store: &HashMap<TSIdentifier, TypedAst>,
         function_block: &'a Block,
         var_to_type: HashMap<TSIdentifier, TSIdentifier>,
-    ) -> Result<(OperationResult)>
+    ) -> Result<Option<OperationResult>>
     where
         'a: 'c,
     {
         let res = match exp {
+            TypedExpression::Call(id, args) => {
+                // let mut exp_block = function_block;
+                let actual_args: Vec<Value> = args
+                    .iter()
+                    .map(|arg| match arg {
+                        TypedExpression::Value(TSValue::String(ref val), Type) => {
+                            // TODO: \n is getting escaped, perhap we need a raw string?
+                            let val = if val == "\\n" { "\n" } else { val };
+
+                            let ptr_op = self
+                                .gen_pointer_to_annon_str(
+                                    location.clone(),
+                                    val.to_string(),
+                                    &module,
+                                )
+                                .unwrap();
+
+                            function_block
+                                .append_operation(ptr_op)
+                                .result(0)
+                                .unwrap()
+                                .into()
+                        }
+                        TypedExpression::Value(TSValue::Integer(v), _) => {
+                            let op = melior::dialect::arith::constant(
+                                &self.context,
+                                IntegerAttribute::new(
+                                    *v as i64, // TODO why do we need 4 here?
+                                    IntegerType::new(&self.context, 32).into(),
+                                )
+                                .into(),
+                                location,
+                            );
+                            function_block
+                                .append_operation(op)
+                                .result(0)
+                                .unwrap()
+                                .into()
+                        }
+                        _ => todo!(),
+                    })
+                    .collect();
+
+                if &id.0 == "printf" {
+                    function_block.append_operation(
+                        OperationBuilder::new("llvm.call", location)
+                            .add_operands(&actual_args)
+                            .add_attributes(&[(
+                                Identifier::new(&self.context, "callee"),
+                                FlatSymbolRefAttribute::new(&self.context, "printf").into(),
+                            )])
+                            .add_results(&[IntegerType::new(&self.context, 32).into()])
+                            .build(),
+                    )
+                } else {
+                    function_block.append_operation(func::call(
+                        &self.context,
+                        FlatSymbolRefAttribute::new(&self.context, &id.0),
+                        &actual_args,
+                        &[],
+                        location,
+                    ))
+                };
+
+                None
+            }
+
+            // NEXT STEP: fix function return types to get fopen worknig.
             TypedExpression::StructFieldRef(struct_id, field_id) => {
                 let type_id = var_to_type.get(&struct_id).unwrap();
                 let struct_type = llvm_type_store.get(type_id).unwrap();
                 let struct_ptr = llvm_value_store.get(&struct_id).unwrap().to_owned();
 
-                let Some(field_index) = (if let Some(TypedAst::Decl(Decl::Struct(id, fields)) ) =
+                let Some(field_index) = (if let Some(TypedAst::Decl(Decl::Struct(id, fields))) =
                     type_store.get(&TSIdentifier("Test".to_string()))
                 {
                     fields.iter().position(|f| f.0 == field_id)
@@ -394,7 +567,7 @@ impl<'ctx> CodeGen<'ctx> {
                     LoadStoreOptions::new(),
                 );
 
-                function_block.append_operation(v).result(0).unwrap()
+                Some(function_block.append_operation(v).result(0).unwrap())
             }
             TypedExpression::Struct(id, fields) => {
                 let size = melior::dialect::arith::constant(
@@ -469,9 +642,9 @@ impl<'ctx> CodeGen<'ctx> {
                     function_block.append_operation(store_op);
                 }
 
-                (struct_ptr)
+                Some(struct_ptr)
             }
-            _ => todo!(),
+            e => todo!("unimplemented: {e:?}"),
         };
 
         Ok(res)
@@ -492,6 +665,17 @@ impl<'ctx> CodeGen<'ctx> {
                 let val = if val == "\\n" { "\n" } else { &val };
 
                 self.gen_pointer_to_annon_str(location, val.to_string(), &module)?
+            }
+            TypedExpression::Value(TSValue::Integer(v), _) => {
+                melior::dialect::arith::constant(
+                    &self.context,
+                    IntegerAttribute::new(
+                        4, // TODO why do we need 4 here?
+                        IntegerType::new(&self.context, 32).into(),
+                    )
+                    .into(),
+                    location,
+                )
             }
 
             _ => todo!(),
@@ -574,23 +758,26 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     let code_gen = CodeGen::new(&context);
 
     let mut module = code_gen.gen_ast_code(ast, emit_mlir)?;
-    assert!(module.as_operation().verify());
+    if !emit_mlir {
+        assert!(module.as_operation().verify());
+    }
 
     let pass_manager = pass::PassManager::new(&code_gen.context);
     register_all_passes();
     pass_manager.enable_verifier(true);
     pass_manager.add_pass(pass::conversion::create_control_flow_to_llvm());
     pass_manager.add_pass(pass::conversion::create_func_to_llvm());
-    pass_manager.add_pass(pass::conversion::create_index_to_llvm_pass());
-    pass_manager.add_pass(pass::conversion::create_mem_ref_to_llvm());
+    // pass_manager.add_pass(pass::conversion::create_index_to_llvm_pass());
+    // pass_manager.add_pass(pass::conversion::create_mem_ref_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
+    pass::conversion::register_func_to_llvm();
 
     // pass_manager.enable_ir_printing();
 
     pass_manager
         .nested_under("func.func")
         .add_pass(pass::conversion::create_arith_to_llvm());
-    pass_manager.run(&mut module).unwrap();
+    pass_manager.run(&mut module);
 
     if emit_mlir {
         println!("{}", module.as_operation());

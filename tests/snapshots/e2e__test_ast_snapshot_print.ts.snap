@@ -1,0 +1,72 @@
+---
+source: tests/e2e.rs
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+[
+    Decl(
+        Function(
+            TSIdentifier(
+                "main",
+            ),
+            [],
+            Some(
+                [
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "print",
+                            ),
+                            [
+                                Value(
+                                    String(
+                                        "hello world!",
+                                    ),
+                                    String,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            None,
+        ),
+    ),
+    Decl(
+        Function(
+            TSIdentifier(
+                "print",
+            ),
+            [
+                (
+                    TSIdentifier(
+                        "value",
+                    ),
+                    None,
+                ),
+            ],
+            Some(
+                [
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "printf",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "value",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            None,
+        ),
+    ),
+]
+

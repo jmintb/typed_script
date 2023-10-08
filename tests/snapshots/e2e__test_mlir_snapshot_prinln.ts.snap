@@ -1,0 +1,30 @@
+---
+source: tests/e2e.rs
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+module attributes {llvm.data_layout = ""} {
+  llvm.func @printf(!llvm.ptr, ...) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.mlir.global internal @annonstr0("Hello World! on a new line") {addr_space = 0 : i32}
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    llvm.call @println(%0) : (!llvm.ptr) -> ()
+    llvm.return
+  }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+  llvm.mlir.global internal @annonstr1("\0A") {addr_space = 0 : i32}
+  llvm.func @println(%arg0: !llvm.ptr) {
+    llvm.call @print(%arg0) : (!llvm.ptr) -> ()
+    %0 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
+    llvm.call @print(%0) : (!llvm.ptr) -> ()
+    llvm.return
+  }
+  llvm.func @print(%arg0: !llvm.ptr) {
+    %0 = llvm.call @printf(%arg0) : (!llvm.ptr) -> i32
+    llvm.return
+  }
+}
+
+

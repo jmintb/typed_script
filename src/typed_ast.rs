@@ -9,6 +9,7 @@ pub enum Type {
     Function(Vec<(TSIdentifier, Option<Type>)>, Option<TSIdentifier>),
     String,
     Unknown,
+    Integer,
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +33,7 @@ pub enum Decl {
     Function(
         TSIdentifier,
         Vec<(TSIdentifier, Option<Type>)>,
-        Vec<TypedAst>,
+        Option<Vec<TypedAst>>,
         Option<TSIdentifier>,
     ),
 }
@@ -61,9 +62,12 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
         parser::TypedAst::Function(function_id, fields, body) => TypedAst::Decl(Decl::Function(
             function_id,
             fields.into_iter().map(|f| (f, None)).collect(),
-            body.into_iter()
-                .map(ast_to_typed)
-                .collect::<Result<Vec<TypedAst>>>()?,
+            body.map(|body| {
+                body.into_iter()
+                    .map(ast_to_typed)
+                    .collect::<Result<Vec<TypedAst>>>()
+                    .unwrap()
+            }),
             None,
         )),
     })
@@ -110,6 +114,7 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
         TSExpression::Value(val) => match val.clone() {
             TSValue::String(_) => TypedExpression::Value(val, Type::String),
             TSValue::Variable(_) => TypedExpression::Value(val, Type::Unknown),
+            TSValue::Integer(_) => TypedExpression::Value(val, Type::Integer),
             _ => todo!("missing type expression for {:?}", val),
         },
         TSExpression::Call(function_id, arguments) => TypedExpression::Call(

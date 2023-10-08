@@ -21,6 +21,7 @@ pub enum TSValue {
     String(String),
     Variable(TSIdentifier),
     Number,
+    Integer(i32),
     Boolean,
 }
 
@@ -40,7 +41,7 @@ pub struct TSIdentifier(pub String);
 pub enum TypedAst {
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
-    Function(TSIdentifier, Vec<TSIdentifier>, Vec<TypedAst>),
+    Function(TSIdentifier, Vec<TSIdentifier>, Option<Vec<TypedAst>>),
     StructType(TSIdentifier, Vec<TSIdentifier>),
 }
 
@@ -95,27 +96,27 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
 
     let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
 
-    let mut next = decl.next().unwrap();
+    let mut next = decl.next();
 
-    let function_args: Vec<TSIdentifier> = if let Rule::functionArgs = next.as_rule() {
-        let args = next.into_inner();
-        next = decl.next().unwrap();
-        args.map(|p| TSIdentifier(p.into_inner().as_str().to_string()))
-            .collect()
-    } else {
-        vec![]
-    };
+    let function_args: Vec<TSIdentifier> =
+        if let Some(Rule::functionArgs) = next.clone().map(|next| next.as_rule()) {
+            let args = next.clone().map(|next| next.into_inner()).unwrap();
+            next = decl.next();
+            args.map(|p| TSIdentifier(p.into_inner().as_str().to_string()))
+                .collect()
+        } else {
+            vec![]
+        };
 
-    let body = if let Rule::functionBody = next.as_rule() {
-        next.into_inner()
-            .map(|statement| parse_statement(statement))
-            .collect::<Result<Vec<TypedAst>>>()?
+    let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
+        Some(
+            next.map(|next| next.into_inner())
+                .unwrap()
+                .map(|statement| parse_statement(statement))
+                .collect::<Result<Vec<TypedAst>>>()?,
+        )
     } else {
-        bail!(
-            "expected to find function body, found {:?} instead, in function declaration {}",
-            next.as_rule(),
-            identifer.0
-        );
+        None
     };
 
     Ok(TypedAst::Function(identifer, function_args, body))
@@ -167,6 +168,7 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         Rule::call => parse_fn_call(expression)?,
         Rule::structInit => parse_struct_init(expression)?,
         Rule::structFieldRef => parse_struct_field_ref(expression)?,
+        Rule::integer => TSExpression::Value(parse_integer(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
@@ -181,6 +183,13 @@ fn parse_string(string: Pair<Rule>) -> Result<TSValue> {
     }
 }
 
+fn parse_integer(integer: Pair<Rule>) -> Result<TSValue> {
+    if let Rule::integer = integer.as_rule() {
+        Ok(TSValue::Integer(integer.as_str().parse()?))
+    } else {
+        bail!("expected string , got {:?}", integer.as_rule())
+    }
+}
 fn parse_fn_call(call_expression: Pair<Rule>) -> Result<TSExpression> {
     let mut inner = call_expression.clone().into_inner().into_iter();
 
