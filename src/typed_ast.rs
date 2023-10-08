@@ -6,10 +6,17 @@ use crate::parser::{self, Ast, TSExpression, TSIdentifier, TSValue};
 #[derive(Debug, Clone)]
 pub enum Type {
     Struct(Vec<(TSIdentifier, Type)>),
-    Function(Vec<(TSIdentifier, Option<Type>)>, Option<TSIdentifier>),
+    Function(Vec<FunctionArg>, Option<TSIdentifier>),
+    Named(TSIdentifier),
     String,
     Unknown,
     Integer,
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,10 +39,16 @@ pub enum Decl {
     Struct(TSIdentifier, Vec<(TSIdentifier, Type)>),
     Function(
         TSIdentifier,
-        Vec<(TSIdentifier, Option<Type>)>,
+        Vec<FunctionArg>,
         Option<Vec<TypedAst>>,
         Option<TSIdentifier>,
     ),
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionArg {
+    name: TSIdentifier,
+    r#type: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -61,7 +74,13 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
         }
         parser::TypedAst::Function(function_id, fields, body) => TypedAst::Decl(Decl::Function(
             function_id,
-            fields.into_iter().map(|f| (f, None)).collect(),
+            fields
+                .into_iter()
+                .map(|f| FunctionArg {
+                    name: f.name,
+                    r#type: f.r#type.map(|ty_id| Type::Named(ty_id)).unwrap_or_default(),
+                })
+                .collect(),
             body.map(|body| {
                 body.into_iter()
                     .map(ast_to_typed)

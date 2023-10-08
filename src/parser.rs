@@ -41,8 +41,14 @@ pub struct TSIdentifier(pub String);
 pub enum TypedAst {
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
-    Function(TSIdentifier, Vec<TSIdentifier>, Option<Vec<TypedAst>>),
+    Function(TSIdentifier, Vec<FunctionArg>, Option<Vec<TypedAst>>),
     StructType(TSIdentifier, Vec<TSIdentifier>),
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionArg {
+    pub name: TSIdentifier,
+    pub r#type: Option<TSIdentifier>,
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -98,15 +104,17 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
 
     let mut next = decl.next();
 
-    let function_args: Vec<TSIdentifier> =
+    let function_args: Vec<FunctionArg> =
         if let Some(Rule::functionArgs) = next.clone().map(|next| next.as_rule()) {
             let args = next.clone().map(|next| next.into_inner()).unwrap();
             next = decl.next();
-            args.map(|p| TSIdentifier(p.into_inner().as_str().to_string()))
-                .collect()
+            args.map(parse_fn_arg)
+                .collect::<Result<Vec<FunctionArg>>>()?
         } else {
             vec![]
         };
+
+    println!("arg: {:#?}", function_args);
 
     let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
         Some(
@@ -120,6 +128,17 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     };
 
     Ok(TypedAst::Function(identifer, function_args, body))
+}
+
+fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {
+    let mut inner_rules = arg.into_inner();
+
+    Ok(FunctionArg {
+        name: TSIdentifier(inner_rules.next().unwrap().as_str().to_string()),
+        r#type: inner_rules
+            .next()
+            .map(|ty_id| TSIdentifier(ty_id.as_str().to_string())),
+    })
 }
 
 fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
