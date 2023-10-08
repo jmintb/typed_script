@@ -210,12 +210,12 @@ impl<'ctx> CodeGen<'ctx> {
                                                 .argument(
                                                     fargs
                                                         .iter()
-                                                        .position(|farg| &farg.0 == id)
+                                                        .position(|farg| &farg.name == id)
                                                         .ok_or(format!(
                                                             "failed to match argument: {:?} {id:?}",
                                                             fargs
                                                                 .iter()
-                                                                .map(|farg| farg.clone().0)
+                                                                .map(|farg| farg.name.clone())
                                                                 .collect::<Vec<TSIdentifier>>()
                                                         ))
                                                         .unwrap(),
@@ -237,7 +237,7 @@ impl<'ctx> CodeGen<'ctx> {
                                             .unwrap()
                                             .unwrap()
                                             .into(),
-                                        _ => todo!(),
+                                        e => todo!("not yet implemented: {:?}", e),
                                     })
                                     .collect();
 

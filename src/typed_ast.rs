@@ -47,8 +47,8 @@ pub enum Decl {
 
 #[derive(Debug, Clone)]
 pub struct FunctionArg {
-    name: TSIdentifier,
-    r#type: Type,
+    pub name: TSIdentifier,
+    pub r#type: Type,
 }
 
 #[derive(Debug, Clone)]

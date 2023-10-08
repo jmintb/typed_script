@@ -114,8 +114,6 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
             vec![]
         };
 
-    println!("arg: {:#?}", function_args);
-
     let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
         Some(
             next.map(|next| next.into_inner())
