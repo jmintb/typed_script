@@ -1,4 +1,5 @@
 use anyhow::Result;
+use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 use std::collections::HashMap;
 
 use crate::parser::{self, Ast, TSExpression, TSIdentifier, TSValue};
@@ -6,11 +7,38 @@ use crate::parser::{self, Ast, TSExpression, TSIdentifier, TSValue};
 #[derive(Debug, Clone)]
 pub enum Type {
     Struct(Vec<(TSIdentifier, Type)>),
-    Function(Vec<FunctionArg>, Option<TSIdentifier>),
+    Function(Vec<FunctionArg>, Option<Box<Type>>),
     Named(TSIdentifier),
     String,
     Unknown,
     Integer,
+    Boolean,
+    Pointer,
+    Unit,
+}
+
+impl Type {
+    pub fn as_mlir_type<'c>(&self, context: &'c Context) -> melior::ir::Type<'c> {
+        match self {
+            Type::Pointer => llvm::r#type::opaque_pointer(context),
+            Type::String => llvm::r#type::opaque_pointer(context),
+            Type::Integer => IntegerType::new(context, 32).into(),
+            Type::Unit => llvm::r#type::void(context),
+            _ => todo!("unimplemented return type"),
+        }
+    }
+}
+
+impl From<TSIdentifier> for Type {
+    fn from(value: TSIdentifier) -> Self {
+        match value.0.as_str() {
+            "int" => Self::Integer,
+            "string" => Self::String,
+            "bool" => Self::Boolean,
+            "ptr" => Self::Pointer,
+            _ => Self::Named(value),
+        }
+    }
 }
 
 impl Default for Type {
@@ -41,7 +69,7 @@ pub enum Decl {
         TSIdentifier,
         Vec<FunctionArg>,
         Option<Vec<TypedAst>>,
-        Option<TSIdentifier>,
+        Option<Type>,
     ),
 }
 
@@ -72,23 +100,25 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
         parser::TypedAst::Assignment(var_id, init_expression) => {
             TypedAst::Assignment(var_id, type_expression(init_expression)?, None)
         }
-        parser::TypedAst::Function(function_id, fields, body) => TypedAst::Decl(Decl::Function(
-            function_id,
-            fields
-                .into_iter()
-                .map(|f| FunctionArg {
-                    name: f.name,
-                    r#type: f.r#type.map(|ty_id| Type::Named(ty_id)).unwrap_or_default(),
-                })
-                .collect(),
-            body.map(|body| {
-                body.into_iter()
-                    .map(ast_to_typed)
-                    .collect::<Result<Vec<TypedAst>>>()
-                    .unwrap()
-            }),
-            None,
-        )),
+        parser::TypedAst::Function(function_id, fields, body, return_type) => {
+            TypedAst::Decl(Decl::Function(
+                function_id,
+                fields
+                    .into_iter()
+                    .map(|f| FunctionArg {
+                        name: f.name,
+                        r#type: f.r#type.map(|ty_id| Type::Named(ty_id)).unwrap_or_default(),
+                    })
+                    .collect(),
+                body.map(|body| {
+                    body.into_iter()
+                        .map(ast_to_typed)
+                        .collect::<Result<Vec<TypedAst>>>()
+                        .unwrap()
+                }),
+                return_type.map(|return_type| return_type.into()),
+            ))
+        }
     })
 }
 
@@ -105,9 +135,13 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
             TypedAst::Decl(decl) => {
                 match decl {
                     Decl::Struct(id, fields) => types.insert(id, Type::Struct(fields)),
-                    Decl::Function(id, fields, body, return_type) => {
-                        types.insert(id, Type::Function(fields, return_type))
-                    }
+                    Decl::Function(id, fields, body, return_type) => types.insert(
+                        id,
+                        Type::Function(
+                            fields,
+                            return_type.map(|return_type| Box::new(return_type)),
+                        ),
+                    ),
                 };
             }
 

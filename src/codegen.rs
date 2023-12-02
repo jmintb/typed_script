@@ -24,7 +24,7 @@ use melior::{
 
 use crate::{
     parser::{Ast, TSExpression, TSIdentifier, TSValue},
-    typed_ast::{Decl, FunctionArg, TypedAst, TypedExpression, TypedProgram},
+    typed_ast::{self, Decl, FunctionArg, TypedAst, TypedExpression, TypedProgram},
 };
 
 // TODO: something inside the module is dropped when it is returned.
@@ -146,13 +146,17 @@ impl<'ctx> CodeGen<'ctx> {
                     //     continue;
                     // };
 
+                    let mlir_rt_type = rtype
+                        .map(|rtype| rtype.as_mlir_type(self.context))
+                        .unwrap_or(typed_ast::Type::Unit.as_mlir_type(self.context));
+
                     let Some(body) = body else {
                         let printf_decl = llvm::func(
                             &self.context,
                             StringAttribute::new(&self.context, &id.0),
                             TypeAttribute::new(
                                 llvm::r#type::function(
-                                    llvm::r#type::opaque_pointer(&self.context).into(),
+                                    mlir_rt_type,
                                     fargs
                                         .iter()
                                         .map(|a| {
@@ -272,6 +276,17 @@ impl<'ctx> CodeGen<'ctx> {
                                     })
                                     .collect();
 
+                                // TODO: next add extern decls to type store
+                                let fn_type = type_store.get(&id).unwrap();
+
+                                let rt_type = if let &typed_ast::TypedAst::Decl(
+                                    typed_ast::Decl::Function(_, _, _, ref return_type),
+                                ) = fn_type
+                                {
+                                    return_type.as_ref().unwrap().as_mlir_type(self.context)
+                                } else {
+                                    panic!("missing return type for {id:?}");
+                                };
                                 if &id.0 == "printf" || &id.0 == "fwrite" {
                                     let res = function_block.append_operation(
                                         OperationBuilder::new("llvm.call", location)
@@ -281,9 +296,7 @@ impl<'ctx> CodeGen<'ctx> {
                                                 FlatSymbolRefAttribute::new(&self.context, &id.0)
                                                     .into(),
                                             )])
-                                            .add_results(&[llvm::r#type::opaque_pointer(
-                                                &self.context,
-                                            )])
+                                            .add_results(&[rt_type])
                                             .build(),
                                     );
                                 } else {

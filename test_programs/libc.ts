@@ -1,6 +1,6 @@
-fn fdopen(fd: int, mode: String);
+fn fdopen(fd: int, mode: string) -> ptr;
 fn fclose(fd, mode);
-fn fwrite(val, size, len, file);
+fn fwrite(val, size, len, file) -> int;
 
 
 fn main() {

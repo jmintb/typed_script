@@ -41,7 +41,12 @@ pub struct TSIdentifier(pub String);
 pub enum TypedAst {
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
-    Function(TSIdentifier, Vec<FunctionArg>, Option<Vec<TypedAst>>),
+    Function(
+        TSIdentifier,
+        Vec<FunctionArg>,
+        Option<Vec<TypedAst>>,
+        Option<TSIdentifier>,
+    ),
     StructType(TSIdentifier, Vec<TSIdentifier>),
 }
 
@@ -114,6 +119,13 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
             vec![]
         };
 
+    let return_type = if let Some(Rule::identifier) = next.clone().map(|next| next.as_rule()) {
+        next.clone()
+            .map(|next| TSIdentifier(next.as_str().to_string()))
+    } else {
+        None
+    };
+
     let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
         Some(
             next.map(|next| next.into_inner())
@@ -125,7 +137,12 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
         None
     };
 
-    Ok(TypedAst::Function(identifer, function_args, body))
+    Ok(TypedAst::Function(
+        identifer,
+        function_args,
+        body,
+        return_type,
+    ))
 }
 
 fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {

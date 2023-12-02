@@ -34,7 +34,7 @@ functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 
 functionBody = { (stmt)* }
 
-function = { "pub "? ~ "extern "? ~ "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~  ( "{" ~ functionBody ~ "}" | ";") }
+function = { "pub "? ~ "extern "? ~ "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ identifier)? ~  ( "{" ~ functionBody ~ "}" | ";") }
 
 stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
 
