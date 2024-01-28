@@ -5,5 +5,5 @@ struct Test {
 
 fn main() {
   let test = Test { "ac", "bc" };
-  printf(test.fielda);
+  print(test.fielda);
 }

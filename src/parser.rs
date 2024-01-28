@@ -35,13 +35,37 @@ pub enum TSType {
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+pub enum FunctionKeyword {
+    LlvmExtern,
+    Normal,
+}
+
+impl TryFrom<String> for FunctionKeyword {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+        Ok(match value.as_str().trim() {
+            "extern fn" => FunctionKeyword::LlvmExtern,
+            "fn" => FunctionKeyword::Normal,
+            _ => bail!("invalid function keyword: {}", value),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub struct TSIdentifier(pub String);
 
 #[derive(Debug, Clone)]
 pub enum TypedAst {
     Expression(TSExpression),
     Assignment(TSIdentifier, TSExpression),
-    Function(TSIdentifier, Vec<FunctionArg>, Option<Vec<TypedAst>>),
+    Function {
+        keywords: Vec<FunctionKeyword>,
+        id: TSIdentifier,
+        arguments: Vec<FunctionArg>,
+        body: Option<Vec<TypedAst>>,
+        return_type: Option<TSIdentifier>,
+    },
     StructType(TSIdentifier, Vec<TSIdentifier>),
 }
 
@@ -100,6 +124,14 @@ fn parse_struct_init(init: Pair<Rule>) -> Result<TSExpression> {
 fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     let mut decl = decl.into_inner();
 
+    let next = decl.next().unwrap();
+
+    let keywords = if let Rule::functionType = next.as_rule() {
+        vec![FunctionKeyword::try_from(next.as_str().to_string())?]
+    } else {
+        Vec::new()
+    };
+
     let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
 
     let mut next = decl.next();
@@ -114,6 +146,13 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
             vec![]
         };
 
+    let return_type = if let Some(Rule::identifier) = next.clone().map(|next| next.as_rule()) {
+        next.clone()
+            .map(|next| TSIdentifier(next.as_str().to_string()))
+    } else {
+        None
+    };
+
     let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
         Some(
             next.map(|next| next.into_inner())
@@ -125,7 +164,13 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
         None
     };
 
-    Ok(TypedAst::Function(identifer, function_args, body))
+    Ok(TypedAst::Function {
+        keywords,
+        id: identifer,
+        arguments: function_args,
+        body,
+        return_type,
+    })
 }
 
 fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {

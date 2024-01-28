@@ -1,16 +1,44 @@
 use anyhow::Result;
+use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 use std::collections::HashMap;
 
-use crate::parser::{self, Ast, TSExpression, TSIdentifier, TSValue};
+use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue};
 
 #[derive(Debug, Clone)]
 pub enum Type {
     Struct(Vec<(TSIdentifier, Type)>),
-    Function(Vec<FunctionArg>, Option<TSIdentifier>),
+    Function(Vec<FunctionKeyword>, Vec<FunctionArg>, Box<Type>),
     Named(TSIdentifier),
     String,
     Unknown,
     Integer,
+    Boolean,
+    Pointer,
+    Unit,
+}
+
+impl Type {
+    pub fn as_mlir_type<'c>(&self, context: &'c Context) -> melior::ir::Type<'c> {
+        match self {
+            Type::Pointer => llvm::r#type::opaque_pointer(context),
+            Type::String => llvm::r#type::opaque_pointer(context),
+            Type::Integer => IntegerType::new(context, 32).into(),
+            Type::Unit => llvm::r#type::void(context),
+            _ => todo!("unimplemented type to mlir type {:?}", self),
+        }
+    }
+}
+
+impl From<TSIdentifier> for Type {
+    fn from(value: TSIdentifier) -> Self {
+        match value.0.as_str().trim() {
+            "integer" => Self::Integer,
+            "string" => Self::String,
+            "bool" => Self::Boolean,
+            "ptr" => Self::Pointer,
+            _ => Self::Named(value),
+        }
+    }
 }
 
 impl Default for Type {
@@ -37,12 +65,13 @@ pub enum TypedAst {
 #[derive(Debug, Clone)]
 pub enum Decl {
     Struct(TSIdentifier, Vec<(TSIdentifier, Type)>),
-    Function(
-        TSIdentifier,
-        Vec<FunctionArg>,
-        Option<Vec<TypedAst>>,
-        Option<TSIdentifier>,
-    ),
+    Function {
+        keywords: Vec<FunctionKeyword>,
+        id: TSIdentifier,
+        arguments: Vec<FunctionArg>,
+        body: Option<Vec<TypedAst>>,
+        return_type: Type,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -72,23 +101,39 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
         parser::TypedAst::Assignment(var_id, init_expression) => {
             TypedAst::Assignment(var_id, type_expression(init_expression)?, None)
         }
-        parser::TypedAst::Function(function_id, fields, body) => TypedAst::Decl(Decl::Function(
-            function_id,
-            fields
+        parser::TypedAst::Function {
+            keywords,
+            id,
+            arguments,
+            body,
+            return_type,
+        } => TypedAst::Decl(Decl::Function {
+            keywords,
+            id,
+            arguments: arguments
                 .into_iter()
                 .map(|f| FunctionArg {
                     name: f.name,
-                    r#type: f.r#type.map(|ty_id| Type::Named(ty_id)).unwrap_or_default(),
+                    r#type: f
+                        .r#type
+                        .map(|ty_id| match ty_id.0.as_str().trim() {
+                            "integer" => Type::Integer,
+                            "string" => Type::String,
+                            _ => Type::Named(ty_id),
+                        })
+                        .unwrap_or_default(),
                 })
                 .collect(),
-            body.map(|body| {
+            body: body.map(|body| {
                 body.into_iter()
                     .map(ast_to_typed)
                     .collect::<Result<Vec<TypedAst>>>()
                     .unwrap()
             }),
-            None,
-        )),
+            return_type: return_type
+                .map(|return_type| return_type.into())
+                .unwrap_or(Type::Unit),
+        }),
     })
 }
 
@@ -105,9 +150,16 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
             TypedAst::Decl(decl) => {
                 match decl {
                     Decl::Struct(id, fields) => types.insert(id, Type::Struct(fields)),
-                    Decl::Function(id, fields, body, return_type) => {
-                        types.insert(id, Type::Function(fields, return_type))
-                    }
+                    Decl::Function {
+                        keywords,
+                        id,
+                        arguments,
+                        body,
+                        return_type,
+                    } => types.insert(
+                        id,
+                        Type::Function(keywords, arguments, Box::new(return_type)),
+                    ),
                 };
             }
 

@@ -1,3 +1,3 @@
 fn main() {
-  printf("hello world!");
+  print("hello world!");
 }

@@ -6,7 +6,7 @@ string = { "\""	~ inner ~ "\"" }
 
 
 identifier = {
-	ASCII_ALPHA+
+	( ASCII_ALPHA | "_" )+
 }
 
 assignment = { "let " ~ identifier  ~ "=" ~  expression  }
@@ -34,7 +34,10 @@ functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 
 functionBody = { (stmt)* }
 
-function = { "pub "? ~ "extern "? ~ "fn " ~ identifier ~ "(" ~ functionArgs? ~ ")" ~  ( "{" ~ functionBody ~ "}" | ";") }
+functionKeyword = { identifier* }
+functionType = { "fn " | "extern fn "}
+
+function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ identifier)? ~  ( "{" ~ functionBody ~ "}" | ";") }
 
 stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
 

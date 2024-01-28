@@ -4,18 +4,27 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
 module attributes {llvm.data_layout = ""} {
   llvm.func @printf(!llvm.ptr, ...) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
-  llvm.mlir.global internal @annonstr0("hello world!") {addr_space = 0 : i32}
+  llvm.func @fdopen(i32, !llvm.ptr) -> !llvm.ptr attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fclose(!llvm.ptr) attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fwrite(!llvm.ptr, i32, i32, !llvm.ptr) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.mlir.global internal @annonstr0("w") {addr_space = 0 : i32}
+  llvm.func @print(%arg0: !llvm.ptr) {
+    %0 = llvm.mlir.constant(1 : i32) : i32
+    %1 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %2 = llvm.call @fdopen(%0, %1) : (i32, !llvm.ptr) -> !llvm.ptr
+    %3 = llvm.mlir.constant(4 : i32) : i32
+    %4 = llvm.mlir.constant(10 : i32) : i32
+    %5 = llvm.call @fwrite(%arg0, %3, %4, %2) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
+    llvm.return
+  }
+  llvm.mlir.global internal @annonstr1("hello world!") {addr_space = 0 : i32}
   llvm.func @main() attributes {llvm.emit_c_interface} {
-    %0 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %0 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
     llvm.call @print(%0) : (!llvm.ptr) -> ()
     llvm.return
   }
   llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
     llvm.call @main() : () -> ()
-    llvm.return
-  }
-  llvm.func @print(%arg0: !llvm.ptr) {
-    %0 = llvm.call @printf(%arg0) : (!llvm.ptr) -> i32
     llvm.return
   }
 }

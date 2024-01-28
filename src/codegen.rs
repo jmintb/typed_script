@@ -23,8 +23,8 @@ use melior::{
 };
 
 use crate::{
-    parser::{Ast, TSExpression, TSIdentifier, TSValue},
-    typed_ast::{Decl, FunctionArg, TypedAst, TypedExpression, TypedProgram},
+    parser::{Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue},
+    typed_ast::{self, Decl, FunctionArg, TypedAst, TypedExpression, TypedProgram},
 };
 
 // TODO: something inside the module is dropped when it is returned.
@@ -105,66 +105,49 @@ impl<'ctx> CodeGen<'ctx> {
 
         module.body().append_operation(printf_decl);
 
+        for node in ast.ast.clone() {
+            match node.clone() {
+                typed_ast::TypedAst::Decl(Decl::Function { ref id, .. }) => {
+                    type_store.insert(id.clone(), node.clone());
+                }
+                _ => (),
+            }
+        }
+
         for node in ast.ast {
             let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
             match node.clone() {
-                TypedAst::Decl(Decl::Function(id, fargs, body, rtype)) => {
+                TypedAst::Decl(Decl::Function {
+                    keywords,
+                    id,
+                    arguments,
+                    body,
+                    return_type,
+                }) => {
                     let region = Region::new();
                     let mut function_block = Block::new(
-                        fargs
+                        arguments
                             .iter()
                             .map(|_| (llvm::r#type::opaque_pointer(&self.context), location))
                             .collect::<Vec<(Type, Location)>>()
                             .as_slice(),
                     );
 
-                    // let Some(body) = body else {
-                    //     let function = func::func(
-                    //         &self.context,
-                    //         StringAttribute::new(&self.context, &id.0),
-                    //         TypeAttribute::new(
-                    //             FunctionType::new(
-                    //                 &self.context,
-                    //                 fargs
-                    //                     .iter()
-                    //                     .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
-                    //                     .collect::<Vec<Type>>()
-                    //                     .as_slice(),
-                    //                 &[],
-                    //             )
-                    //             .into(),
-                    //         ),
-                    //         region,
-                    //         &[(
-                    //             Identifier::new(&self.context, "sym_visibility"),
-                    //             StringAttribute::new(&self.context, "private").into(),
-                    //         )],
-                    //         location,
-                    //     );
+                    // TODO: hoisting
+                    type_store.insert(id.clone(), node.clone());
 
-                    //     module.body().append_operation(function);
-                    //     continue;
-                    // };
+                    let mlir_rt_type = return_type.as_mlir_type(self.context);
 
                     let Some(body) = body else {
-                        let printf_decl = llvm::func(
+                        let functiom_decl = llvm::func(
                             &self.context,
                             StringAttribute::new(&self.context, &id.0),
                             TypeAttribute::new(
                                 llvm::r#type::function(
-                                    llvm::r#type::opaque_pointer(&self.context).into(),
-                                    fargs
+                                    mlir_rt_type,
+                                    arguments
                                         .iter()
-                                        .map(|a| {
-                                            if a.name.0 == "fd"
-                                                || a.name.0 == "size"
-                                                || a.name.0 == "len"
-                                            {
-                                                IntegerType::new(&self.context, 32).into()
-                                            } else {
-                                                llvm::r#type::opaque_pointer(&self.context)
-                                            }
-                                        })
+                                        .map(|a| a.r#type.as_mlir_type(&self.context))
                                         .collect::<Vec<Type>>()
                                         .as_slice(),
                                     false,
@@ -185,7 +168,7 @@ impl<'ctx> CodeGen<'ctx> {
                             location,
                         );
 
-                        module.body().append_operation(printf_decl);
+                        module.body().append_operation(functiom_decl);
                         continue;
                     };
 
@@ -216,16 +199,17 @@ impl<'ctx> CodeGen<'ctx> {
                                         }
                                         TypedExpression::Value(TSValue::Variable(ref id), Type) => {
                                             if let Some(v) = variable_store.get(id) {
+
                                                 v.to_owned().into()
                                             } else {
                                                 function_block
                                                     .argument(
-                                                        fargs
+                                                        arguments
                                                             .iter()
                                                             .position(|farg| &farg.name == id)
                                                             .ok_or(format!(
                                                             "failed to match argument: {:?} {id:?} {:?}",
-                                                            fargs
+                                                            arguments
                                                                 .iter()
                                                                 .map(|farg| farg.name.clone())
                                                                 .collect::<Vec<TSIdentifier>>()
@@ -272,20 +256,49 @@ impl<'ctx> CodeGen<'ctx> {
                                     })
                                     .collect();
 
-                                if &id.0 == "printf" || &id.0 == "fwrite" {
-                                    let res = function_block.append_operation(
-                                        OperationBuilder::new("llvm.call", location)
-                                            .add_operands(&actual_args)
-                                            .add_attributes(&[(
-                                                Identifier::new(&self.context, "callee"),
-                                                FlatSymbolRefAttribute::new(&self.context, &id.0)
-                                                    .into(),
-                                            )])
-                                            .add_results(&[llvm::r#type::opaque_pointer(
-                                                &self.context,
-                                            )])
+                                // TODO: next add extern decls to type store
+                                let fn_type = type_store.get(&id).unwrap();
+
+                                let callee_keywords =
+                                    if let typed_ast::TypedAst::Decl(Decl::Function {
+                                        keywords,
+                                        ..
+                                    }) = fn_type
+                                    {
+                                        keywords
+                                    } else {
+                                        panic!(
+                                            "failed to find a function dcelaration for {}",
+                                            id.0
+                                        );
+                                    };
+
+                                let rt_type =
+                                    if let &typed_ast::TypedAst::Decl(typed_ast::Decl::Function {
+                                        ref return_type,
+                                        ..
+                                    }) = fn_type
+                                    {
+                                        return_type
+                                    } else {
+                                        panic!("missing return type for {id:?}");
+                                    };
+
+                                if callee_keywords.contains(&FunctionKeyword::LlvmExtern) {
+                                    let op = OperationBuilder::new("llvm.call", location)
+                                        .add_operands(&actual_args)
+                                        .add_attributes(&[(
+                                            Identifier::new(&self.context, "callee"),
+                                            FlatSymbolRefAttribute::new(&self.context, &id.0)
+                                                .into(),
+                                        )]);
+
+                                    function_block.append_operation(match rt_type {
+                                        typed_ast::Type::Unit => op.build(),
+                                        _ => op
+                                            .add_results(&[rt_type.as_mlir_type(&self.context)])
                                             .build(),
-                                    );
+                                    });
                                 } else {
                                     let res = function_block.append_operation(func::call(
                                         &self.context,
@@ -414,7 +427,7 @@ impl<'ctx> CodeGen<'ctx> {
                             TypeAttribute::new(
                                 FunctionType::new(
                                     &self.context,
-                                    fargs
+                                    arguments
                                         .iter()
                                         .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
                                         .collect::<Vec<Type>>()
@@ -439,7 +452,7 @@ impl<'ctx> CodeGen<'ctx> {
                             TypeAttribute::new(
                                 FunctionType::new(
                                     &self.context,
-                                    fargs
+                                    arguments
                                         .iter()
                                         .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
                                         .collect::<Vec<Type>>()
@@ -535,6 +548,31 @@ impl<'ctx> CodeGen<'ctx> {
                         _ => todo!(),
                     })
                     .collect();
+
+                if let Some(typed_ast::TypedAst::Decl(Decl::Function {
+                    ref keywords,
+                    ref return_type,
+                    ..
+                })) = type_store.get(&id)
+                {
+                    if keywords.contains(&FunctionKeyword::LlvmExtern) {
+                        let res = function_block.append_operation(
+                            OperationBuilder::new("llvm.call", location)
+                                .add_operands(&actual_args)
+                                .add_attributes(&[(
+                                    Identifier::new(&self.context, "callee"),
+                                    FlatSymbolRefAttribute::new(&self.context, &id.0).into(),
+                                )])
+                                .add_results(&[return_type.as_mlir_type(&self.context).into()])
+                                .build(),
+                        );
+
+                        match res.result(0) {
+                            Ok(res) => return Ok(Some(res)),
+                            _ => return Ok(None),
+                        }
+                    }
+                }
 
                 if &id.0 == "printf" {
                     function_block.append_operation(

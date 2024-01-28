@@ -4,100 +4,106 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
 [
     Decl(
-        Function(
-            TSIdentifier(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
                 "fdopen",
             ),
-            [
-                (
-                    TSIdentifier(
-                        "fd: int",
-                    ),
-                    None,
-                ),
-                (
-                    TSIdentifier(
-                        "mode: String",
-                    ),
-                    None,
-                ),
-            ],
-            None,
-            None,
-        ),
-    ),
-    Decl(
-        Function(
-            TSIdentifier(
-                "fclose",
-            ),
-            [
-                (
-                    TSIdentifier(
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
                         "fd",
                     ),
-                    None,
-                ),
-                (
-                    TSIdentifier(
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
                         "mode",
                     ),
-                    None,
-                ),
+                    type: String,
+                },
             ],
-            None,
-            None,
-        ),
+            body: None,
+            return_type: Pointer,
+        },
     ),
     Decl(
-        Function(
-            TSIdentifier(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fclose",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
                 "fwrite",
             ),
-            [
-                (
-                    TSIdentifier(
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
                         "val",
                     ),
-                    None,
-                ),
-                (
-                    TSIdentifier(
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
                         "size",
                     ),
-                    None,
-                ),
-                (
-                    TSIdentifier(
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
                         "len",
                     ),
-                    None,
-                ),
-                (
-                    TSIdentifier(
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
                         "file",
                     ),
-                    None,
-                ),
+                    type: String,
+                },
             ],
-            None,
-            None,
-        ),
+            body: None,
+            return_type: Integer,
+        },
     ),
     Decl(
-        Function(
-            TSIdentifier(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
                 "print",
             ),
-            [
-                (
-                    TSIdentifier(
-                        "val: String",
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
                     ),
-                    None,
-                ),
+                    type: String,
+                },
             ],
-            Some(
+            body: Some(
                 [
                     Assignment(
                         TSIdentifier(
@@ -138,40 +144,267 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                     ),
                                     Unknown,
                                 ),
-                                Call(
-                                    TSIdentifier(
-                                        "len",
+                                Value(
+                                    Integer(
+                                        4,
                                     ),
-                                    [
-                                        Value(
-                                            Variable(
-                                                TSIdentifier(
-                                                    "val",
-                                                ),
-                                            ),
-                                            Unknown,
+                                    Integer,
+                                ),
+                                Value(
+                                    Integer(
+                                        10,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
                                         ),
-                                    ],
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "fclose",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
+                                        ),
+                                    ),
+                                    Unknown,
                                 ),
                             ],
                         ),
                     ),
                 ],
             ),
-            None,
-        ),
+            return_type: Unit,
+        },
     ),
     Decl(
-        Function(
-            TSIdentifier(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fdopen",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "mode",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Pointer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fclose",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fwrite",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "size",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "print",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+            ],
+            body: Some(
+                [
+                    Assignment(
+                        TSIdentifier(
+                            "stdoutptr",
+                        ),
+                        Call(
+                            TSIdentifier(
+                                "fdopen",
+                            ),
+                            [
+                                Value(
+                                    Integer(
+                                        1,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    String(
+                                        "w",
+                                    ),
+                                    String,
+                                ),
+                            ],
+                        ),
+                        None,
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "fwrite",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "val",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Integer(
+                                        4,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    Integer(
+                                        10,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "fclose",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
                 "main",
             ),
-            [],
-            Some(
-                [],
+            arguments: [],
+            body: Some(
+                [
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "print",
+                            ),
+                            [
+                                Value(
+                                    String(
+                                        "hello world with out printf!!!!",
+                                    ),
+                                    String,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
             ),
-            None,
-        ),
+            return_type: Unit,
+        },
     ),
 ]
 

@@ -4,20 +4,33 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
 module attributes {llvm.data_layout = ""} {
   llvm.func @printf(!llvm.ptr, ...) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
-  llvm.mlir.global internal @annonstr0("ac") {addr_space = 0 : i32}
-  llvm.mlir.global internal @annonstr1("bc") {addr_space = 0 : i32}
+  llvm.func @fdopen(i32, !llvm.ptr) -> !llvm.ptr attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fclose(!llvm.ptr) attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fwrite(!llvm.ptr, i32, i32, !llvm.ptr) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.mlir.global internal @annonstr0("w") {addr_space = 0 : i32}
+  llvm.func @print(%arg0: !llvm.ptr) {
+    %0 = llvm.mlir.constant(1 : i32) : i32
+    %1 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %2 = llvm.call @fdopen(%0, %1) : (i32, !llvm.ptr) -> !llvm.ptr
+    %3 = llvm.mlir.constant(4 : i32) : i32
+    %4 = llvm.mlir.constant(10 : i32) : i32
+    %5 = llvm.call @fwrite(%arg0, %3, %4, %2) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
+    llvm.return
+  }
+  llvm.mlir.global internal @annonstr1("ac") {addr_space = 0 : i32}
+  llvm.mlir.global internal @annonstr2("bc") {addr_space = 0 : i32}
   llvm.func @main() attributes {llvm.emit_c_interface} {
     %0 = llvm.mlir.constant(1 : i32) : i32
     %1 = llvm.alloca %0 x !llvm.struct<packed (ptr, ptr)> : (i32) -> !llvm.ptr<struct<packed (ptr, ptr)>>
     %2 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>
-    %3 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %3 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
     llvm.store %3, %2 : !llvm.ptr, !llvm.ptr
     %4 = llvm.getelementptr %1[0, 1] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>
-    %5 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
+    %5 = llvm.mlir.addressof @annonstr2 : !llvm.ptr
     llvm.store %5, %4 : !llvm.ptr, !llvm.ptr
     %6 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr, ptr)>
     %7 = llvm.load %6 : !llvm.ptr -> !llvm.ptr
-    %8 = llvm.call @printf(%7) : (!llvm.ptr) -> i32
+    llvm.call @print(%7) : (!llvm.ptr) -> ()
     llvm.return
   }
   llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {

@@ -7,6 +7,3 @@ fn println(value) {
   print("\n");
 }
 
-fn print(value) {
-  printf(value);
-}
