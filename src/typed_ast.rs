@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 use std::collections::HashMap;
 
@@ -24,6 +24,15 @@ impl Type {
             Type::String => llvm::r#type::opaque_pointer(context),
             Type::Integer => IntegerType::new(context, 32).into(),
             Type::Unit => llvm::r#type::void(context),
+            Type::Struct(fields) => llvm::r#type::r#struct(
+                &context,
+                fields
+                    .iter()
+                    .map(|f| f.1.as_mlir_type(context))
+                    .collect::<Vec<melior::ir::Type>>()
+                    .as_slice(),
+                true,
+            ),
             _ => todo!("unimplemented type to mlir type {:?}", self),
         }
     }
@@ -53,6 +62,24 @@ pub enum TypedExpression {
     Call(TSIdentifier, Vec<TypedExpression>),
     Struct(TSIdentifier, Vec<TypedExpression>),
     StructFieldRef(TSIdentifier, TSIdentifier),
+}
+
+impl TypedExpression {
+    fn r#type(&self, types: &HashMap<TSIdentifier, Type>) -> Result<Type> {
+       match self {
+            Self::Value(_, r#type ) => Ok(r#type.clone()),
+            Self::Call(type_id, _  ) => types.get(type_id).map(|expression_type| match expression_type.clone() {
+               Type::Function(_, _, ref return_type ) => Ok((**return_type).clone()), 
+                _ => bail!("expected to a function type for a call expression, instead found {:#?} for type id {}", expression_type, type_id.0)
+            }).unwrap(),
+            Self::Struct(type_id, _ ) => { types.get(type_id).map(|expression_type| match expression_type {
+               Type::Struct(..) => Ok(expression_type.clone()), 
+                _ => bail!("expected to a struct type, instead found {:#?} for type id {}", expression_type, type_id.0)
+            }).unwrap()
+            },
+        Self::StructFieldRef( .. ) => Ok(Type::Unknown)
+         } 
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +116,7 @@ pub struct TypedAstBuilder {
 pub struct TypedProgram {
     pub types: HashMap<TSIdentifier, Type>,
     pub ast: Vec<TypedAst>,
+    pub variable_types: HashMap<TSIdentifier, Type>,
 }
 
 fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
@@ -99,7 +127,9 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
             fields.into_iter().map(|f| (f, Type::String)).collect(),
         )),
         parser::TypedAst::Assignment(var_id, init_expression) => {
-            TypedAst::Assignment(var_id, type_expression(init_expression)?, None)
+            let expression = type_expression(init_expression)?;
+            
+            TypedAst::Assignment(var_id, expression, None)
         }
         parser::TypedAst::Function {
             keywords,
@@ -145,31 +175,74 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
         .collect::<Result<Vec<TypedAst>>>()?;
 
     let mut types: HashMap<TSIdentifier, Type> = HashMap::new();
-    for node in typed_ast.clone() {
+    let mut variable_types: HashMap<TSIdentifier, Type> = HashMap::new();
+    let mut nodes = typed_ast.clone();
+
+    loop {
+        let Some(node) = nodes.pop() else {
+            break;
+        };
+
         match node {
             TypedAst::Decl(decl) => {
                 match decl {
-                    Decl::Struct(id, fields) => types.insert(id, Type::Struct(fields)),
+                    Decl::Struct(id, fields) => {
+                        types.insert(id, Type::Struct(fields));
+                    }
                     Decl::Function {
                         keywords,
                         id,
                         arguments,
                         body,
                         return_type,
-                    } => types.insert(
-                        id,
-                        Type::Function(keywords, arguments, Box::new(return_type)),
-                    ),
+                    } => {
+                        types.insert(
+                            id,
+                            Type::Function(keywords, arguments, Box::new(return_type)),
+                        );
+                        if let Some(mut body) = body {
+                            nodes.append(&mut body);
+                        }
+                    }
                 };
             }
 
+           _ => (),
+        }
+    }
+
+    let mut nodes = typed_ast.clone();
+      loop {
+        let Some(node) = nodes.pop() else {
+            break;
+        };
+
+        match node {
+            TypedAst::Decl(decl) => {
+                match decl {
+                    Decl::Function {
+                        body, ..
+                    } => {
+                        if let Some(mut body) = body {
+                            nodes.append(&mut body);
+                        }
+                    }
+                     _ => ()
+                };
+            }
+
+            TypedAst::Assignment(id, expression, r#type) => {
+                let assignment_type = r#type.unwrap_or(expression.r#type(&types)?);
+                variable_types.insert(id, assignment_type);
+            }
             _ => (),
         }
     }
 
     Ok(TypedProgram {
-        types: HashMap::new(),
+        types,
         ast: typed_ast,
+        variable_types,
     })
 }
 

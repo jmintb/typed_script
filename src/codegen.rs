@@ -51,13 +51,23 @@ pub fn get_element_ptr_typed<'c>(
 struct CodeGen<'ctx> {
     context: &'ctx Context,
     annon_string_counter: RefCell<usize>,
+    llvm_type_store: HashMap<TSIdentifier, Type<'ctx>>,
+    type_store: HashMap<TSIdentifier, typed_ast::Type>,
+    var_to_type: HashMap<TSIdentifier, typed_ast::Type>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
-    fn new(context: &'ctx Context) -> Self {
+    fn new(
+        context: &'ctx Context,
+        types: HashMap<TSIdentifier, typed_ast::Type>,
+        variable_types: HashMap<TSIdentifier, typed_ast::Type>,
+    ) -> Self {
         Self {
-            context: context,
+            context,
             annon_string_counter: 0.into(),
+            llvm_type_store: HashMap::new(),
+            type_store: types,
+            var_to_type: variable_types,
         }
     }
 
@@ -70,420 +80,362 @@ impl<'ctx> CodeGen<'ctx> {
         id
     }
 
-    fn gen_ast_code(&self, ast: TypedProgram, emit_mlir: bool) -> Result<Module> {
-        let location = Location::unknown(&self.context);
-        let mut llvm_type_store: HashMap<TSIdentifier, Type<'_>> = HashMap::new();
-        let mut type_store: HashMap<TSIdentifier, TypedAst> = HashMap::new();
-        let mut var_to_type: HashMap<TSIdentifier, TSIdentifier> = HashMap::new();
+    fn gen_declaration<'a>(
+        &'a self,
+        decl: Decl,
+        location: Location<'a>,
+        module: &mut Module<'a>,
+    ) -> Result<Operation> {
+        match decl {
+            e @ Decl::Function { .. } => self.gen_function(e, location, module),
+            _ => todo!("struct decl"),
+        }
+    }
 
-        let mut module = Module::new(location);
+    fn gen_function<'a>(
+        &'a self,
+        decl: Decl,
+        location: Location<'a>,
+        module: &mut Module<'a>,
+    ) -> Result<Operation> {
+        let Decl::Function {
+            keywords,
+            id,
+            arguments,
+            body,
+            return_type,
+        } = decl
+        else {
+            panic!("recived a non function declaration");
+        };
 
-        let printf_decl = llvm::func(
-            &self.context,
-            StringAttribute::new(&self.context, "printf"),
-            TypeAttribute::new(
-                llvm::r#type::function(
-                    IntegerType::new(&self.context, 32).into(),
-                    &[llvm::r#type::opaque_pointer(&self.context)],
-                    true,
-                )
-                .into(),
-            ),
-            Region::new(),
-            &[
-                (
-                    Identifier::new(&self.context, "sym_visibility"),
-                    StringAttribute::new(&self.context, "private").into(),
-                ),
-                (
-                    Identifier::new(&self.context, "llvm.emit_c_interface"),
-                    Attribute::unit(&self.context),
-                ),
-            ],
-            location,
+        let function_region = Region::new();
+
+        let mut function_block = Block::new(
+            arguments
+                .iter()
+                .map(|_| (llvm::r#type::opaque_pointer(&self.context), location))
+                .collect::<Vec<(Type, Location)>>()
+                .as_slice(),
         );
 
-        module.body().append_operation(printf_decl);
+        let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
+        for exp in body.unwrap_or(vec![]) {
+            match exp.clone() {
+                TypedAst::Expression(TypedExpression::Call(id, args)) => {
+                    // let mut exp_block = function_block;
+                    let actual_args: Vec<Value> = args
+                        .iter()
+                        .map(|arg| match arg {
+                            TypedExpression::Value(TSValue::String(ref val), Type) => {
+                                // TODO: \n is getting escaped, perhap we need a raw string?
+                                let val = if val == "\\n" { "\n" } else { val };
 
-        for node in ast.ast.clone() {
-            match node.clone() {
-                typed_ast::TypedAst::Decl(Decl::Function { ref id, .. }) => {
-                    type_store.insert(id.clone(), node.clone());
-                }
-                _ => (),
-            }
-        }
+                                let ptr_op = self
+                                    .gen_pointer_to_annon_str(
+                                        location.clone(),
+                                        val.to_string(),
+                                        &module,
+                                    )
+                                    .unwrap();
 
-        for node in ast.ast {
-            let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
-            match node.clone() {
-                TypedAst::Decl(Decl::Function {
-                    keywords,
-                    id,
-                    arguments,
-                    body,
-                    return_type,
-                }) => {
-                    let region = Region::new();
-                    let mut function_block = Block::new(
-                        arguments
-                            .iter()
-                            .map(|_| (llvm::r#type::opaque_pointer(&self.context), location))
-                            .collect::<Vec<(Type, Location)>>()
-                            .as_slice(),
-                    );
-
-                    // TODO: hoisting
-                    type_store.insert(id.clone(), node.clone());
-
-                    let mlir_rt_type = return_type.as_mlir_type(self.context);
-
-                    let Some(body) = body else {
-                        let functiom_decl = llvm::func(
-                            &self.context,
-                            StringAttribute::new(&self.context, &id.0),
-                            TypeAttribute::new(
-                                llvm::r#type::function(
-                                    mlir_rt_type,
-                                    arguments
-                                        .iter()
-                                        .map(|a| a.r#type.as_mlir_type(&self.context))
-                                        .collect::<Vec<Type>>()
-                                        .as_slice(),
-                                    false,
-                                )
-                                .into(),
-                            ),
-                            Region::new(),
-                            &[
-                                (
-                                    Identifier::new(&self.context, "sym_visibility"),
-                                    StringAttribute::new(&self.context, "private").into(),
-                                ),
-                                (
-                                    Identifier::new(&self.context, "llvm.emit_c_interface"),
-                                    Attribute::unit(&self.context),
-                                ),
-                            ],
-                            location,
-                        );
-
-                        module.body().append_operation(functiom_decl);
-                        continue;
-                    };
-
-                    for exp in body {
-                        match exp.clone() {
-                            TypedAst::Expression(TypedExpression::Call(id, args)) => {
-                                // let mut exp_block = function_block;
-                                let actual_args: Vec<Value> = args
-                                    .iter()
-                                    .map(|arg| match arg {
-                                        TypedExpression::Value(TSValue::String(ref val), Type) => {
-                                            // TODO: \n is getting escaped, perhap we need a raw string?
-                                            let val = if val == "\\n" { "\n" } else { val };
-
-                                            let ptr_op = self
-                                                .gen_pointer_to_annon_str(
-                                                    location.clone(),
-                                                    val.to_string(),
-                                                    &module,
-                                                )
-                                                .unwrap();
-
-                                            function_block
-                                                .append_operation(ptr_op)
-                                                .result(0)
-                                                .unwrap()
-                                                .into()
-                                        }
-                                        TypedExpression::Value(TSValue::Variable(ref id), Type) => {
-                                            if let Some(v) = variable_store.get(id) {
-
-                                                v.to_owned().into()
-                                            } else {
-                                                function_block
-                                                    .argument(
-                                                        arguments
-                                                            .iter()
-                                                            .position(|farg| &farg.name == id)
-                                                            .ok_or(format!(
-                                                            "failed to match argument: {:?} {id:?} {:?}",
-                                                            arguments
-                                                                .iter()
-                                                                .map(|farg| farg.name.clone())
-                                                                .collect::<Vec<TSIdentifier>>()
-                                                        , variable_store))
-                                                            .unwrap(),
-                                                    )
-                                                    .unwrap()
-                                                    .into()
-                                            }
-                                        }
-                                        e @ TypedExpression::StructFieldRef(_, _) => self
-                                            .gen_struct_expression_block(
-                                                e.clone(),
-                                                location,
-                                                &module,
-                                                &llvm_type_store,
-                                                variable_store.clone(),
-                                                &type_store,
-                                                &function_block,
-                                                var_to_type.clone(),
-                                            )
-                                            .unwrap()
-                                            .unwrap()
-                                            .into(),
-                                        TypedExpression::Value(TSValue::Integer(v), _) => {
-                                            // next
-                                            let const_op = melior::dialect::arith::constant(
-                                                &self.context,
-                                                IntegerAttribute::new(
-                                                    *v as i64,
-                                                    IntegerType::new(&self.context, 32).into(),
-                                                )
-                                                .into(),
-                                                location,
-                                            );
-
-                                            function_block
-                                                .append_operation(const_op)
-                                                .result(0)
-                                                .unwrap()
-                                                .into()
-                                        }
-                                        e => todo!("not yet implemented: {:?}", e),
-                                    })
-                                    .collect();
-
-                                // TODO: next add extern decls to type store
-                                let fn_type = type_store.get(&id).unwrap();
-
-                                let callee_keywords =
-                                    if let typed_ast::TypedAst::Decl(Decl::Function {
-                                        keywords,
-                                        ..
-                                    }) = fn_type
-                                    {
-                                        keywords
-                                    } else {
-                                        panic!(
-                                            "failed to find a function dcelaration for {}",
-                                            id.0
-                                        );
-                                    };
-
-                                let rt_type =
-                                    if let &typed_ast::TypedAst::Decl(typed_ast::Decl::Function {
-                                        ref return_type,
-                                        ..
-                                    }) = fn_type
-                                    {
-                                        return_type
-                                    } else {
-                                        panic!("missing return type for {id:?}");
-                                    };
-
-                                if callee_keywords.contains(&FunctionKeyword::LlvmExtern) {
-                                    let op = OperationBuilder::new("llvm.call", location)
-                                        .add_operands(&actual_args)
-                                        .add_attributes(&[(
-                                            Identifier::new(&self.context, "callee"),
-                                            FlatSymbolRefAttribute::new(&self.context, &id.0)
-                                                .into(),
-                                        )]);
-
-                                    function_block.append_operation(match rt_type {
-                                        typed_ast::Type::Unit => op.build(),
-                                        _ => op
-                                            .add_results(&[rt_type.as_mlir_type(&self.context)])
-                                            .build(),
-                                    });
-                                } else {
-                                    let res = function_block.append_operation(func::call(
-                                        &self.context,
-                                        FlatSymbolRefAttribute::new(&self.context, &id.0),
-                                        &actual_args,
-                                        &[],
-                                        location,
-                                    ));
-                                }
-
-                                // let call = llvm::ca(
-                                //     &self.context,
-                                //     FlatSymbolRefAttribute::new(&self.context, "printf"),
-                                //     &[op.result(0).unwrap().into()],
-                                //     &[Type::none(&self.context)],
-                                //     location,
-                                // );
-
-                                // block.append_operation(func::r#return(&[], location));
+                                function_block
+                                    .append_operation(ptr_op)
+                                    .result(0)
+                                    .unwrap()
+                                    .into()
                             }
-                            TypedAst::Expression(TypedExpression::Struct(id, fields)) => {
-                                let size = melior::dialect::arith::constant(
+                            TypedExpression::Value(TSValue::Variable(ref id), Type) => {
+                                if let Some(v) = variable_store.get(id) {
+                                    v.to_owned().into()
+                                } else {
+                                    function_block
+                                        .argument(
+                                            arguments
+                                                .iter()
+                                                .position(|farg| &farg.name == id)
+                                                .ok_or(format!(
+                                                    "failed to match argument: {:?} {id:?} {:?}",
+                                                    arguments
+                                                        .iter()
+                                                        .map(|farg| farg.name.clone())
+                                                        .collect::<Vec<TSIdentifier>>(),
+                                                    variable_store
+                                                ))
+                                                .unwrap(),
+                                        )
+                                        .unwrap()
+                                        .into()
+                                }
+                            }
+                            e @ TypedExpression::StructFieldRef(_, _) => self
+                                .gen_struct_expression_block(
+                                    e.clone(),
+                                    location,
+                                    &module,
+                                    variable_store.clone(),
+                                    &function_block,
+                                )
+                                .unwrap()
+                                .unwrap()
+                                .into(),
+                            TypedExpression::Value(TSValue::Integer(v), _) => {
+                                // next
+                                let const_op = melior::dialect::arith::constant(
                                     &self.context,
                                     IntegerAttribute::new(
-                                        4, // TODO why do we need 4 here?
+                                        *v as i64,
                                         IntegerType::new(&self.context, 32).into(),
                                     )
                                     .into(),
                                     location,
                                 );
-                                let res = function_block.append_operation(size);
-                                let ptr_type = if let Some(ty) = llvm_type_store.get(&id).cloned() {
-                                    llvm::r#type::pointer(ty, 0)
-                                } else {
-                                    bail!("Could not find an LLVM type for ID: {id:?}")
-                                };
 
-                                let empty_struct = llvm::alloca(
-                                    &self.context,
-                                    res.result(0).unwrap().into(),
-                                    ptr_type,
-                                    location,
-                                    AllocaOptions::new(),
-                                );
-
-                                let struct_ptr =
-                                    function_block.append_operation(empty_struct).result(0)?;
-
-                                let string_type = llvm::r#type::array(
-                                    IntegerType::new(&self.context, 8).into(),
-                                    2 as u32,
-                                );
-
-                                let string_ptr = llvm::r#type::pointer(string_type, 0);
-
-                                let ele_type = llvm::r#type::r#struct(
-                                    self.context,
-                                    &[string_type.clone(), string_type],
-                                    false,
-                                );
-
-                                for (i, f) in fields.into_iter().enumerate() {
-                                    let field_ptr_op = llvm::get_element_ptr(
-                                        &self.context,
-                                        struct_ptr.into(),
-                                        DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
-                                        ele_type,
-                                        llvm::r#type::opaque_pointer(&self.context),
-                                        location,
-                                    );
-
-                                    let field_ptr =
-                                        function_block.append_operation(field_ptr_op).result(0)?;
-
-                                    let exp_ptr_op =
-                                        self.gen_expression_code(f, location, &module)?;
-
-                                    let exp_ptr =
-                                        function_block.append_operation(exp_ptr_op).result(0)?;
-
-                                    let store_op = llvm::store(
-                                        &self.context,
-                                        exp_ptr.into(),
-                                        field_ptr.into(),
-                                        location,
-                                        LoadStoreOptions::new(),
-                                    );
-
-                                    function_block.append_operation(store_op);
-                                }
+                                function_block
+                                    .append_operation(const_op)
+                                    .result(0)
+                                    .unwrap()
+                                    .into()
                             }
+                            e => todo!("not yet implemented: {:?}", e),
+                        })
+                        .collect();
 
-                            TypedAst::Assignment(id, exp, type_anno) => {
-                                if let TypedExpression::Struct(type_id, _) = exp.clone() {
-                                    var_to_type.insert(id.clone(), type_id);
-                                }
+                    let fn_type = self.type_store.get(&id).unwrap();
 
-                                let exp_op = self.gen_struct_expression_block(
-                                    exp,
-                                    location,
-                                    &module,
-                                    &llvm_type_store,
-                                    variable_store.clone(),
-                                    &type_store,
-                                    &function_block,
-                                    var_to_type.clone(),
-                                )?;
+                    let (callee_keywords, return_type) =
+                        if let typed_ast::Type::Function(keywords, _, return_type) = fn_type {
+                            (keywords, return_type)
+                        } else {
+                            panic!(
+                                "failed to find a function dcelaration or return type for {}",
+                                id.0
+                            );
+                        };
 
-                                if let Some(exp_op) = exp_op {
-                                    variable_store.insert(id, exp_op);
-                                }
-                            }
+                    if callee_keywords.contains(&FunctionKeyword::LlvmExtern) {
+                        let op = OperationBuilder::new("llvm.call", location)
+                            .add_operands(&actual_args)
+                            .add_attributes(&[(
+                                Identifier::new(&self.context, "callee"),
+                                FlatSymbolRefAttribute::new(&self.context, &id.0).into(),
+                            )]);
 
-                            e => todo!("not yet ready for {:?}", e),
-                        }
-                    }
-
-                    function_block.append_operation(llvm::r#return(None, location));
-
-                    let mut function_block = region.append_block(function_block);
-
-                    if &id.0 == "main" {
-                        let function = func::func(
-                            &self.context,
-                            StringAttribute::new(&self.context, &id.0),
-                            TypeAttribute::new(
-                                FunctionType::new(
-                                    &self.context,
-                                    arguments
-                                        .iter()
-                                        .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
-                                        .collect::<Vec<Type>>()
-                                        .as_slice(),
-                                    &[],
-                                )
-                                .into(),
-                            ),
-                            region,
-                            &[(
-                                Identifier::new(&self.context, "llvm.emit_c_interface"),
-                                Attribute::unit(&self.context),
-                            )],
-                            location,
-                        );
-
-                        module.body().append_operation(function);
+                        function_block.append_operation(match **return_type {
+                            typed_ast::Type::Unit => op.build(),
+                            _ => op
+                                .add_results(&[return_type.as_mlir_type(&self.context)])
+                                .build(),
+                        });
                     } else {
-                        let function = func::func(
+                        let res = function_block.append_operation(func::call(
                             &self.context,
-                            StringAttribute::new(&self.context, &id.0),
-                            TypeAttribute::new(
-                                FunctionType::new(
-                                    &self.context,
-                                    arguments
-                                        .iter()
-                                        .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
-                                        .collect::<Vec<Type>>()
-                                        .as_slice(),
-                                    &[],
-                                )
-                                .into(),
-                            ),
-                            region,
+                            FlatSymbolRefAttribute::new(&self.context, &id.0),
+                            &actual_args,
                             &[],
                             location,
-                        );
-
-                        module.body().append_operation(function);
+                        ));
                     }
+
+                    // let call = llvm::ca(
+                    //     &self.context,
+                    //     FlatSymbolRefAttribute::new(&self.context, "printf"),
+                    //     &[op.result(0).unwrap().into()],
+                    //     &[Type::none(&self.context)],
+                    //     location,
+                    // );
+
+                    // block.append_operation(func::r#return(&[], location));
                 }
-                TypedAst::Decl(Decl::Struct(id, fields)) => {
-                    let field_type = llvm::r#type::opaque_pointer(self.context);
-                    let struct_ty = llvm::r#type::r#struct(
+                TypedAst::Expression(TypedExpression::Struct(id, fields)) => {
+                    let size = melior::dialect::arith::constant(
                         &self.context,
-                        fields
-                            .iter()
-                            .map(|f| field_type)
-                            .collect::<Vec<Type>>()
-                            .as_slice(),
-                        true,
+                        IntegerAttribute::new(
+                            4, // TODO why do we need 4 here?
+                            IntegerType::new(&self.context, 32).into(),
+                        )
+                        .into(),
+                        location,
+                    );
+                    let res = function_block.append_operation(size);
+                    let ptr_type = if let Some(ty) = self.type_store.get(&id).cloned() {
+                        llvm::r#type::pointer(ty.as_mlir_type(self.context), 0)
+                    } else {
+                        bail!("Could not find a type for ID: {id:?}")
+                    };
+
+                    let empty_struct = llvm::alloca(
+                        &self.context,
+                        res.result(0).unwrap().into(),
+                        ptr_type,
+                        location,
+                        AllocaOptions::new(),
                     );
 
-                    llvm_type_store.insert(id.clone(), struct_ty);
-                    type_store.insert(id, node.clone());
+                    let struct_ptr = function_block.append_operation(empty_struct).result(0)?;
+
+                    let string_type =
+                        llvm::r#type::array(IntegerType::new(&self.context, 8).into(), 2 as u32);
+
+                    let string_ptr = llvm::r#type::pointer(string_type, 0);
+
+                    let ele_type = llvm::r#type::r#struct(
+                        self.context,
+                        &[string_type.clone(), string_type],
+                        false,
+                    );
+
+                    for (i, f) in fields.into_iter().enumerate() {
+                        let field_ptr_op = llvm::get_element_ptr(
+                            &self.context,
+                            struct_ptr.into(),
+                            DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
+                            ele_type,
+                            llvm::r#type::opaque_pointer(&self.context),
+                            location,
+                        );
+
+                        let field_ptr = function_block.append_operation(field_ptr_op).result(0)?;
+
+                        let exp_ptr_op = self.gen_expression_code(f, location, &module)?;
+
+                        let exp_ptr = function_block.append_operation(exp_ptr_op).result(0)?;
+
+                        let store_op = llvm::store(
+                            &self.context,
+                            exp_ptr.into(),
+                            field_ptr.into(),
+                            location,
+                            LoadStoreOptions::new(),
+                        );
+
+                        function_block.append_operation(store_op);
+                    }
                 }
+
+                TypedAst::Assignment(id, exp, type_anno) => {
+                    // if let TypedExpression::Struct(type_id, _) = exp.clone() {
+                    //     self.var_to_type.insert(id.clone(), type_id);
+                    // }
+
+                    let exp_op = self.gen_struct_expression_block(
+                        exp,
+                        location,
+                        &module,
+                        variable_store.clone(),
+                        &function_block,
+                    )?;
+
+                    if let Some(exp_op) = exp_op {
+                        variable_store.insert(id, exp_op);
+                    }
+                }
+
+                e => todo!("not yet ready for {:?}", e),
+            }
+        }
+
+        function_block.append_operation(llvm::r#return(None, location));
+
+        let mut function_block = function_region.append_block(function_block);
+        let functiom_decl = if &id.0 == "main" {
+            func::func(
+                &self.context,
+                StringAttribute::new(&self.context, &id.0),
+                TypeAttribute::new(
+                    FunctionType::new(
+                        &self.context,
+                        arguments
+                            .iter()
+                            .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                            .collect::<Vec<Type>>()
+                            .as_slice(),
+                        &[],
+                    )
+                    .into(),
+                ),
+                function_region,
+                &[(
+                    Identifier::new(&self.context, "llvm.emit_c_interface"),
+                    Attribute::unit(&self.context),
+                )],
+                location,
+            )
+        } else if keywords.contains(&FunctionKeyword::LlvmExtern) {
+            llvm::func(
+                &self.context,
+                StringAttribute::new(&self.context, &id.0),
+                TypeAttribute::new(
+                    llvm::r#type::function(
+                        return_type.as_mlir_type(&self.context),
+                        arguments
+                            .iter()
+                            .map(|a| a.r#type.as_mlir_type(&self.context))
+                            .collect::<Vec<Type>>()
+                            .as_slice(),
+                        false,
+                    )
+                    .into(),
+                ),
+                function_region,
+                &[
+                    (
+                        Identifier::new(&self.context, "sym_visibility"),
+                        StringAttribute::new(&self.context, "private").into(),
+                    ),
+                    (
+                        Identifier::new(&self.context, "llvm.emit_c_interface"),
+                        Attribute::unit(&self.context),
+                    ),
+                ],
+                location,
+            )
+        } else {
+            func::func(
+                &self.context,
+                StringAttribute::new(&self.context, &id.0),
+                TypeAttribute::new(
+                    FunctionType::new(
+                        &self.context,
+                        arguments
+                            .iter()
+                            .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                            .collect::<Vec<Type>>()
+                            .as_slice(),
+                        &[],
+                    )
+                    .into(),
+                ),
+                function_region,
+                &[],
+                location,
+            )
+        };
+
+        Ok(functiom_decl)
+    }
+
+    fn gen_ast_code(&self, ast: TypedProgram, emit_mlir: bool) -> Result<Module> {
+        let location = Location::unknown(&self.context);
+        let mut module = Module::new(location);
+
+        for node in ast.ast {
+            let mut variable_store: HashMap<TSIdentifier, OperationResult> = HashMap::new();
+            match node.clone() {
+                TypedAst::Decl(
+                    ref d @ Decl::Function {
+                        ref id,
+                        ref arguments,
+                        ref body,
+                        ref return_type,
+                        ..
+                    },
+                ) => {
+                    let function_decl = self.gen_declaration(d.clone(), location, &mut module)?;
+
+                    module.body().append_operation(function_decl);
+                }
+                TypedAst::Decl(Decl::Struct(..)) => {}
                 _ => todo!(),
             }
         }
@@ -496,11 +448,8 @@ impl<'ctx> CodeGen<'ctx> {
         exp: TypedExpression,
         location: Location<'a>,
         module: &Module,
-        llvm_type_store: &'a HashMap<TSIdentifier, Type>,
         llvm_value_store: HashMap<TSIdentifier, OperationResult<'a, 'a>>,
-        type_store: &HashMap<TSIdentifier, TypedAst>,
         function_block: &'a Block,
-        var_to_type: HashMap<TSIdentifier, TSIdentifier>,
     ) -> Result<Option<OperationResult>>
     where
         'a: 'c,
@@ -549,11 +498,8 @@ impl<'ctx> CodeGen<'ctx> {
                     })
                     .collect();
 
-                if let Some(typed_ast::TypedAst::Decl(Decl::Function {
-                    ref keywords,
-                    ref return_type,
-                    ..
-                })) = type_store.get(&id)
+                if let Some(typed_ast::Type::Function(ref keywords, _, ref return_type)) =
+                    self.type_store.get(&id)
                 {
                     if keywords.contains(&FunctionKeyword::LlvmExtern) {
                         let res = function_block.append_operation(
@@ -618,27 +564,32 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
 
-            // NEXT STEP: fix function return types to get fopen worknig.
+            // TODO: NEXT remove the need to mutate type stores in codgen.
             TypedExpression::StructFieldRef(struct_id, field_id) => {
-                let type_id = var_to_type.get(&struct_id).unwrap();
-                let struct_type = llvm_type_store.get(type_id).unwrap();
+                let struct_type = self.var_to_type.get(&struct_id).unwrap();
                 let struct_ptr = llvm_value_store.get(&struct_id).unwrap().to_owned();
 
-                let Some(field_index) = (if let Some(TypedAst::Decl(Decl::Struct(id, fields))) =
-                    type_store.get(&TSIdentifier("Test".to_string()))
-                {
+                let Some(field_index) = (if let typed_ast::Type::Struct(fields) = struct_type {
                     fields.iter().position(|f| f.0 == field_id)
                 } else {
-                    None
+                    bail!(
+                        "Expected to find a struct type for variable {} instead found {:#?}",
+                        struct_id.0,
+                        struct_type
+                    );
                 }) else {
-                    bail!("Failed to find struct type for {struct_id:?}")
+                    bail!(
+                        "Failed to find field {} in struct {:?}",
+                        field_id.0,
+                        struct_type
+                    );
                 };
 
                 let gep = llvm::get_element_ptr(
                     self.context,
                     struct_ptr.into(),
                     DenseI32ArrayAttribute::new(self.context, &[0, field_index as i32]),
-                    struct_type.to_owned(),
+                    struct_type.as_mlir_type(&self.context).to_owned(),
                     llvm::r#type::opaque_pointer(self.context),
                     location,
                 );
@@ -663,8 +614,8 @@ impl<'ctx> CodeGen<'ctx> {
                 );
 
                 let res = function_block.append_operation(size);
-                let ptr_type = if let Some(&ty) = llvm_type_store.get(&id) {
-                    llvm::r#type::pointer(ty, 0)
+                let ptr_type = if let Some(ty) = self.type_store.get(&id).cloned() {
+                    llvm::r#type::pointer(ty.as_mlir_type(self.context), 0)
                 } else {
                     bail!("Could not find an LLVM type for ID: {id:?}")
                 };
@@ -841,7 +792,7 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     context.get_or_load_dialect("arith");
     context.get_or_load_dialect("llvm");
     register_all_llvm_translations(&context);
-    let code_gen = CodeGen::new(&context);
+    let code_gen = CodeGen::new(&context, ast.types.clone(), ast.variable_types.clone());
 
     let mut module = code_gen.gen_ast_code(ast, emit_mlir)?;
     if !emit_mlir {
