@@ -2,40 +2,49 @@
 source: tests/e2e.rs
 expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
-module attributes {llvm.data_layout = ""} {
-  llvm.func @fdopen(i32, !llvm.ptr) -> !llvm.ptr attributes {llvm.emit_c_interface, sym_visibility = "private"}
-  llvm.func @fclose(!llvm.ptr) attributes {llvm.emit_c_interface, sym_visibility = "private"}
-  llvm.func @fwrite(!llvm.ptr, i32, i32, !llvm.ptr) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
-  llvm.mlir.global internal @annonstr0("w") {addr_space = 0 : i32}
-  llvm.func @print(%arg0: !llvm.ptr) {
-    %0 = llvm.mlir.constant(1 : i32) : i32
-    %1 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
-    %2 = llvm.call @fdopen(%0, %1) : (i32, !llvm.ptr) -> !llvm.ptr
-    %3 = llvm.mlir.constant(4 : i32) : i32
-    %4 = llvm.mlir.constant(10 : i32) : i32
-    %5 = llvm.call @fwrite(%arg0, %3, %4, %2) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
-    llvm.return
-  }
-  llvm.mlir.global internal @annonstr1("ac") {addr_space = 0 : i32}
-  llvm.mlir.global internal @annonstr2("bc") {addr_space = 0 : i32}
-  llvm.func @main() attributes {llvm.emit_c_interface} {
-    %0 = llvm.mlir.constant(1 : i32) : i32
-    %1 = llvm.alloca %0 x !llvm.struct<packed (ptr, ptr)> : (i32) -> !llvm.ptr<struct<packed (ptr, ptr)>>
-    %2 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>
-    %3 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
-    llvm.store %3, %2 : !llvm.ptr, !llvm.ptr
-    %4 = llvm.getelementptr %1[0, 1] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>
-    %5 = llvm.mlir.addressof @annonstr2 : !llvm.ptr
-    llvm.store %5, %4 : !llvm.ptr, !llvm.ptr
-    %6 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr, !llvm.struct<packed (ptr, ptr)>
-    %7 = llvm.load %6 : !llvm.ptr -> !llvm.ptr
-    llvm.call @print(%7) : (!llvm.ptr) -> ()
-    llvm.return
-  }
-  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
-    llvm.call @main() : () -> ()
-    llvm.return
-  }
-}
+"builtin.module"() ({
+  "llvm.func"() <{CConv = #llvm.cconv<ccc>, function_type = !llvm.func<ptr (i32, ptr)>, linkage = #llvm.linkage<external>, sym_name = "fdopen", visibility_ = 0 : i64}> ({
+  ^bb0(%arg0: i32, %arg1: !llvm.ptr):
+    "llvm.return"() : () -> ()
+  }) {llvm.emit_c_interface, sym_visibility = "private"} : () -> ()
+  "llvm.func"() <{CConv = #llvm.cconv<ccc>, function_type = !llvm.func<void (ptr)>, linkage = #llvm.linkage<external>, sym_name = "fclose", visibility_ = 0 : i64}> ({
+  ^bb0(%arg0: !llvm.ptr):
+    "llvm.return"() : () -> ()
+  }) {llvm.emit_c_interface, sym_visibility = "private"} : () -> ()
+  "llvm.func"() <{CConv = #llvm.cconv<ccc>, function_type = !llvm.func<i32 (ptr, i32, i32, ptr)>, linkage = #llvm.linkage<external>, sym_name = "fwrite", visibility_ = 0 : i64}> ({
+  ^bb0(%arg0: !llvm.ptr, %arg1: i32, %arg2: i32, %arg3: !llvm.ptr):
+    "llvm.return"() : () -> ()
+  }) {llvm.emit_c_interface, sym_visibility = "private"} : () -> ()
+  "llvm.mlir.global"() <{addr_space = 0 : i32, global_type = !llvm.array<1 x i8>, linkage = #llvm.linkage<internal>, sym_name = "annonstr0", value = "w", visibility_ = 0 : i64}> ({
+  }) : () -> ()
+  "func.func"() <{function_type = (!llvm.ptr) -> (), sym_name = "print"}> ({
+  ^bb0(%arg0: !llvm.ptr):
+    %0 = "arith.constant"() <{value = 1 : i32}> : () -> i32
+    %1 = "llvm.mlir.addressof"() <{global_name = @annonstr0}> : () -> !llvm.ptr
+    %2 = "llvm.call"(%0, %1) <{callee = @fdopen, fastmathFlags = #llvm.fastmath<none>}> : (i32, !llvm.ptr) -> !llvm.ptr
+    %3 = "arith.constant"() <{value = 4 : i32}> : () -> i32
+    %4 = "arith.constant"() <{value = 10 : i32}> : () -> i32
+    %5 = "llvm.call"(%arg0, %3, %4, %2) <{callee = @fwrite, fastmathFlags = #llvm.fastmath<none>}> : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
+    "func.return"() : () -> ()
+  }) : () -> ()
+  "llvm.mlir.global"() <{addr_space = 0 : i32, global_type = !llvm.array<2 x i8>, linkage = #llvm.linkage<internal>, sym_name = "annonstr1", value = "ac", visibility_ = 0 : i64}> ({
+  }) : () -> ()
+  "llvm.mlir.global"() <{addr_space = 0 : i32, global_type = !llvm.array<2 x i8>, linkage = #llvm.linkage<internal>, sym_name = "annonstr2", value = "bc", visibility_ = 0 : i64}> ({
+  }) : () -> ()
+  "func.func"() <{function_type = () -> (), sym_name = "main"}> ({
+    %0 = "arith.constant"() <{value = 1 : i32}> : () -> i32
+    %1 = "llvm.alloca"(%0) : (i32) -> !llvm.ptr<struct<packed (ptr, ptr)>>
+    %2 = "llvm.getelementptr"(%1) <{elem_type = !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>, rawConstantIndices = array<i32: 0, 0>}> : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr
+    %3 = "llvm.mlir.addressof"() <{global_name = @annonstr1}> : () -> !llvm.ptr
+    "llvm.store"(%3, %2) <{ordering = 0 : i64}> : (!llvm.ptr, !llvm.ptr) -> ()
+    %4 = "llvm.getelementptr"(%1) <{elem_type = !llvm.struct<packed (ptr<array<2 x i8>>, ptr<array<2 x i8>>)>, rawConstantIndices = array<i32: 0, 1>}> : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr
+    %5 = "llvm.mlir.addressof"() <{global_name = @annonstr2}> : () -> !llvm.ptr
+    "llvm.store"(%5, %4) <{ordering = 0 : i64}> : (!llvm.ptr, !llvm.ptr) -> ()
+    %6 = "llvm.getelementptr"(%1) <{elem_type = !llvm.struct<packed (ptr, ptr)>, rawConstantIndices = array<i32: 0, 0>}> : (!llvm.ptr<struct<packed (ptr, ptr)>>) -> !llvm.ptr
+    %7 = "llvm.load"(%6) <{ordering = 0 : i64}> : (!llvm.ptr) -> !llvm.ptr
+    "func.call"(%7) <{callee = @print}> : (!llvm.ptr) -> ()
+    "llvm.return"() : () -> ()
+  }) {llvm.emit_c_interface} : () -> ()
+}) : () -> ()
 
 

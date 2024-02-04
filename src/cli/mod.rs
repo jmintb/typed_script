@@ -37,9 +37,9 @@ extern fn fdopen(fd: integer, mode: string) -> ptr;
 extern fn fclose(fd: string);
 extern fn fwrite(val: string, size: integer, len: integer, file: string) -> integer;
 
-fn print(val: string) {
-    let stdoutptr = fdopen(1, \"w\");
-    fwrite(val, 4, 10, stdoutptr);
+fn print(val: string, len: integer) {
+     let stdoutptr = fdopen(1, \"w\");
+     fwrite(val, len, 1, stdoutptr);
     }
     "
     .to_string()

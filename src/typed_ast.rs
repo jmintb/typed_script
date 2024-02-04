@@ -85,7 +85,7 @@ impl TypedExpression {
 #[derive(Debug, Clone)]
 pub enum TypedAst {
     Expression(TypedExpression),
-    Assignment(TSIdentifier, TypedExpression, Option<Type>),
+    Assignment(Assignment),
     Decl(Decl),
 }
 
@@ -99,6 +99,13 @@ pub enum Decl {
         body: Option<Vec<TypedAst>>,
         return_type: Type,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct Assignment {
+    pub id: TSIdentifier,
+    pub expression: TypedExpression,
+    pub typed_annotation: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +136,7 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
         parser::TypedAst::Assignment(var_id, init_expression) => {
             let expression = type_expression(init_expression)?;
             
-            TypedAst::Assignment(var_id, expression, None)
+            TypedAst::Assignment(Assignment { id: var_id, expression, typed_annotation: None})
         }
         parser::TypedAst::Function {
             keywords,
@@ -231,8 +238,8 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
                 };
             }
 
-            TypedAst::Assignment(id, expression, r#type) => {
-                let assignment_type = r#type.unwrap_or(expression.r#type(&types)?);
+            TypedAst::Assignment(Assignment { id, expression, typed_annotation }) => {
+                let assignment_type = typed_annotation.unwrap_or(expression.r#type(&types)?);
                 variable_types.insert(id, assignment_type);
             }
             _ => (),

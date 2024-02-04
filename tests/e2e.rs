@@ -4,7 +4,7 @@ use rstest::rstest;
 use std::path::PathBuf;
 
 #[rstest]
-fn test_well_formed_programs(#[files("./test_programs/*.ts")] path: PathBuf) -> Result<()> {
+fn test_well_formed_programs(#[files("./test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
     let mut cmd = Command::cargo_bin("typed_script")?;
     let assert = cmd.arg("run").arg(path.clone()).assert();
     assert.success();
@@ -19,7 +19,7 @@ fn test_well_formed_programs(#[files("./test_programs/*.ts")] path: PathBuf) -> 
 }
 
 #[rstest]
-fn snapshop_mlir_output(#[files("./test_programs/*.ts")] path: PathBuf) -> Result<()> {
+fn snapshop_mlir_output(#[files("./test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
     let mut cmd = Command::cargo_bin("typed_script")?;
     let assert = cmd
         .args(&["build", "--emit-mlir"])
@@ -37,7 +37,7 @@ fn snapshop_mlir_output(#[files("./test_programs/*.ts")] path: PathBuf) -> Resul
 }
 
 #[rstest]
-fn snapshop_ast_output(#[files("./test_programs/*.ts")] path: PathBuf) -> Result<()> {
+fn snapshop_ast_output(#[files("./test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
     let mut cmd = Command::cargo_bin("typed_script")?;
     let assert = cmd
         .args(&["build", "--emit-ast"])

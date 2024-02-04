@@ -102,33 +102,41 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                     ),
                     type: String,
                 },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
             ],
             body: Some(
                 [
                     Assignment(
-                        TSIdentifier(
-                            "stdoutptr",
-                        ),
-                        Call(
-                            TSIdentifier(
-                                "fdopen",
+                        Assignment {
+                            id: TSIdentifier(
+                                "stdoutptr",
                             ),
-                            [
-                                Value(
-                                    Integer(
-                                        1,
-                                    ),
-                                    Integer,
+                            expression: Call(
+                                TSIdentifier(
+                                    "fdopen",
                                 ),
-                                Value(
-                                    String(
-                                        "w",
+                                [
+                                    Value(
+                                        Integer(
+                                            1,
+                                        ),
+                                        Integer,
                                     ),
-                                    String,
-                                ),
-                            ],
-                        ),
-                        None,
+                                    Value(
+                                        String(
+                                            "w",
+                                        ),
+                                        String,
+                                    ),
+                                ],
+                            ),
+                            typed_annotation: None,
+                        },
                     ),
                     Expression(
                         Call(
@@ -145,14 +153,16 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                     Unknown,
                                 ),
                                 Value(
-                                    Integer(
-                                        4,
+                                    Variable(
+                                        TSIdentifier(
+                                            "len",
+                                        ),
                                     ),
-                                    Integer,
+                                    Unknown,
                                 ),
                                 Value(
                                     Integer(
-                                        10,
+                                        1,
                                     ),
                                     Integer,
                                 ),
@@ -205,29 +215,31 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
             body: Some(
                 [
                     Assignment(
-                        TSIdentifier(
-                            "test",
-                        ),
-                        Struct(
-                            TSIdentifier(
-                                "Test",
+                        Assignment {
+                            id: TSIdentifier(
+                                "test",
                             ),
-                            [
-                                Value(
-                                    String(
-                                        "ac",
-                                    ),
-                                    String,
+                            expression: Struct(
+                                TSIdentifier(
+                                    "Test",
                                 ),
-                                Value(
-                                    String(
-                                        "bc",
+                                [
+                                    Value(
+                                        String(
+                                            "ac",
+                                        ),
+                                        String,
                                     ),
-                                    String,
-                                ),
-                            ],
-                        ),
-                        None,
+                                    Value(
+                                        String(
+                                            "bc",
+                                        ),
+                                        String,
+                                    ),
+                                ],
+                            ),
+                            typed_annotation: None,
+                        },
                     ),
                     Expression(
                         Call(

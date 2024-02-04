@@ -2,16 +2,6 @@
 source: tests/e2e.rs
 expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
-function decl fdopen
-function decl fclose
-function decl fwrite
-function decl print
-return val Some(Value(
-%0 = llvm.call @fwrite(<<UNKNOWN SSA VALUE>>, <<UNKNOWN SSA VALUE>>, <<UNKNOWN SSA VALUE>>, <<UNKNOWN SSA VALUE>>) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32)) 
-function decl main
-return val None 
-function decl println
-return val None 
 module attributes {llvm.data_layout = ""} {
   llvm.func @fdopen(i32, !llvm.ptr) -> !llvm.ptr attributes {llvm.emit_c_interface, sym_visibility = "private"}
   llvm.func @fclose(!llvm.ptr) attributes {llvm.emit_c_interface, sym_visibility = "private"}
