@@ -225,56 +225,51 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
             arguments: [],
             body: Some(
                 [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "output",
+                            ),
+                            expression: Value(
+                                String(
+                                    "my output %d",
+                                ),
+                                String,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
                     Expression(
                         Call(
                             TSIdentifier(
-                                "println",
+                                "sprintf",
                             ),
                             [
                                 Value(
-                                    String(
-                                        "Hello World! on a new line",
+                                    Variable(
+                                        TSIdentifier(
+                                            "output",
+                                        ),
                                     ),
-                                    String,
+                                    Unknown,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "output",
+                                        ),
+                                    ),
+                                    Unknown,
                                 ),
                                 Value(
                                     Integer(
-                                        50,
+                                        2,
                                     ),
                                     Integer,
                                 ),
                             ],
                         ),
                     ),
-                ],
-            ),
-            return_type: Unit,
-        },
-    ),
-    Decl(
-        Function {
-            keywords: [
-                Normal,
-            ],
-            id: TSIdentifier(
-                "println",
-            ),
-            arguments: [
-                FunctionArg {
-                    name: TSIdentifier(
-                        "value",
-                    ),
-                    type: String,
-                },
-                FunctionArg {
-                    name: TSIdentifier(
-                        "len",
-                    ),
-                    type: Integer,
-                },
-            ],
-            body: Some(
-                [
                     Expression(
                         Call(
                             TSIdentifier(
@@ -284,37 +279,14 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                 Value(
                                     Variable(
                                         TSIdentifier(
-                                            "value",
+                                            "output",
                                         ),
                                     ),
                                     Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "len",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                            ],
-                        ),
-                    ),
-                    Expression(
-                        Call(
-                            TSIdentifier(
-                                "print",
-                            ),
-                            [
-                                Value(
-                                    String(
-                                        "\\n",
-                                    ),
-                                    String,
                                 ),
                                 Value(
                                     Integer(
-                                        2,
+                                        20,
                                     ),
                                     Integer,
                                 ),

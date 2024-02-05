@@ -16,23 +16,17 @@ module attributes {llvm.data_layout = ""} {
     %4 = llvm.call @fwrite(%arg0, %arg1, %3, %2) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
     llvm.return
   }
-  llvm.mlir.global internal @annonstr1("Hello World! on a new line") {addr_space = 0 : i32}
+  llvm.mlir.global internal @annonstr1("my output %d") {addr_space = 0 : i32}
   llvm.func @main() attributes {llvm.emit_c_interface} {
     %0 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
-    %1 = llvm.mlir.constant(50 : i32) : i32
-    llvm.call @println(%0, %1) : (!llvm.ptr, i32) -> ()
+    %1 = llvm.mlir.constant(2 : i32) : i32
+    %2 = llvm.call @sprintf(%0, %0, %1) : (!llvm.ptr, !llvm.ptr, i32) -> i32
+    %3 = llvm.mlir.constant(20 : i32) : i32
+    llvm.call @print(%0, %3) : (!llvm.ptr, i32) -> ()
     llvm.return
   }
   llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
     llvm.call @main() : () -> ()
-    llvm.return
-  }
-  llvm.mlir.global internal @annonstr2("\0A") {addr_space = 0 : i32}
-  llvm.func @println(%arg0: !llvm.ptr, %arg1: i32) {
-    llvm.call @print(%arg0, %arg1) : (!llvm.ptr, i32) -> ()
-    %0 = llvm.mlir.addressof @annonstr2 : !llvm.ptr
-    %1 = llvm.mlir.constant(2 : i32) : i32
-    llvm.call @print(%0, %1) : (!llvm.ptr, i32) -> ()
     llvm.return
   }
 }

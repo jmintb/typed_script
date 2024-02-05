@@ -231,6 +231,9 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         Rule::structInit => parse_struct_init(expression)?,
         Rule::structFieldRef => parse_struct_field_ref(expression)?,
         Rule::integer => TSExpression::Value(parse_integer(expression)?),
+        Rule::reference => {
+            TSExpression::Value(parse_string(expression.into_inner().next().unwrap())?)
+        }
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 

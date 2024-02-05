@@ -90,6 +90,38 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
     Decl(
         Function {
             keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sprintf",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "output",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "format",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "number",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
                 Normal,
             ],
             id: TSIdentifier(

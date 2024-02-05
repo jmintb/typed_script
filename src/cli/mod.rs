@@ -36,6 +36,7 @@ fn load_std_lib() -> String {
 extern fn fdopen(fd: integer, mode: string) -> ptr;
 extern fn fclose(fd: string);
 extern fn fwrite(val: string, size: integer, len: integer, file: string) -> integer;
+extern fn sprintf(output: string, format: string, number: integer) -> integer;
 
 fn print(val: string, len: integer) {
      let stdoutptr = fdopen(1, \"w\");

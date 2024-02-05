@@ -13,8 +13,10 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
 inner = @{ char* }
 
+reference = { "&" ~ expression }
+
 expression = _{
-	 call | structInit | structFieldRef | integer | string | identifier     
+	 call | structInit | structFieldRef | integer | string | identifier | reference     
 }
 
 char = {
