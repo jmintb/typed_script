@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
 use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Binary};
 
-use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue};
+use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator};
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -62,6 +62,7 @@ pub enum TypedExpression {
     Call(TSIdentifier, Vec<TypedExpression>),
     Struct(TSIdentifier, Vec<TypedExpression>),
     StructFieldRef(TSIdentifier, TSIdentifier),
+    Operation(Box<Operation>),
 }
 
 impl TypedExpression {
@@ -77,7 +78,10 @@ impl TypedExpression {
                 _ => bail!("expected to a struct type, instead found {:#?} for type id {}", expression_type, type_id.0)
             }).unwrap()
             },
-        Self::StructFieldRef( .. ) => Ok(Type::Unknown)
+        Self::StructFieldRef( .. ) => Ok(Type::Unknown),
+            Self::Operation(operation) => match operation.as_ref() {
+                Operation::Binary(first_operand,_ ,_ ) => first_operand.r#type(types)
+            } 
          } 
     }
 }
@@ -124,6 +128,11 @@ pub struct TypedProgram {
     pub types: HashMap<TSIdentifier, Type>,
     pub ast: Vec<TypedAst>,
     pub variable_types: HashMap<TSIdentifier, Type>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Operation {
+    Binary(TypedExpression, Operator, TypedExpression)
 }
 
 fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
@@ -278,5 +287,17 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
         TSExpression::StructFieldRef(struct_id, field_id) => {
             TypedExpression::StructFieldRef(struct_id, field_id)
         }
+
+        TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into())
+    })
+}
+
+fn typed_operator(operation: parser::Operation) -> Result<Operation> {
+    Ok(match operation {
+        parser::Operation::Binary(first_operand, operator, second_operand) => {
+           let typed_first_operand = type_expression(*first_operand)?; 
+           let typed_second_operand = type_expression(*second_operand)?;
+            Operation::Binary(typed_first_operand, operator, typed_second_operand)
+         }
     })
 }

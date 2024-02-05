@@ -13,10 +13,23 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
 inner = @{ char* }
 
+
+operation = { primary ~ (infixOperator ~ primary )* }
+
+infixOperator = _{
+	addition | subtraction
+}
+
+addition = { "+" }
+
+subtraction = { "-" }
+
+primary = _{ integer | "(" ~ expression ~ ")"}
+
 reference = { "&" ~ expression }
 
 expression = _{
-	 call | structInit | structFieldRef | integer | string | identifier | reference     
+	 call | structInit | structFieldRef | integer | string | identifier | reference | operation
 }
 
 char = {

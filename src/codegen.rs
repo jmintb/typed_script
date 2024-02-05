@@ -741,6 +741,38 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 Some(struct_ptr)
             }
 
+            TypedExpression::Operation(operation) => {
+                let typed_ast::Operation::Binary(first_operand, operator, second_operand) =
+                    operation.as_ref();
+
+                let first_operand_value = self
+                    .gen_expression_code(first_operand.clone(), current_block, variable_store)?
+                    .unwrap();
+
+                let second_operand_value = self
+                    .gen_expression_code(second_operand.clone(), current_block, variable_store)?
+                    .unwrap();
+
+                let result = match operator {
+                    crate::parser::Operator::Addition => current_block
+                        .append_operation(melior::dialect::arith::addi(
+                            first_operand_value,
+                            second_operand_value,
+                            location,
+                        ))
+                        .result(0)?,
+                    crate::parser::Operator::Subtraction => current_block
+                        .append_operation(melior::dialect::arith::subi(
+                            first_operand_value,
+                            second_operand_value,
+                            location,
+                        ))
+                        .result(0)?,
+                };
+
+                Some(result.into())
+            }
+
             _ => todo!("code gen uninplemented for {:?}", exp),
         };
 

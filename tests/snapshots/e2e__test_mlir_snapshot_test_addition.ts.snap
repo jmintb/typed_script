@@ -1,0 +1,36 @@
+---
+source: tests/e2e.rs
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+module attributes {llvm.data_layout = ""} {
+  llvm.func @fdopen(i32, !llvm.ptr) -> !llvm.ptr attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fclose(!llvm.ptr) attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @fwrite(!llvm.ptr, i32, i32, !llvm.ptr) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.func @sprintf(!llvm.ptr, !llvm.ptr, i32) -> i32 attributes {llvm.emit_c_interface, sym_visibility = "private"}
+  llvm.mlir.global internal @annonstr0("w") {addr_space = 0 : i32}
+  llvm.func @print(%arg0: !llvm.ptr, %arg1: i32) {
+    %0 = llvm.mlir.constant(1 : i32) : i32
+    %1 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %2 = llvm.call @fdopen(%0, %1) : (i32, !llvm.ptr) -> !llvm.ptr
+    %3 = llvm.mlir.constant(1 : i32) : i32
+    %4 = llvm.call @fwrite(%arg0, %arg1, %3, %2) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
+    llvm.return
+  }
+  llvm.mlir.global internal @annonstr1("result: %d") {addr_space = 0 : i32}
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.mlir.constant(2 : i32) : i32
+    %1 = llvm.mlir.constant(3 : i32) : i32
+    %2 = llvm.mlir.constant(5 : i32) : i32
+    %3 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
+    %4 = llvm.call @sprintf(%3, %3, %2) : (!llvm.ptr, !llvm.ptr, i32) -> i32
+    %5 = llvm.mlir.constant(12 : i32) : i32
+    llvm.call @print(%3, %5) : (!llvm.ptr, i32) -> ()
+    llvm.return
+  }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+}
+
+

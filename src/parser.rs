@@ -14,6 +14,18 @@ pub enum TSExpression {
     Call(TSIdentifier, Vec<TSExpression>),
     Struct(TSIdentifier, Vec<TSExpression>),
     StructFieldRef(TSIdentifier, TSIdentifier),
+    Operation(Operation),
+}
+
+#[derive(Debug, Clone)]
+pub enum Operation {
+    Binary(Box<TSExpression>, Operator, Box<TSExpression>),
+}
+
+#[derive(Debug, Clone)]
+pub enum Operator {
+    Addition,
+    Subtraction,
 }
 
 #[derive(Debug, Clone)]
@@ -194,7 +206,7 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
     let expression = parse_expression(expression);
 
     let assignment = TypedAst::Assignment(
-        TSIdentifier(identifier.as_str().into()),
+        TSIdentifier(identifier.as_str().trim().into()),
         expression.unwrap(),
     );
 
@@ -234,10 +246,39 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         Rule::reference => {
             TSExpression::Value(parse_string(expression.into_inner().next().unwrap())?)
         }
+        Rule::operation => TSExpression::Operation(parse_operation(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
     Ok(typed_exp)
+}
+
+fn parse_operation(expression: Pair<Rule>) -> Result<Operation> {
+    let mut inner = if let Rule::operation = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected operation rule got {:?}", expression);
+    };
+
+    let first_operand = parse_expression(inner.next().unwrap())?;
+
+    let operator = parse_operator(inner.next().unwrap())?;
+
+    let second_operand = parse_expression(inner.next().unwrap())?;
+
+    Ok(Operation::Binary(
+        first_operand.into(),
+        operator,
+        second_operand.into(),
+    ))
+}
+
+fn parse_operator(expression: Pair<Rule>) -> Result<Operator> {
+    Ok(match expression.as_rule() {
+        Rule::addition => Operator::Addition,
+        Rule::subtraction => Operator::Subtraction,
+        _ => bail!("expected an infix operator but got: {:?}", expression),
+    })
 }
 
 fn parse_string(string: Pair<Rule>) -> Result<TSValue> {
