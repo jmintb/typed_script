@@ -26,6 +26,8 @@ pub enum Operation {
 pub enum Operator {
     Addition,
     Subtraction,
+    Division,
+    Multiplication,
 }
 
 #[derive(Debug, Clone)]
@@ -277,6 +279,8 @@ fn parse_operator(expression: Pair<Rule>) -> Result<Operator> {
     Ok(match expression.as_rule() {
         Rule::addition => Operator::Addition,
         Rule::subtraction => Operator::Subtraction,
+        Rule::division => Operator::Division,
+        Rule::multiplication => Operator::Multiplication,
         _ => bail!("expected an infix operator but got: {:?}", expression),
     })
 }

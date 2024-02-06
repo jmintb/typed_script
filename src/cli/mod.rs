@@ -1,11 +1,7 @@
 use anyhow::Result;
 use clap::{command, Parser, Subcommand};
 
-use crate::{
-    codegen::generate_mlir,
-    parser::parse,
-    typed_ast::{self, type_ast},
-};
+use crate::{codegen::generate_mlir, parser::parse, typed_ast::type_ast};
 
 #[derive(Parser)]
 struct Cli {
@@ -37,6 +33,8 @@ extern fn fdopen(fd: integer, mode: string) -> ptr;
 extern fn fclose(fd: string);
 extern fn fwrite(val: string, size: integer, len: integer, file: string) -> integer;
 extern fn sprintf(output: string, format: string, number: integer) -> integer;
+extern fn fflush(file: string) -> integer;
+extern fn sleep(time: integer) -> integer;
 
 fn print(val: string, len: integer) {
      let stdoutptr = fdopen(1, \"w\");

@@ -17,12 +17,13 @@ inner = @{ char* }
 operation = { primary ~ (infixOperator ~ primary )* }
 
 infixOperator = _{
-	addition | subtraction
+	addition | subtraction | division | multiplication
 }
 
 addition = { "+" }
-
 subtraction = { "-" }
+multiplication = { "*" }
+division = { "/" }
 
 primary = _{ integer | "(" ~ expression ~ ")"}
 

@@ -265,6 +265,137 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
             arguments: [],
             body: Some(
                 [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "a",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    2,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "b",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    4,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "c",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    3,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "resultb",
+                            ),
+                            expression: Operation(
+                                Binary(
+                                    Operation(
+                                        Binary(
+                                            Value(
+                                                Variable(
+                                                    TSIdentifier(
+                                                        "c",
+                                                    ),
+                                                ),
+                                                Unknown,
+                                            ),
+                                            Addition,
+                                            Value(
+                                                Variable(
+                                                    TSIdentifier(
+                                                        "a",
+                                                    ),
+                                                ),
+                                                Unknown,
+                                            ),
+                                        ),
+                                    ),
+                                    Multiplication,
+                                    Value(
+                                        Variable(
+                                            TSIdentifier(
+                                                "b",
+                                            ),
+                                        ),
+                                        Unknown,
+                                    ),
+                                ),
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "outputb",
+                            ),
+                            expression: Value(
+                                String(
+                                    "resultb: %d \\n",
+                                ),
+                                String,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "sprintf",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "outputb",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "outputb",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "resultb",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
                     Expression(
                         Call(
                             TSIdentifier(
@@ -272,14 +403,16 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                             ),
                             [
                                 Value(
-                                    String(
-                                        "hello world!",
+                                    Variable(
+                                        TSIdentifier(
+                                            "outputb",
+                                        ),
                                     ),
-                                    String,
+                                    Unknown,
                                 ),
                                 Value(
                                     Integer(
-                                        12,
+                                        13,
                                     ),
                                     Integer,
                                 ),

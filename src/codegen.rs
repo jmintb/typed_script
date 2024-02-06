@@ -540,6 +540,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             TypedExpression::Value(TSValue::String(val), vtype) => {
                 // TODO: \n is getting escaped, perhap we need a raw string?
                 let val = if val == "\\n" { "\n" } else { &val };
+                let val = val.replace("\\n", "\n");
 
                 Some(
                     self.gen_pointer_to_annon_str(current_block, val.to_string())?
@@ -763,6 +764,20 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         .result(0)?,
                     crate::parser::Operator::Subtraction => current_block
                         .append_operation(melior::dialect::arith::subi(
+                            first_operand_value,
+                            second_operand_value,
+                            location,
+                        ))
+                        .result(0)?,
+                    crate::parser::Operator::Multiplication => current_block
+                        .append_operation(melior::dialect::arith::muli(
+                            first_operand_value,
+                            second_operand_value,
+                            location,
+                        ))
+                        .result(0)?,
+                    crate::parser::Operator::Division => current_block
+                        .append_operation(melior::dialect::arith::divsi(
                             first_operand_value,
                             second_operand_value,
                             location,

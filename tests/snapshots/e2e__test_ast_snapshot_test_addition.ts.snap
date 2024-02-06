@@ -122,6 +122,46 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
     Decl(
         Function {
             keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fflush",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sleep",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "time",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
                 Normal,
             ],
             id: TSIdentifier(
