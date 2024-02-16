@@ -15,6 +15,7 @@ pub enum TSExpression {
     Struct(TSIdentifier, Vec<TSExpression>),
     StructFieldRef(TSIdentifier, TSIdentifier),
     Operation(Operation),
+    If(IfStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -22,10 +23,17 @@ pub struct TSBlock {
     pub statements: Vec<TypedAst>,
 }
 
+impl TSBlock {
+    fn new(statements: Vec<TypedAst>) -> Self {
+        Self { statements }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct IfStatement {
-    pub condition: TSExpression,
-    pub block: TSBlock,
+    pub condition: Box<TSExpression>,
+    pub then_block: TSBlock,
+    pub else_block: Option<TSBlock>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +100,6 @@ pub enum TypedAst {
         return_type: Option<TSIdentifier>,
     },
     StructType(TSIdentifier, Vec<TSIdentifier>),
-    If(IfStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -127,14 +134,14 @@ pub fn parse(input: &str) -> Result<Ast> {
 }
 
 fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
-    let mut inner = if let Rule::r#if = rule.as_rule() {
+    let mut inner = if let Rule::r#if_else = rule.as_rule() {
         rule.into_inner()
     } else {
         bail!("expected an if rule got {rule:#?}");
     };
 
     let condition = parse_expression(inner.next().unwrap())?;
-    let block_statements = inner
+    let then_block_statements = inner
         .next()
         .unwrap()
         .into_inner()
@@ -142,11 +149,25 @@ fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
         .map(parse_statement)
         .collect::<Result<Vec<TypedAst>>>()?;
 
+    let else_block_statements = if let Some(inner) = inner.next() {
+        Some(
+            inner
+                .into_inner()
+                .into_iter()
+                .map(parse_statement)
+                .collect::<Result<Vec<TypedAst>>>()?,
+        )
+    } else {
+        None
+    };
+
+    let then_block = TSBlock::new(then_block_statements);
+    let else_block = else_block_statements.map(TSBlock::new);
+
     Ok(IfStatement {
-        condition,
-        block: TSBlock {
-            statements: block_statements,
-        },
+        condition: Box::new(condition),
+        then_block,
+        else_block,
     })
 }
 
@@ -254,13 +275,11 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
 fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
     Ok(match statement.as_rule() {
         Rule::assignment => parse_assignment(statement)?,
-        Rule::call | Rule::structInit | Rule::string => {
+        Rule::call | Rule::structInit | Rule::string | Rule::if_else => {
             TypedAst::Expression(parse_expression(statement)?)
         }
         Rule::function => parse_function_decl(statement)?,
-        Rule::expression => TypedAst::Expression(parse_expression(statement).unwrap()),
-        Rule::r#if => TypedAst::If(parse_if(statement)?),
-        _ => bail!("Recieved unexpected rule: {:?}", statement.as_rule()),
+        _ => bail!("Recieved unexpected rule: {:#?}", statement),
     })
 }
 
@@ -288,6 +307,7 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         }
         Rule::operation => TSExpression::Operation(parse_operation(expression)?),
         Rule::boolean => TSExpression::Value(parse_boolean(expression)?),
+        Rule::r#if_else => TSExpression::If(parse_if(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 

@@ -63,6 +63,7 @@ pub enum TypedExpression {
     Struct(TSIdentifier, Vec<TypedExpression>),
     StructFieldRef(TSIdentifier, TSIdentifier),
     Operation(Box<Operation>),
+    If(IfStatement),
 }
 
 impl TypedExpression {
@@ -82,6 +83,7 @@ impl TypedExpression {
             Self::Operation(operation) => match operation.as_ref() {
                 Operation::Binary(first_operand,_ ,_ ) => first_operand.r#type(types)
             } 
+            Self::If(_) => Ok(Type::Unit)
          } 
     }
 }
@@ -91,13 +93,13 @@ pub enum TypedAst {
     Expression(TypedExpression),
     Assignment(Assignment),
     Decl(Decl),
-    If(IfStatement)
 }
 
 #[derive(Debug, Clone)]
 pub struct IfStatement {
-    pub condition: TypedExpression,
-    pub block: Block,
+    pub condition: Box<TypedExpression>,
+    pub then_block: Block,
+    pub else_block: Option<Block>,
 }
 
 #[derive(Debug, Clone)]
@@ -192,12 +194,15 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
                 .map(|return_type| return_type.into())
                 .unwrap_or(Type::Unit),
         }),
-        parser::TypedAst::If(IfStatement) => TypedAst::If(type_if(IfStatement)?)
     })
 }
 
 fn type_if(if_statement: parser::IfStatement) -> Result<IfStatement> {
-    Ok(IfStatement { condition: type_expression(if_statement.condition)?, block: type_block(if_statement.block)?  })
+    Ok(IfStatement { condition: type_expression(*if_statement.condition)?.into(), then_block: type_block(if_statement.then_block)?, else_block: if let Some(block) = if_statement.else_block {
+        Some(type_block(block)?)
+    } else {
+        None
+    }   })
 }
 
 fn type_block(block: parser::TSBlock) -> Result<Block> {
@@ -312,7 +317,8 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
             TypedExpression::StructFieldRef(struct_id, field_id)
         }
 
-        TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into())
+        TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into()),
+        parser::TSExpression::If(IfStatement) => TypedExpression::If(type_if(IfStatement)?)
     })
 }
 

@@ -37,12 +37,15 @@ false = {"false"}
 true = {"true"}
 
 expression = _{
-	boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
+	if_else | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
 }
 
 condition = _{ expression }
 
-if = {"if" ~ condition ~ "{" ~ functionBody ~ "}"}
+
+if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
+
+block = { stmt* }
 
 char = {
     !("\"" | "\\") ~ ANY
@@ -66,7 +69,7 @@ functionType = { "fn " | "extern fn "}
 
 function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ identifier)? ~  ( "{" ~ functionBody ~ "}" | ";") }
 
-stmt = _{  if | function | struct |( (assignment  | expression  ) ~ ";"? )  }
+stmt = _{  function | struct |( (assignment  | expression  ) ~ ";"? )  }
 
 
 struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }

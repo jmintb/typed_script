@@ -25,7 +25,9 @@ use melior::{
 
 use crate::{
     parser::{Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue},
-    typed_ast::{self, Assignment, Decl, FunctionArg, TypedAst, TypedExpression, TypedProgram},
+    typed_ast::{
+        self, Assignment, Decl, FunctionArg, IfStatement, TypedAst, TypedExpression, TypedProgram,
+    },
 };
 
 // TODO: something inside the module is dropped when it is returned.
@@ -515,21 +517,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 TypedAst::Assignment(assignment) => {
                     self.gen_assignment_code(assignment, current_block, variable_store)?;
                 }
-                TypedAst::If(statement) => {
-                    let condition = self
-                        .gen_expression_code(statement.condition, current_block, variable_store)?
-                        .unwrap();
-
-                    let (then_region, _) = self.gen_block(statement.block, variable_store)?;
-
-                    current_block.append_operation(melior::dialect::scf::r#if(
-                        condition,
-                        &[],
-                        then_region,
-                        Region::new(),
-                        location,
-                    ));
-                }
             }
         }
 
@@ -659,6 +646,33 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 } else {
                     None
                 }
+            }
+            TypedExpression::If(IfStatement {
+                condition,
+                then_block,
+                else_block,
+            }) => {
+                let condition = self
+                    .gen_expression_code(*condition, current_block, variable_store)?
+                    .unwrap();
+
+                let (then_region, _) = self.gen_block(then_block, variable_store)?;
+
+                let else_region = if let Some(else_block) = else_block {
+                    self.gen_block(else_block, variable_store)?.0
+                } else {
+                    Region::new()
+                };
+
+                current_block.append_operation(melior::dialect::scf::r#if(
+                    condition,
+                    &[],
+                    then_region,
+                    else_region,
+                    location,
+                ));
+
+                None
             }
 
             TypedExpression::StructFieldRef(struct_id, field_id) => {

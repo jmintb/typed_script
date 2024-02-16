@@ -265,75 +265,81 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
             arguments: [],
             body: Some(
                 [
-                    If(
-                        IfStatement {
-                            condition: Value(
-                                Boolean(
-                                    true,
-                                ),
-                                Boolean,
-                            ),
-                            block: Block {
-                                statements: [
-                                    Expression(
-                                        Call(
-                                            TSIdentifier(
-                                                "print",
-                                            ),
-                                            [
-                                                Value(
-                                                    String(
-                                                        "help1",
-                                                    ),
-                                                    String,
-                                                ),
-                                                Value(
-                                                    Integer(
-                                                        4,
-                                                    ),
-                                                    Integer,
-                                                ),
-                                            ],
-                                        ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Value(
+                                    Boolean(
+                                        true,
                                     ),
-                                ],
+                                    Boolean,
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "help1",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            4,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
                             },
-                        },
+                        ),
                     ),
-                    If(
-                        IfStatement {
-                            condition: Value(
-                                Boolean(
-                                    false,
-                                ),
-                                Boolean,
-                            ),
-                            block: Block {
-                                statements: [
-                                    Expression(
-                                        Call(
-                                            TSIdentifier(
-                                                "print",
-                                            ),
-                                            [
-                                                Value(
-                                                    String(
-                                                        "help2",
-                                                    ),
-                                                    String,
-                                                ),
-                                                Value(
-                                                    Integer(
-                                                        4,
-                                                    ),
-                                                    Integer,
-                                                ),
-                                            ],
-                                        ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Value(
+                                    Boolean(
+                                        false,
                                     ),
-                                ],
+                                    Boolean,
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "help2",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            4,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
                             },
-                        },
+                        ),
                     ),
                 ],
             ),
