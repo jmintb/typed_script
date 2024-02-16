@@ -13,17 +13,25 @@ assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
 inner = @{ char* }
 
-
 operation = { primary ~ (infixOperator ~ primary )* }
 
+while_loop = { "while" ~ condition ~ "{" ~ block ~ "}" }
+
 infixOperator = _{
-	addition | subtraction | division | multiplication
-}
+	addition | subtraction | division | multiplication | equal | not_equal | greater_than_or_equal | less_than_or_equal | greater_than | less_than   
+	}
 
 addition = { "+" }
 subtraction = { "-" }
 multiplication = { "*" }
 division = { "/" }
+equal = { "==" }
+not_equal = { "!=" }
+greater_than = { ">"}
+less_than = { "<"}
+greater_than_or_equal = { ">="}
+less_than_or_equal = { "<="}
+
 
 primary = _{ integer | "(" ~ expression ~ ")"}
 
@@ -37,7 +45,7 @@ false = {"false"}
 true = {"true"}
 
 expression = _{
-	if_else | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
+	if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
 }
 
 condition = _{ expression }

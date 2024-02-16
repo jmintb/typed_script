@@ -47,6 +47,12 @@ pub enum Operator {
     Subtraction,
     Division,
     Multiplication,
+    Equality,
+    Inequality,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+    GreaterThan,
+    LessThan,
 }
 
 #[derive(Debug, Clone)]
@@ -348,6 +354,12 @@ fn parse_operator(expression: Pair<Rule>) -> Result<Operator> {
         Rule::subtraction => Operator::Subtraction,
         Rule::division => Operator::Division,
         Rule::multiplication => Operator::Multiplication,
+        Rule::equal => Operator::Equality,
+        Rule::not_equal => Operator::Inequality,
+        Rule::greater_than => Operator::GreaterThan,
+        Rule::less_than => Operator::LessThan,
+        Rule::greater_than_or_equal => Operator::GreaterThanOrEqual,
+        Rule::less_than_or_equal => Operator::LessThanOrEqual,
         _ => bail!("expected an infix operator but got: {:?}", expression),
     })
 }

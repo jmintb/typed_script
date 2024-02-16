@@ -1,0 +1,846 @@
+---
+source: tests/e2e.rs
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+[
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fdopen",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "mode",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Pointer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fclose",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fwrite",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "size",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sprintf",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "output",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "format",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "number",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fflush",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sleep",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "time",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "print",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: Some(
+                [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "stdoutptr",
+                            ),
+                            expression: Call(
+                                TSIdentifier(
+                                    "fdopen",
+                                ),
+                                [
+                                    Value(
+                                        Integer(
+                                            1,
+                                        ),
+                                        Integer,
+                                    ),
+                                    Value(
+                                        String(
+                                            "w",
+                                        ),
+                                        String,
+                                    ),
+                                ],
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "fwrite",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "val",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "len",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Integer(
+                                        1,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "main",
+            ),
+            arguments: [],
+            body: Some(
+                [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "a",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    2,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "b",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    2,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "c",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    1,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        Equality,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "b",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a equals b \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            12,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        Equality,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a equals c \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            12,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        Inequality,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a not equal to c \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            20,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        GreaterThan,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a greater than c \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            18,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        GreaterThanOrEqual,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a greater than or equal to c \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            30,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        GreaterThanOrEqual,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a greater than or equal to a \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            30,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThanOrEqual,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "c less than or equal to a \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            27,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThanOrEqual,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a less than or equal to c \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            27,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThanOrEqual,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "a less than or equal to a \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            27,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "c",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThan,
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "a",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                    ),
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "c less than a \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            18,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: None,
+                            },
+                        ),
+                    ),
+                ],
+            ),
+            return_type: Unit,
+        },
+    ),
+]
+

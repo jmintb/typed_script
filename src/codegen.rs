@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use clap::builder;
 use melior::{
     dialect::{
+        arith,
         func::{self, call},
         llvm::{self, attributes::Linkage, r#type::function, AllocaOptions, LoadStoreOptions},
         memref, scf, DialectRegistry,
@@ -807,37 +808,73 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     .gen_expression_code(second_operand.clone(), current_block, variable_store)?
                     .unwrap();
 
-                let result = match operator {
-                    crate::parser::Operator::Addition => current_block
-                        .append_operation(melior::dialect::arith::addi(
-                            first_operand_value,
-                            second_operand_value,
-                            location,
-                        ))
-                        .result(0)?,
-                    crate::parser::Operator::Subtraction => current_block
-                        .append_operation(melior::dialect::arith::subi(
-                            first_operand_value,
-                            second_operand_value,
-                            location,
-                        ))
-                        .result(0)?,
-                    crate::parser::Operator::Multiplication => current_block
-                        .append_operation(melior::dialect::arith::muli(
-                            first_operand_value,
-                            second_operand_value,
-                            location,
-                        ))
-                        .result(0)?,
-                    crate::parser::Operator::Division => current_block
-                        .append_operation(melior::dialect::arith::divsi(
-                            first_operand_value,
-                            second_operand_value,
-                            location,
-                        ))
-                        .result(0)?,
+                let operation = match operator {
+                    crate::parser::Operator::GreaterThan => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Sgt,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::GreaterThanOrEqual => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Sge,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::LessThan => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Slt,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::LessThanOrEqual => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Sle,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::Addition => melior::dialect::arith::addi(
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+
+                    crate::parser::Operator::Subtraction => melior::dialect::arith::subi(
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::Multiplication => melior::dialect::arith::muli(
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::Division => melior::dialect::arith::divsi(
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::Equality => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Eq,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
+                    crate::parser::Operator::Inequality => arith::cmpi(
+                        self.context,
+                        arith::CmpiPredicate::Ne,
+                        first_operand_value,
+                        second_operand_value,
+                        location,
+                    ),
                 };
 
+                let result = current_block.append_operation(operation).result(0)?;
                 Some(result.into())
             }
 
