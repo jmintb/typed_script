@@ -18,6 +18,17 @@ pub enum TSExpression {
 }
 
 #[derive(Debug, Clone)]
+pub struct TSBlock {
+    pub statements: Vec<TypedAst>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IfStatement {
+    pub condition: TSExpression,
+    pub block: TSBlock,
+}
+
+#[derive(Debug, Clone)]
 pub enum Operation {
     Binary(Box<TSExpression>, Operator, Box<TSExpression>),
 }
@@ -36,7 +47,7 @@ pub enum TSValue {
     Variable(TSIdentifier),
     Number,
     Integer(i32),
-    Boolean,
+    Boolean(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +92,7 @@ pub enum TypedAst {
         return_type: Option<TSIdentifier>,
     },
     StructType(TSIdentifier, Vec<TSIdentifier>),
+    If(IfStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +124,30 @@ pub fn parse(input: &str) -> Result<Ast> {
     }
 
     Ok(Ast(ast))
+}
+
+fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
+    let mut inner = if let Rule::r#if = rule.as_rule() {
+        rule.into_inner()
+    } else {
+        bail!("expected an if rule got {rule:#?}");
+    };
+
+    let condition = parse_expression(inner.next().unwrap())?;
+    let block_statements = inner
+        .next()
+        .unwrap()
+        .into_inner()
+        .into_iter()
+        .map(parse_statement)
+        .collect::<Result<Vec<TypedAst>>>()?;
+
+    Ok(IfStatement {
+        condition,
+        block: TSBlock {
+            statements: block_statements,
+        },
+    })
 }
 
 fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
@@ -222,6 +258,8 @@ fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
             TypedAst::Expression(parse_expression(statement)?)
         }
         Rule::function => parse_function_decl(statement)?,
+        Rule::expression => TypedAst::Expression(parse_expression(statement).unwrap()),
+        Rule::r#if => TypedAst::If(parse_if(statement)?),
         _ => bail!("Recieved unexpected rule: {:?}", statement.as_rule()),
     })
 }
@@ -249,10 +287,19 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
             TSExpression::Value(parse_string(expression.into_inner().next().unwrap())?)
         }
         Rule::operation => TSExpression::Operation(parse_operation(expression)?),
+        Rule::boolean => TSExpression::Value(parse_boolean(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
     Ok(typed_exp)
+}
+
+fn parse_boolean(expression: Pair<Rule>) -> Result<TSValue> {
+    Ok(match expression.into_inner().next().unwrap().as_rule() {
+        Rule::r#true => TSValue::Boolean(true),
+        Rule::r#false => TSValue::Boolean(false),
+        r => bail!("expected either false or true but got rule: {r:#?}"),
+    })
 }
 
 fn parse_operation(expression: Pair<Rule>) -> Result<Operation> {

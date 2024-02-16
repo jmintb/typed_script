@@ -29,9 +29,20 @@ primary = _{ integer | "(" ~ expression ~ ")"}
 
 reference = { "&" ~ expression }
 
-expression = _{
-	 call | structInit | structFieldRef | integer | string | identifier | reference | operation
+boolean = {
+	false | true
 }
+
+false = {"false"}
+true = {"true"}
+
+expression = _{
+	boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
+}
+
+condition = _{ expression }
+
+if = {"if" ~ condition ~ "{" ~ functionBody ~ "}"}
 
 char = {
     !("\"" | "\\") ~ ANY
@@ -55,7 +66,8 @@ functionType = { "fn " | "extern fn "}
 
 function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ identifier)? ~  ( "{" ~ functionBody ~ "}" | ";") }
 
-stmt = _{ function | struct |( (assignment  | expression  ) ~ ";"? ) }
+stmt = _{  if | function | struct |( (assignment  | expression  ) ~ ";"? )  }
+
 
 struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
 

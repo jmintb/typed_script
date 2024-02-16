@@ -91,6 +91,18 @@ pub enum TypedAst {
     Expression(TypedExpression),
     Assignment(Assignment),
     Decl(Decl),
+    If(IfStatement)
+}
+
+#[derive(Debug, Clone)]
+pub struct IfStatement {
+    pub condition: TypedExpression,
+    pub block: Block,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    pub statements: Vec<TypedAst>
 }
 
 #[derive(Debug, Clone)]
@@ -180,7 +192,18 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
                 .map(|return_type| return_type.into())
                 .unwrap_or(Type::Unit),
         }),
+        parser::TypedAst::If(IfStatement) => TypedAst::If(type_if(IfStatement)?)
     })
+}
+
+fn type_if(if_statement: parser::IfStatement) -> Result<IfStatement> {
+    Ok(IfStatement { condition: type_expression(if_statement.condition)?, block: type_block(if_statement.block)?  })
+}
+
+fn type_block(block: parser::TSBlock) -> Result<Block> {
+    let typed_statements = block.statements.into_iter().map(ast_to_typed).collect::<Result<Vec<TypedAst>>>()?;
+
+    Ok(Block { statements: typed_statements})
 }
 
 pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
@@ -275,6 +298,7 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
             TSValue::String(_) => TypedExpression::Value(val, Type::String),
             TSValue::Variable(_) => TypedExpression::Value(val, Type::Unknown),
             TSValue::Integer(_) => TypedExpression::Value(val, Type::Integer),
+            TSValue::Boolean(_) => TypedExpression::Value(val, Type::Boolean ),
             _ => todo!("missing type expression for {:?}", val),
         },
         TSExpression::Call(function_id, arguments) => TypedExpression::Call(

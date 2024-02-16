@@ -1,11 +1,12 @@
 use std::{cell::RefCell, collections::HashMap, ops::Index};
 
 use anyhow::{bail, Result};
+use clap::builder;
 use melior::{
     dialect::{
         func::{self, call},
         llvm::{self, attributes::Linkage, r#type::function, AllocaOptions, LoadStoreOptions},
-        memref, DialectRegistry,
+        memref, scf, DialectRegistry,
     },
     ir::{
         attribute::{
@@ -143,7 +144,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         //     match exp.clone() {
         //         TypedAst::Expression(exp) => {
         if let Some(body) = body {
-            self.gen_expression_blocks(body, &function_block, &mut variable_store)?;
+            self.gen_statements(body, &function_block, &mut variable_store, true)?;
             function_region.append_block(function_block);
         }
         // }
@@ -472,13 +473,32 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(res)
     }
 
+    fn gen_block(
+        &self,
+        block: typed_ast::Block,
+        variable_store: &mut HashMap<TSIdentifier, Value<'ctx, '_>>,
+    ) -> Result<(Region<'ctx>, Option<Type<'ctx>>)> {
+        // TODO: should it really be necessary to clone variable store here?
+        let builder = Block::new(&[]);
+        let mut variable_store = variable_store.clone();
+        // TODO: should split variable scope here.
+
+        let res = self.gen_statements(block.statements, &builder, &mut variable_store, false);
+
+        let mut region = Region::new();
+        region.append_block(builder);
+
+        Ok((region, None))
+    }
+
     // TODO: Switch to btreemap
 
-    fn gen_expression_blocks<'a>(
+    fn gen_statements<'a>(
         &self,
         nodes: Vec<TypedAst>,
         current_block: &'a Block<'ctx>,
         variable_store: &mut HashMap<TSIdentifier, Value<'ctx, 'a>>,
+        function_scope: bool,
     ) -> Result<()> {
         let location = melior::ir::Location::unknown(self.context);
         let mut return_value: Option<Value> = None;
@@ -495,13 +515,32 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 TypedAst::Assignment(assignment) => {
                     self.gen_assignment_code(assignment, current_block, variable_store)?;
                 }
+                TypedAst::If(statement) => {
+                    let condition = self
+                        .gen_expression_code(statement.condition, current_block, variable_store)?
+                        .unwrap();
+
+                    let (then_region, _) = self.gen_block(statement.block, variable_store)?;
+
+                    current_block.append_operation(melior::dialect::scf::r#if(
+                        condition,
+                        &[],
+                        then_region,
+                        Region::new(),
+                        location,
+                    ));
+                }
             }
         }
 
         // if let Some(return_value) = return_value {
         //     current_block.append_operation(func::r#return(&[return_value], location));
         // } else {
-        current_block.append_operation(func::r#return(&[], location));
+        if function_scope {
+            current_block.append_operation(func::r#return(&[], location));
+        } else {
+            current_block.append_operation(scf::r#yield(&[], location));
+        }
         // }
 
         Ok(())
@@ -788,6 +827,21 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 Some(result.into())
             }
 
+            TypedExpression::Value(TSValue::Boolean(b), _) => {
+                let i = if b { 1 } else { 0 };
+                Some(
+                    current_block
+                        .append_operation(melior::dialect::arith::constant(
+                            self.context,
+                            IntegerAttribute::new(i, IntegerType::new(self.context, 1).into())
+                                .into(),
+                            location,
+                        ))
+                        .result(0)?
+                        .into(),
+                )
+            }
+
             _ => todo!("code gen uninplemented for {:?}", exp),
         };
 
@@ -856,12 +910,26 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     let context = Context::new();
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
+
+    let context = Context::new();
     context.append_dialect_registry(&registry);
-    context.get_or_load_dialect("func");
-    context.get_or_load_dialect("arith");
-    context.get_or_load_dialect("llvm");
-    let mut module = Module::new(melior::ir::Location::unknown(&context));
+    context.load_all_available_dialects();
     register_all_llvm_translations(&context);
+
+    context.attach_diagnostic_handler(|diagnostic| {
+        eprintln!("{}", diagnostic);
+        true
+    });
+
+    // register_all_dialects(&registry);
+    // context.append_dialect_registry(&registry);
+    // context.get_or_load_dialect("func");
+    // context.get_or_load_dialect("arith");
+    // context.get_or_load_dialect("llvm");
+    // context.get_or_load_dialect("scf");
+    // context.get_or_load_dialect("cf");
+    let mut module = Module::new(melior::ir::Location::unknown(&context));
+    // register_all_llvm_translations(&context);
     let code_gen = Box::new(CodeGen::new(
         &context,
         &module,
@@ -876,20 +944,35 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     }
 
     let pass_manager = pass::PassManager::new(&code_gen.context);
-    register_all_passes();
-    pass_manager.enable_verifier(true);
-    pass_manager.add_pass(pass::conversion::create_control_flow_to_llvm());
     pass_manager.add_pass(pass::conversion::create_func_to_llvm());
-    // pass_manager.add_pass(pass::conversion::create_index_to_llvm_pass());
-    // pass_manager.add_pass(pass::conversion::create_mem_ref_to_llvm());
-    pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
-    pass::conversion::register_func_to_llvm();
-
-    // pass_manager.enable_ir_printing();
 
     pass_manager
         .nested_under("func.func")
         .add_pass(pass::conversion::create_arith_to_llvm());
+    pass_manager
+        .nested_under("func.func")
+        .add_pass(pass::conversion::create_index_to_llvm());
+    pass_manager.add_pass(pass::conversion::create_scf_to_control_flow());
+    pass_manager.add_pass(pass::conversion::create_control_flow_to_llvm());
+    pass_manager.add_pass(pass::conversion::create_finalize_mem_ref_to_llvm());
+
+    // register_all_passes();
+    // pass_manager.enable_verifier(true);
+    // pass_manager.add_pass(pass::conversion::create_control_flow_to_llvm());
+    // pass_manager.add_pass(pass::conversion::create_func_to_llvm());
+    // pass_manager.add_pass(pass::conversion::create_scf_to_control_flow());
+
+    // pass_manager.add_pass(pass::conversion::create_index_to_llvm_pass());
+    // pass_manager.add_pass(pass::conversion::create_mem_ref_to_llvm());
+    // pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
+    // pass::conversion::register_func_to_llvm();
+
+    // pass_manager.enable_ir_printing();
+
+    // pass_manager
+    //     .nested_under("func.func")
+    //     .add_pass(pass::conversion::create_arith_to_llvm());
+
     pass_manager.run(&mut module);
 
     if emit_mlir {
