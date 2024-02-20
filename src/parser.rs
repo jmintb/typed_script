@@ -16,6 +16,20 @@ pub enum TSExpression {
     StructFieldRef(TSIdentifier, TSIdentifier),
     Operation(Operation),
     If(IfStatement),
+    While(While),
+    Assign(Assign),
+}
+
+#[derive(Debug, Clone)]
+pub struct Assign {
+    pub id: TSIdentifier,
+    pub expression: Box<TSExpression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct While {
+    pub condition: Box<TSExpression>,
+    pub block: TSBlock,
 }
 
 #[derive(Debug, Clone)]
@@ -281,11 +295,14 @@ fn parse_assignment(assignment: Pair<Rule>) -> Result<TypedAst> {
 fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
     Ok(match statement.as_rule() {
         Rule::assignment => parse_assignment(statement)?,
-        Rule::call | Rule::structInit | Rule::string | Rule::if_else => {
-            TypedAst::Expression(parse_expression(statement)?)
-        }
+        Rule::call
+        | Rule::structInit
+        | Rule::string
+        | Rule::if_else
+        | Rule::while_loop
+        | Rule::assign => TypedAst::Expression(parse_expression(statement)?),
         Rule::function => parse_function_decl(statement)?,
-        _ => bail!("Recieved unexpected rule: {:#?}", statement),
+        _ => bail!("Recieved unexpected rule: {:?}", statement),
     })
 }
 
@@ -301,9 +318,9 @@ fn parse_struct_field_ref(sref: Pair<Rule>) -> Result<TSExpression> {
 fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
     let typed_exp = match expression.as_rule() {
         Rule::string => TSExpression::Value(parse_string(expression)?),
-        Rule::identifier => {
-            TSExpression::Value(TSValue::Variable(TSIdentifier(expression.as_str().into())))
-        }
+        Rule::identifier => TSExpression::Value(TSValue::Variable(TSIdentifier(
+            expression.as_str().trim().into(),
+        ))),
         Rule::call => parse_fn_call(expression)?,
         Rule::structInit => parse_struct_init(expression)?,
         Rule::structFieldRef => parse_struct_field_ref(expression)?,
@@ -314,10 +331,57 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         Rule::operation => TSExpression::Operation(parse_operation(expression)?),
         Rule::boolean => TSExpression::Value(parse_boolean(expression)?),
         Rule::r#if_else => TSExpression::If(parse_if(expression)?),
+        Rule::while_loop => TSExpression::While(parse_while(expression)?),
+        Rule::assign => TSExpression::Assign(parse_assign(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
     Ok(typed_exp)
+}
+
+fn parse_assign(expression: Pair<'_, Rule>) -> Result<Assign> {
+    let mut inner = if let Rule::assign = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected assign rule found {}", expression.as_str())
+    };
+
+    let id: TSIdentifier = TSIdentifier(inner.next().unwrap().as_str().trim().to_string());
+
+    let expression = parse_expression(inner.next().unwrap())?;
+
+    Ok(Assign {
+        id,
+        expression: Box::new(expression),
+    })
+}
+
+fn parse_while(expression: Pair<'_, Rule>) -> Result<While> {
+    let mut inner = if let Rule::while_loop = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!(
+            "expected the while rule, found {:?} instead",
+            expression.as_rule()
+        )
+    };
+
+    let condition = parse_expression(inner.next().unwrap())?;
+
+    let block = TSBlock::new(
+        inner
+            .next()
+            .unwrap()
+            .into_inner()
+            .into_iter()
+            .map(parse_statement)
+            .collect::<Result<Vec<TypedAst>>>()?,
+    );
+
+    Ok(While {
+        condition: condition.into(),
+        block,
+    })
 }
 
 fn parse_boolean(expression: Pair<Rule>) -> Result<TSValue> {

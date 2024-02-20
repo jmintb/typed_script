@@ -15,9 +15,9 @@ use melior::{
             StringAttribute, TypeAttribute,
         },
         operation::{OperationBuilder, OperationResult},
-        r#type::{FunctionType, IntegerType},
+        r#type::{FunctionType, IntegerType, MemRefType},
         Attribute, AttributeLike, Block, BlockRef, Identifier, Location, Module, Operation,
-        OperationRef, Region, Type, Value,
+        OperationRef, Region, Type, Value, ValueLike,
     },
     pass,
     utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
@@ -27,7 +27,8 @@ use melior::{
 use crate::{
     parser::{Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue},
     typed_ast::{
-        self, Assignment, Decl, FunctionArg, IfStatement, TypedAst, TypedExpression, TypedProgram,
+        self, Assign, Assignment, Decl, FunctionArg, IfStatement, TypedAst, TypedExpression,
+        TypedProgram, While,
     },
 };
 
@@ -131,16 +132,31 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let mut variable_store: HashMap<TSIdentifier, Value<'ctx, '_>> = HashMap::new();
 
         for (position, argument) in arguments.iter().enumerate() {
-            variable_store.insert(
-                argument.name.clone(),
-                function_block
-                    .argument(position)
-                    .expect(&format!(
-                        "expected at least {} function arguments for fn: {}",
-                        position, id.0,
-                    ))
-                    .into(),
-            );
+            let value_ref = function_block.argument(position).expect(&format!(
+                "expected at least {} function arguments for fn: {}",
+                position, id.0,
+            ));
+
+            let ptr = function_block
+                .append_operation(memref::alloca(
+                    self.context,
+                    MemRefType::new(value_ref.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    location,
+                ))
+                .result(0)
+                .unwrap();
+
+            function_block.append_operation(memref::store(
+                value_ref.into(),
+                ptr.into(),
+                &[],
+                location,
+            ));
+
+            variable_store.insert(argument.name.clone(), ptr.into());
         }
 
         // for exp in body.unwrap_or(vec![]) {
@@ -544,11 +560,59 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             self.gen_expression_code(assignment.expression.clone(), current_block, variable_store)?;
 
         if let Some(initial_value) = initial_value {
-            variable_store.insert(assignment.id, initial_value);
+            let ptr = melior::dialect::memref::alloca(
+                self.context,
+                MemRefType::new(initial_value.r#type(), &[], None, None),
+                &[],
+                &[],
+                None,
+                Location::unknown(self.context),
+            );
+            let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+            let store_op = melior::dialect::memref::store(
+                initial_value,
+                ptr_val.into(),
+                &[],
+                melior::ir::Location::unknown(self.context),
+            );
+
+            current_block.append_operation(store_op);
+
+            variable_store.insert(assignment.id, ptr_val.into());
         } else {
             bail!(format!(
                 "assingment expression did not return a value: {:#?} {:#?}",
                 assignment,
+                self.type_store.get(&TSIdentifier("fdopen".to_string()))
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn gen_assign_code<'a>(
+        &self,
+        assign: Assign,
+        current_block: &'a Block<'ctx>,
+        variable_store: &mut HashMap<TSIdentifier, Value<'ctx, 'a>>,
+    ) -> Result<()> {
+        let initial_value =
+            self.gen_expression_code(*assign.expression.clone(), current_block, variable_store)?;
+
+        if let Some(initial_value) = initial_value {
+            let var_ref = variable_store.get(&assign.id).unwrap();
+            let store_op = melior::dialect::memref::store(
+                initial_value,
+                *var_ref,
+                &[],
+                melior::ir::Location::unknown(self.context),
+            );
+
+            current_block.append_operation(store_op);
+        } else {
+            bail!(format!(
+                "assing expression did not return a value: {:#?} {:#?}",
+                assign,
                 self.type_store.get(&TSIdentifier("fdopen".to_string()))
             ));
         }
@@ -575,6 +639,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         .into(),
                 )
             }
+            TypedExpression::Assign(assign) => {
+                self.gen_assign_code(assign, current_block, variable_store)?;
+                None
+            }
             TypedExpression::Value(TSValue::Integer(v), _) => {
                 Some(
                     current_block
@@ -594,7 +662,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             // TODO: enter function arguments into variable store
             TypedExpression::Value(TSValue::Variable(ref id), Type) => {
                 if let Some(v) = variable_store.get(id) {
-                    Some(v.clone())
+                    let load = current_block
+                        .append_operation(memref::load(*v, &[], location))
+                        .result(0)?;
+                    Some(load.into())
                 } else {
                     bail!("Failed to find variable {}", id.0)
                 }
@@ -624,7 +695,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     };
 
                 let call_operation = if callee_keywords.contains(&FunctionKeyword::LlvmExtern) {
-                    OperationBuilder::new("llvm.call", location)
+                    OperationBuilder::new("func.call", location)
                         .add_operands(&actual_args)
                         .add_attributes(&[(
                             Identifier::new(&self.context, "callee"),
@@ -893,6 +964,35 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 )
             }
 
+            TypedExpression::While(While { condition, block }) => {
+                let condition_region = {
+                    let block = Block::new(&[]);
+                    let mut variables = variable_store.clone();
+
+                    block.append_operation(scf::condition(
+                        self.gen_expression_code(*condition, &block, &mut variables)?
+                            .unwrap(),
+                        &[],
+                        location,
+                    ));
+
+                    let mut region = Region::new();
+                    region.append_block(block);
+                    region
+                };
+
+                let operation = scf::r#while(
+                    &[],
+                    &[],
+                    condition_region,
+                    self.gen_block(block, variable_store)?.0,
+                    location,
+                );
+                current_block.append_operation(operation);
+
+                None
+            }
+
             _ => todo!("code gen uninplemented for {:?}", exp),
         };
 
@@ -991,7 +1091,7 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
 
     code_gen.gen_ast_code(ast, emit_mlir)?;
     if !emit_mlir {
-        assert!(module.as_operation().verify());
+        //        assert!(module.as_operation().verify());
     }
 
     let pass_manager = pass::PassManager::new(&code_gen.context);

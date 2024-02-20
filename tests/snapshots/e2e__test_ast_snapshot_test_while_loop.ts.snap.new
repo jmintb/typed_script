@@ -1,0 +1,367 @@
+---
+source: tests/e2e.rs
+assertion_line: 47
+expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
+---
+[
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fdopen",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "mode",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Pointer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fclose",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "fd",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fwrite",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "size",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sprintf",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "output",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "format",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "number",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "fflush",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "file",
+                    ),
+                    type: String,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                LlvmExtern,
+            ],
+            id: TSIdentifier(
+                "sleep",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "time",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: None,
+            return_type: Integer,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "print",
+            ),
+            arguments: [
+                FunctionArg {
+                    name: TSIdentifier(
+                        "val",
+                    ),
+                    type: String,
+                },
+                FunctionArg {
+                    name: TSIdentifier(
+                        "len",
+                    ),
+                    type: Integer,
+                },
+            ],
+            body: Some(
+                [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "stdoutptr",
+                            ),
+                            expression: Call(
+                                TSIdentifier(
+                                    "fdopen",
+                                ),
+                                [
+                                    Value(
+                                        Integer(
+                                            1,
+                                        ),
+                                        Integer,
+                                    ),
+                                    Value(
+                                        String(
+                                            "w",
+                                        ),
+                                        String,
+                                    ),
+                                ],
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "fwrite",
+                            ),
+                            [
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "val",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "len",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                                Value(
+                                    Integer(
+                                        1,
+                                    ),
+                                    Integer,
+                                ),
+                                Value(
+                                    Variable(
+                                        TSIdentifier(
+                                            "stdoutptr",
+                                        ),
+                                    ),
+                                    Unknown,
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+            return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "main",
+            ),
+            arguments: [],
+            body: Some(
+                [
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "i",
+                            ),
+                            expression: Value(
+                                Integer(
+                                    0,
+                                ),
+                                Integer,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Expression(
+                        While(
+                            While {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "i",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThan,
+                                        Value(
+                                            Integer(
+                                                10,
+                                            ),
+                                            Integer,
+                                        ),
+                                    ),
+                                ),
+                                block: Block {
+                                    statements: [
+                                        Expression(
+                                            Assign(
+                                                Assign {
+                                                    id: TSIdentifier(
+                                                        "i",
+                                                    ),
+                                                    expression: Operation(
+                                                        Binary(
+                                                            Value(
+                                                                Variable(
+                                                                    TSIdentifier(
+                                                                        "i",
+                                                                    ),
+                                                                ),
+                                                                Unknown,
+                                                            ),
+                                                            Addition,
+                                                            Value(
+                                                                Integer(
+                                                                    1,
+                                                                ),
+                                                                Integer,
+                                                            ),
+                                                        ),
+                                                    ),
+                                                },
+                                            ),
+                                        ),
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "hello \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            8,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                            },
+                        ),
+                    ),
+                ],
+            ),
+            return_type: Unit,
+        },
+    ),
+]
+

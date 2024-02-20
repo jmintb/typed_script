@@ -11,6 +11,8 @@ identifier = {
 
 assignment = { "let " ~ identifier  ~ "=" ~  expression  }
 
+assign = { identifier ~ "=" ~ expression }
+
 inner = @{ char* }
 
 operation = { primary ~ (infixOperator ~ primary )* }
@@ -32,7 +34,6 @@ less_than = { "<"}
 greater_than_or_equal = { ">="}
 less_than_or_equal = { "<="}
 
-
 primary = _{ integer | "(" ~ expression ~ ")"}
 
 reference = { "&" ~ expression }
@@ -45,7 +46,7 @@ false = {"false"}
 true = {"true"}
 
 expression = _{
-	if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
+	assign | if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
 }
 
 condition = _{ expression }

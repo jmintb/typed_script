@@ -57,6 +57,18 @@ impl Default for Type {
 }
 
 #[derive(Debug, Clone)]
+pub struct While {
+    pub condition: Box<TypedExpression>,
+    pub block: Block
+}
+
+#[derive(Debug, Clone)]
+pub struct Assign {
+    pub id: TSIdentifier,
+    pub expression: Box<TypedExpression>
+}
+
+#[derive(Debug, Clone)]
 pub enum TypedExpression {
     Value(TSValue, Type),
     Call(TSIdentifier, Vec<TypedExpression>),
@@ -64,7 +76,11 @@ pub enum TypedExpression {
     StructFieldRef(TSIdentifier, TSIdentifier),
     Operation(Box<Operation>),
     If(IfStatement),
+    While(While),
+    Assign(Assign),
 }
+
+
 
 impl TypedExpression {
     fn r#type(&self, types: &HashMap<TSIdentifier, Type>) -> Result<Type> {
@@ -83,7 +99,9 @@ impl TypedExpression {
             Self::Operation(operation) => match operation.as_ref() {
                 Operation::Binary(first_operand,_ ,_ ) => first_operand.r#type(types)
             } 
-            Self::If(_) => Ok(Type::Unit)
+            Self::If(_) => Ok(Type::Unit),
+            Self::While(_) => Ok(Type::Unit),
+            Self::Assign(_) => Ok(Type::Unit),
          } 
     }
 }
@@ -318,8 +336,21 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
         }
 
         TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into()),
-        parser::TSExpression::If(IfStatement) => TypedExpression::If(type_if(IfStatement)?)
+        TSExpression::If(IfStatement) => TypedExpression::If(type_if(IfStatement)?),
+        TSExpression::While(While) => TypedExpression::While(type_while(While)?),
+        TSExpression::Assign(assign) => TypedExpression::Assign(type_assign(assign)?)
     })
+}
+
+fn type_assign(assign: parser::Assign) -> Result<Assign> {
+    Ok(Assign { id: assign.id, expression: type_expression(*assign.expression)?.into()  })
+}
+
+fn type_while(r#while: parser::While) -> Result<While> {
+    let condition = type_expression(*r#while.condition)?;
+    let block = type_block(r#while.block)?;
+
+    Ok(While { condition: condition.into(), block  })
 }
 
 fn typed_operator(operation: parser::Operation) -> Result<Operation> {
