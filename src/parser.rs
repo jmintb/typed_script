@@ -18,6 +18,25 @@ pub enum TSExpression {
     If(IfStatement),
     While(While),
     Assign(Assign),
+    Return(Return),
+    Array(Array),
+    ArrayLookup(ArrayLookup),
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayLookup {
+    pub array_identifier: TSIdentifier,
+    pub index_expression: Box<TSExpression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub items: Vec<TSExpression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Return {
+    pub expression: Option<Box<TSExpression>>,
 }
 
 #[derive(Debug, Clone)]
@@ -238,8 +257,11 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
         };
 
     let return_type = if let Some(Rule::identifier) = next.clone().map(|next| next.as_rule()) {
-        next.clone()
-            .map(|next| TSIdentifier(next.as_str().to_string()))
+        let ty = next
+            .clone()
+            .map(|next| TSIdentifier(next.as_str().to_string()));
+        next = decl.next();
+        ty
     } else {
         None
     };
@@ -300,6 +322,7 @@ fn parse_statement(statement: Pair<Rule>) -> Result<TypedAst> {
         | Rule::string
         | Rule::if_else
         | Rule::while_loop
+        | Rule::r#return
         | Rule::assign => TypedAst::Expression(parse_expression(statement)?),
         Rule::function => parse_function_decl(statement)?,
         _ => bail!("Recieved unexpected rule: {:?}", statement),
@@ -333,10 +356,72 @@ fn parse_expression(expression: Pair<Rule>) -> Result<TSExpression> {
         Rule::r#if_else => TSExpression::If(parse_if(expression)?),
         Rule::while_loop => TSExpression::While(parse_while(expression)?),
         Rule::assign => TSExpression::Assign(parse_assign(expression)?),
+        Rule::r#return => TSExpression::Return(parse_return(expression)?),
+        Rule::array => TSExpression::Array(parse_array(expression)?),
+        Rule::array_lookup => TSExpression::ArrayLookup(parse_array_lookup(expression)?),
         _ => panic!("Got unexpected expression: {:?}", expression.as_rule()),
     };
 
     Ok(typed_exp)
+}
+
+fn parse_array_lookup(expression: Pair<'_, Rule>) -> Result<ArrayLookup> {
+    let mut inner = if let Rule::array_lookup = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected array lookup rule found {}", expression.as_str())
+    };
+
+    let Some(array_identifier) = inner
+        .next()
+        .map(|identifer| TSIdentifier(identifer.as_str().to_string()))
+    else {
+        bail!("missing array identifier")
+    };
+
+    let index = if let Some(index) = inner.next() {
+        parse_expression(index)?
+    } else {
+        bail!("missing array index")
+    };
+
+    Ok(ArrayLookup {
+        array_identifier: array_identifier,
+        index_expression: index.into(),
+    })
+}
+
+fn parse_array(expression: Pair<'_, Rule>) -> Result<Array> {
+    let mut inner = if let Rule::array = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected array rule found {}", expression.as_str())
+    };
+
+    let items = inner
+        .into_iter()
+        .map(parse_expression)
+        .collect::<Result<Vec<TSExpression>>>()?;
+
+    Ok(Array {
+        items: items.into(),
+    })
+}
+
+fn parse_return(expression: Pair<'_, Rule>) -> Result<Return> {
+    let mut inner = if let Rule::r#return = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected return rule found {}", expression.as_str());
+    };
+
+    let expression = if let Some(next) = inner.next() {
+        Some(parse_expression(next)?.into())
+    } else {
+        None
+    };
+
+    Ok(Return { expression })
 }
 
 fn parse_assign(expression: Pair<'_, Rule>) -> Result<Assign> {

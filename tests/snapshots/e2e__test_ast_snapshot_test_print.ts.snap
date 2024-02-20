@@ -249,6 +249,13 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                             ],
                         ),
                     ),
+                    Expression(
+                        Return(
+                            Return {
+                                expression: None,
+                            },
+                        ),
+                    ),
                 ],
             ),
             return_type: Unit,
@@ -284,6 +291,13 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                     Integer,
                                 ),
                             ],
+                        ),
+                    ),
+                    Expression(
+                        Return(
+                            Return {
+                                expression: None,
+                            },
                         ),
                     ),
                 ],

@@ -7,4 +7,6 @@ fn main() {
   let outputb = "resultb: %d \n";
   sprintf(outputb, outputb, resultb);
   print(outputb, 13);
+
+  return 
 }

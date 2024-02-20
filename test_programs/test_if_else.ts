@@ -10,4 +10,6 @@ fn main() {
   } else {
     print("else", 4);
   }
+
+  return
 }

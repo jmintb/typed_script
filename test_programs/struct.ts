@@ -6,4 +6,5 @@ struct Test {
 fn main() {
   let test = Test { "ac", "bc" };
   print(test.fielda);
+  return;
 }

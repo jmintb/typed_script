@@ -275,106 +275,16 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                     Assignment(
                         Assignment {
                             id: TSIdentifier(
-                                "a",
+                                "val",
                             ),
-                            expression: Value(
-                                Integer(
-                                    2,
+                            expression: Call(
+                                TSIdentifier(
+                                    "generate_message",
                                 ),
-                                Integer,
+                                [],
                             ),
                             typed_annotation: None,
                         },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "b",
-                            ),
-                            expression: Value(
-                                Integer(
-                                    3,
-                                ),
-                                Integer,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "result",
-                            ),
-                            expression: Operation(
-                                Binary(
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "b",
-                                            ),
-                                        ),
-                                        Unknown,
-                                    ),
-                                    Multiplication,
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "a",
-                                            ),
-                                        ),
-                                        Unknown,
-                                    ),
-                                ),
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "output",
-                            ),
-                            expression: Value(
-                                String(
-                                    "result: %d",
-                                ),
-                                String,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Expression(
-                        Call(
-                            TSIdentifier(
-                                "sprintf",
-                            ),
-                            [
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "result",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                            ],
-                        ),
                     ),
                     Expression(
                         Call(
@@ -385,7 +295,7 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                 Value(
                                     Variable(
                                         TSIdentifier(
-                                            "output",
+                                            "val",
                                         ),
                                     ),
                                     Unknown,
@@ -409,6 +319,36 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                 ],
             ),
             return_type: Unit,
+        },
+    ),
+    Decl(
+        Function {
+            keywords: [
+                Normal,
+            ],
+            id: TSIdentifier(
+                "generate_message",
+            ),
+            arguments: [],
+            body: Some(
+                [
+                    Expression(
+                        Return(
+                            Return {
+                                expression: Some(
+                                    Value(
+                                        String(
+                                            "a message \\n",
+                                        ),
+                                        String,
+                                    ),
+                                ),
+                            },
+                        ),
+                    ),
+                ],
+            ),
+            return_type: String,
         },
     ),
 ]

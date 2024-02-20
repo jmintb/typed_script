@@ -45,58 +45,29 @@ module attributes {llvm.data_layout = ""} {
     %28 = llvm.call @fwrite(%24, %25, %26, %27) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
     llvm.return
   }
-  llvm.mlir.global internal @annonstr1("result: %d") {addr_space = 0 : i32}
   llvm.func @main() attributes {llvm.emit_c_interface} {
-    %0 = llvm.mlir.constant(2 : i32) : i32
+    %0 = llvm.call @generate_message() : () -> !llvm.ptr
     %1 = llvm.mlir.constant(1 : index) : i64
-    %2 = llvm.alloca %1 x i32 : (i64) -> !llvm.ptr
+    %2 = llvm.alloca %1 x !llvm.ptr : (i64) -> !llvm.ptr
     %3 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
     %4 = llvm.insertvalue %2, %3[0] : !llvm.struct<(ptr, ptr, i64)> 
     %5 = llvm.insertvalue %2, %4[1] : !llvm.struct<(ptr, ptr, i64)> 
     %6 = llvm.mlir.constant(0 : index) : i64
     %7 = llvm.insertvalue %6, %5[2] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %0, %2 : i32, !llvm.ptr
-    %8 = llvm.mlir.constant(3 : i32) : i32
-    %9 = llvm.mlir.constant(1 : index) : i64
-    %10 = llvm.alloca %9 x i32 : (i64) -> !llvm.ptr
-    %11 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %12 = llvm.insertvalue %10, %11[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %13 = llvm.insertvalue %10, %12[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %14 = llvm.mlir.constant(0 : index) : i64
-    %15 = llvm.insertvalue %14, %13[2] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %8, %10 : i32, !llvm.ptr
-    %16 = llvm.load %10 : !llvm.ptr -> i32
-    %17 = llvm.load %2 : !llvm.ptr -> i32
-    %18 = llvm.sub %16, %17  : i32
-    %19 = llvm.mlir.constant(1 : index) : i64
-    %20 = llvm.alloca %19 x i32 : (i64) -> !llvm.ptr
-    %21 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %22 = llvm.insertvalue %20, %21[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %23 = llvm.insertvalue %20, %22[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %24 = llvm.mlir.constant(0 : index) : i64
-    %25 = llvm.insertvalue %24, %23[2] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %18, %20 : i32, !llvm.ptr
-    %26 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
-    %27 = llvm.mlir.constant(1 : index) : i64
-    %28 = llvm.alloca %27 x !llvm.ptr : (i64) -> !llvm.ptr
-    %29 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %30 = llvm.insertvalue %28, %29[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %31 = llvm.insertvalue %28, %30[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %32 = llvm.mlir.constant(0 : index) : i64
-    %33 = llvm.insertvalue %32, %31[2] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %26, %28 : !llvm.ptr, !llvm.ptr
-    %34 = llvm.load %28 : !llvm.ptr -> !llvm.ptr
-    %35 = llvm.load %28 : !llvm.ptr -> !llvm.ptr
-    %36 = llvm.load %20 : !llvm.ptr -> i32
-    %37 = llvm.call @sprintf(%34, %35, %36) : (!llvm.ptr, !llvm.ptr, i32) -> i32
-    %38 = llvm.load %28 : !llvm.ptr -> !llvm.ptr
-    %39 = llvm.mlir.constant(12 : i32) : i32
-    llvm.call @print(%38, %39) : (!llvm.ptr, i32) -> ()
+    llvm.store %0, %2 : !llvm.ptr, !llvm.ptr
+    %8 = llvm.load %2 : !llvm.ptr -> !llvm.ptr
+    %9 = llvm.mlir.constant(12 : i32) : i32
+    llvm.call @print(%8, %9) : (!llvm.ptr, i32) -> ()
     llvm.return
   }
   llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
     llvm.call @main() : () -> ()
     llvm.return
+  }
+  llvm.mlir.global internal @annonstr1("a message \0A") {addr_space = 0 : i32}
+  llvm.func @generate_message() -> !llvm.ptr {
+    %0 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
+    llvm.return %0 : !llvm.ptr
   }
 }
 

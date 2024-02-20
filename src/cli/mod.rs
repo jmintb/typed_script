@@ -39,6 +39,7 @@ extern fn sleep(time: integer) -> integer;
 fn print(val: string, len: integer) {
      let stdoutptr = fdopen(1, \"w\");
      fwrite(val, len, 1, stdoutptr);
+     return;
     }
     "
     .to_string()

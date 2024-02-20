@@ -5,4 +5,6 @@ fn main() {
     i = (i) + 1;
     print("hello \n", 8);
   }
+
+return
 }

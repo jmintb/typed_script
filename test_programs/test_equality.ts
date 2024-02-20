@@ -42,4 +42,6 @@ fn main() {
   if (c) < (a)  {
     print("c less than a \n", 18);
   }
+
+  return
 }

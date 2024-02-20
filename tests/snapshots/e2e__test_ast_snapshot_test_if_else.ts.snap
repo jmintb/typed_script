@@ -1,6 +1,5 @@
 ---
 source: tests/e2e.rs
-assertion_line: 47
 expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
 ---
 [
@@ -250,6 +249,13 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                             ],
                         ),
                     ),
+                    Expression(
+                        Return(
+                            Return {
+                                expression: None,
+                            },
+                        ),
+                    ),
                 ],
             ),
             return_type: Unit,
@@ -266,72 +272,17 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
             arguments: [],
             body: Some(
                 [
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "i",
-                            ),
-                            expression: Value(
-                                Integer(
-                                    0,
-                                ),
-                                Integer,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
                     Expression(
-                        While(
-                            While {
-                                condition: Operation(
-                                    Binary(
-                                        Value(
-                                            Variable(
-                                                TSIdentifier(
-                                                    "i",
-                                                ),
-                                            ),
-                                            Unknown,
-                                        ),
-                                        LessThan,
-                                        Value(
-                                            Integer(
-                                                10,
-                                            ),
-                                            Integer,
-                                        ),
+                        If(
+                            IfStatement {
+                                condition: Value(
+                                    Boolean(
+                                        false,
                                     ),
+                                    Boolean,
                                 ),
-                                block: Block {
+                                then_block: Block {
                                     statements: [
-                                        Expression(
-                                            Assign(
-                                                Assign {
-                                                    id: TSIdentifier(
-                                                        "i",
-                                                    ),
-                                                    expression: Operation(
-                                                        Binary(
-                                                            Value(
-                                                                Variable(
-                                                                    TSIdentifier(
-                                                                        "i",
-                                                                    ),
-                                                                ),
-                                                                Unknown,
-                                                            ),
-                                                            Addition,
-                                                            Value(
-                                                                Integer(
-                                                                    1,
-                                                                ),
-                                                                Integer,
-                                                            ),
-                                                        ),
-                                                    ),
-                                                },
-                                            ),
-                                        ),
                                         Expression(
                                             Call(
                                                 TSIdentifier(
@@ -340,13 +291,13 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                                 [
                                                     Value(
                                                         String(
-                                                            "hello \\n",
+                                                            "false",
                                                         ),
                                                         String,
                                                     ),
                                                     Value(
                                                         Integer(
-                                                            8,
+                                                            5,
                                                         ),
                                                         Integer,
                                                     ),
@@ -355,6 +306,104 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                         ),
                                     ],
                                 },
+                                else_block: Some(
+                                    Block {
+                                        statements: [
+                                            Expression(
+                                                Call(
+                                                    TSIdentifier(
+                                                        "print",
+                                                    ),
+                                                    [
+                                                        Value(
+                                                            String(
+                                                                "else \\n",
+                                                            ),
+                                                            String,
+                                                        ),
+                                                        Value(
+                                                            Integer(
+                                                                6,
+                                                            ),
+                                                            Integer,
+                                                        ),
+                                                    ],
+                                                ),
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            },
+                        ),
+                    ),
+                    Expression(
+                        If(
+                            IfStatement {
+                                condition: Value(
+                                    Boolean(
+                                        true,
+                                    ),
+                                    Boolean,
+                                ),
+                                then_block: Block {
+                                    statements: [
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "false \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            7,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                else_block: Some(
+                                    Block {
+                                        statements: [
+                                            Expression(
+                                                Call(
+                                                    TSIdentifier(
+                                                        "print",
+                                                    ),
+                                                    [
+                                                        Value(
+                                                            String(
+                                                                "else",
+                                                            ),
+                                                            String,
+                                                        ),
+                                                        Value(
+                                                            Integer(
+                                                                4,
+                                                            ),
+                                                            Integer,
+                                                        ),
+                                                    ],
+                                                ),
+                                            ),
+                                        ],
+                                    },
+                                ),
+                            },
+                        ),
+                    ),
+                    Expression(
+                        Return(
+                            Return {
+                                expression: None,
                             },
                         ),
                     ),

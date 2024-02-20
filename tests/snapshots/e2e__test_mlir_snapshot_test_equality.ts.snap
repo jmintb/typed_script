@@ -18,37 +18,31 @@ module attributes {llvm.data_layout = ""} {
     %4 = llvm.insertvalue %1, %3[1] : !llvm.struct<(ptr, ptr, i64)> 
     %5 = llvm.mlir.constant(0 : index) : i64
     %6 = llvm.insertvalue %5, %4[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %7 = llvm.extractvalue %6[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %arg0, %7 : !llvm.ptr, !llvm.ptr
-    %8 = llvm.mlir.constant(1 : index) : i64
-    %9 = llvm.alloca %8 x i32 : (i64) -> !llvm.ptr
-    %10 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %11 = llvm.insertvalue %9, %10[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %12 = llvm.insertvalue %9, %11[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %13 = llvm.mlir.constant(0 : index) : i64
-    %14 = llvm.insertvalue %13, %12[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %15 = llvm.extractvalue %14[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %arg1, %15 : i32, !llvm.ptr
-    %16 = llvm.mlir.constant(1 : i32) : i32
-    %17 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
-    %18 = llvm.call @fdopen(%16, %17) : (i32, !llvm.ptr) -> !llvm.ptr
-    %19 = llvm.mlir.constant(1 : index) : i64
-    %20 = llvm.alloca %19 x !llvm.ptr : (i64) -> !llvm.ptr
-    %21 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %22 = llvm.insertvalue %20, %21[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %23 = llvm.insertvalue %20, %22[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %24 = llvm.mlir.constant(0 : index) : i64
-    %25 = llvm.insertvalue %24, %23[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %26 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %18, %26 : !llvm.ptr, !llvm.ptr
-    %27 = llvm.extractvalue %6[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %28 = llvm.load %27 : !llvm.ptr -> !llvm.ptr
-    %29 = llvm.extractvalue %14[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %30 = llvm.load %29 : !llvm.ptr -> i32
-    %31 = llvm.mlir.constant(1 : i32) : i32
-    %32 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %33 = llvm.load %32 : !llvm.ptr -> !llvm.ptr
-    %34 = llvm.call @fwrite(%28, %30, %31, %33) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
+    llvm.store %arg0, %1 : !llvm.ptr, !llvm.ptr
+    %7 = llvm.mlir.constant(1 : index) : i64
+    %8 = llvm.alloca %7 x i32 : (i64) -> !llvm.ptr
+    %9 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
+    %10 = llvm.insertvalue %8, %9[0] : !llvm.struct<(ptr, ptr, i64)> 
+    %11 = llvm.insertvalue %8, %10[1] : !llvm.struct<(ptr, ptr, i64)> 
+    %12 = llvm.mlir.constant(0 : index) : i64
+    %13 = llvm.insertvalue %12, %11[2] : !llvm.struct<(ptr, ptr, i64)> 
+    llvm.store %arg1, %8 : i32, !llvm.ptr
+    %14 = llvm.mlir.constant(1 : i32) : i32
+    %15 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %16 = llvm.call @fdopen(%14, %15) : (i32, !llvm.ptr) -> !llvm.ptr
+    %17 = llvm.mlir.constant(1 : index) : i64
+    %18 = llvm.alloca %17 x !llvm.ptr : (i64) -> !llvm.ptr
+    %19 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
+    %20 = llvm.insertvalue %18, %19[0] : !llvm.struct<(ptr, ptr, i64)> 
+    %21 = llvm.insertvalue %18, %20[1] : !llvm.struct<(ptr, ptr, i64)> 
+    %22 = llvm.mlir.constant(0 : index) : i64
+    %23 = llvm.insertvalue %22, %21[2] : !llvm.struct<(ptr, ptr, i64)> 
+    llvm.store %16, %18 : !llvm.ptr, !llvm.ptr
+    %24 = llvm.load %1 : !llvm.ptr -> !llvm.ptr
+    %25 = llvm.load %8 : !llvm.ptr -> i32
+    %26 = llvm.mlir.constant(1 : i32) : i32
+    %27 = llvm.load %18 : !llvm.ptr -> !llvm.ptr
+    %28 = llvm.call @fwrite(%24, %25, %26, %27) : (!llvm.ptr, i32, i32, !llvm.ptr) -> i32
     llvm.return
   }
   llvm.mlir.global internal @annonstr1("a equals b \0A") {addr_space = 0 : i32}
@@ -70,146 +64,123 @@ module attributes {llvm.data_layout = ""} {
     %5 = llvm.insertvalue %2, %4[1] : !llvm.struct<(ptr, ptr, i64)> 
     %6 = llvm.mlir.constant(0 : index) : i64
     %7 = llvm.insertvalue %6, %5[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %8 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %0, %8 : i32, !llvm.ptr
-    %9 = llvm.mlir.constant(2 : i32) : i32
-    %10 = llvm.mlir.constant(1 : index) : i64
-    %11 = llvm.alloca %10 x i32 : (i64) -> !llvm.ptr
-    %12 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %13 = llvm.insertvalue %11, %12[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %14 = llvm.insertvalue %11, %13[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %15 = llvm.mlir.constant(0 : index) : i64
-    %16 = llvm.insertvalue %15, %14[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %17 = llvm.extractvalue %16[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %9, %17 : i32, !llvm.ptr
-    %18 = llvm.mlir.constant(1 : i32) : i32
-    %19 = llvm.mlir.constant(1 : index) : i64
-    %20 = llvm.alloca %19 x i32 : (i64) -> !llvm.ptr
-    %21 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
-    %22 = llvm.insertvalue %20, %21[0] : !llvm.struct<(ptr, ptr, i64)> 
-    %23 = llvm.insertvalue %20, %22[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %24 = llvm.mlir.constant(0 : index) : i64
-    %25 = llvm.insertvalue %24, %23[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %26 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    llvm.store %18, %26 : i32, !llvm.ptr
-    %27 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %28 = llvm.load %27 : !llvm.ptr -> i32
-    %29 = llvm.extractvalue %16[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %30 = llvm.load %29 : !llvm.ptr -> i32
-    %31 = llvm.icmp "eq" %28, %30 : i32
-    llvm.cond_br %31, ^bb1, ^bb2
+    llvm.store %0, %2 : i32, !llvm.ptr
+    %8 = llvm.mlir.constant(2 : i32) : i32
+    %9 = llvm.mlir.constant(1 : index) : i64
+    %10 = llvm.alloca %9 x i32 : (i64) -> !llvm.ptr
+    %11 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
+    %12 = llvm.insertvalue %10, %11[0] : !llvm.struct<(ptr, ptr, i64)> 
+    %13 = llvm.insertvalue %10, %12[1] : !llvm.struct<(ptr, ptr, i64)> 
+    %14 = llvm.mlir.constant(0 : index) : i64
+    %15 = llvm.insertvalue %14, %13[2] : !llvm.struct<(ptr, ptr, i64)> 
+    llvm.store %8, %10 : i32, !llvm.ptr
+    %16 = llvm.mlir.constant(1 : i32) : i32
+    %17 = llvm.mlir.constant(1 : index) : i64
+    %18 = llvm.alloca %17 x i32 : (i64) -> !llvm.ptr
+    %19 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
+    %20 = llvm.insertvalue %18, %19[0] : !llvm.struct<(ptr, ptr, i64)> 
+    %21 = llvm.insertvalue %18, %20[1] : !llvm.struct<(ptr, ptr, i64)> 
+    %22 = llvm.mlir.constant(0 : index) : i64
+    %23 = llvm.insertvalue %22, %21[2] : !llvm.struct<(ptr, ptr, i64)> 
+    llvm.store %16, %18 : i32, !llvm.ptr
+    %24 = llvm.load %2 : !llvm.ptr -> i32
+    %25 = llvm.load %10 : !llvm.ptr -> i32
+    %26 = llvm.icmp "eq" %24, %25 : i32
+    llvm.cond_br %26, ^bb1, ^bb2
   ^bb1:  // pred: ^bb0
-    %32 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
-    %33 = llvm.mlir.constant(12 : i32) : i32
-    llvm.call @print(%32, %33) : (!llvm.ptr, i32) -> ()
+    %27 = llvm.mlir.addressof @annonstr1 : !llvm.ptr
+    %28 = llvm.mlir.constant(12 : i32) : i32
+    llvm.call @print(%27, %28) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb2
   ^bb2:  // 2 preds: ^bb0, ^bb1
-    %34 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %35 = llvm.load %34 : !llvm.ptr -> i32
-    %36 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %37 = llvm.load %36 : !llvm.ptr -> i32
-    %38 = llvm.icmp "eq" %35, %37 : i32
-    llvm.cond_br %38, ^bb3, ^bb4
+    %29 = llvm.load %2 : !llvm.ptr -> i32
+    %30 = llvm.load %18 : !llvm.ptr -> i32
+    %31 = llvm.icmp "eq" %29, %30 : i32
+    llvm.cond_br %31, ^bb3, ^bb4
   ^bb3:  // pred: ^bb2
-    %39 = llvm.mlir.addressof @annonstr2 : !llvm.ptr
-    %40 = llvm.mlir.constant(12 : i32) : i32
-    llvm.call @print(%39, %40) : (!llvm.ptr, i32) -> ()
+    %32 = llvm.mlir.addressof @annonstr2 : !llvm.ptr
+    %33 = llvm.mlir.constant(12 : i32) : i32
+    llvm.call @print(%32, %33) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb4
   ^bb4:  // 2 preds: ^bb2, ^bb3
-    %41 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %42 = llvm.load %41 : !llvm.ptr -> i32
-    %43 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %44 = llvm.load %43 : !llvm.ptr -> i32
-    %45 = llvm.icmp "ne" %42, %44 : i32
-    llvm.cond_br %45, ^bb5, ^bb6
+    %34 = llvm.load %2 : !llvm.ptr -> i32
+    %35 = llvm.load %18 : !llvm.ptr -> i32
+    %36 = llvm.icmp "ne" %34, %35 : i32
+    llvm.cond_br %36, ^bb5, ^bb6
   ^bb5:  // pred: ^bb4
-    %46 = llvm.mlir.addressof @annonstr3 : !llvm.ptr
-    %47 = llvm.mlir.constant(20 : i32) : i32
-    llvm.call @print(%46, %47) : (!llvm.ptr, i32) -> ()
+    %37 = llvm.mlir.addressof @annonstr3 : !llvm.ptr
+    %38 = llvm.mlir.constant(20 : i32) : i32
+    llvm.call @print(%37, %38) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb6
   ^bb6:  // 2 preds: ^bb4, ^bb5
-    %48 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %49 = llvm.load %48 : !llvm.ptr -> i32
-    %50 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %51 = llvm.load %50 : !llvm.ptr -> i32
-    %52 = llvm.icmp "sgt" %49, %51 : i32
-    llvm.cond_br %52, ^bb7, ^bb8
+    %39 = llvm.load %2 : !llvm.ptr -> i32
+    %40 = llvm.load %18 : !llvm.ptr -> i32
+    %41 = llvm.icmp "sgt" %39, %40 : i32
+    llvm.cond_br %41, ^bb7, ^bb8
   ^bb7:  // pred: ^bb6
-    %53 = llvm.mlir.addressof @annonstr4 : !llvm.ptr
-    %54 = llvm.mlir.constant(18 : i32) : i32
-    llvm.call @print(%53, %54) : (!llvm.ptr, i32) -> ()
+    %42 = llvm.mlir.addressof @annonstr4 : !llvm.ptr
+    %43 = llvm.mlir.constant(18 : i32) : i32
+    llvm.call @print(%42, %43) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb8
   ^bb8:  // 2 preds: ^bb6, ^bb7
-    %55 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %56 = llvm.load %55 : !llvm.ptr -> i32
-    %57 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %58 = llvm.load %57 : !llvm.ptr -> i32
-    %59 = llvm.icmp "sge" %56, %58 : i32
-    llvm.cond_br %59, ^bb9, ^bb10
+    %44 = llvm.load %2 : !llvm.ptr -> i32
+    %45 = llvm.load %18 : !llvm.ptr -> i32
+    %46 = llvm.icmp "sge" %44, %45 : i32
+    llvm.cond_br %46, ^bb9, ^bb10
   ^bb9:  // pred: ^bb8
-    %60 = llvm.mlir.addressof @annonstr5 : !llvm.ptr
-    %61 = llvm.mlir.constant(30 : i32) : i32
-    llvm.call @print(%60, %61) : (!llvm.ptr, i32) -> ()
+    %47 = llvm.mlir.addressof @annonstr5 : !llvm.ptr
+    %48 = llvm.mlir.constant(30 : i32) : i32
+    llvm.call @print(%47, %48) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb10
   ^bb10:  // 2 preds: ^bb8, ^bb9
-    %62 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %63 = llvm.load %62 : !llvm.ptr -> i32
-    %64 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %65 = llvm.load %64 : !llvm.ptr -> i32
-    %66 = llvm.icmp "sge" %63, %65 : i32
-    llvm.cond_br %66, ^bb11, ^bb12
+    %49 = llvm.load %2 : !llvm.ptr -> i32
+    %50 = llvm.load %2 : !llvm.ptr -> i32
+    %51 = llvm.icmp "sge" %49, %50 : i32
+    llvm.cond_br %51, ^bb11, ^bb12
   ^bb11:  // pred: ^bb10
-    %67 = llvm.mlir.addressof @annonstr6 : !llvm.ptr
-    %68 = llvm.mlir.constant(30 : i32) : i32
-    llvm.call @print(%67, %68) : (!llvm.ptr, i32) -> ()
+    %52 = llvm.mlir.addressof @annonstr6 : !llvm.ptr
+    %53 = llvm.mlir.constant(30 : i32) : i32
+    llvm.call @print(%52, %53) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb12
   ^bb12:  // 2 preds: ^bb10, ^bb11
-    %69 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %70 = llvm.load %69 : !llvm.ptr -> i32
-    %71 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %72 = llvm.load %71 : !llvm.ptr -> i32
-    %73 = llvm.icmp "sle" %70, %72 : i32
-    llvm.cond_br %73, ^bb13, ^bb14
+    %54 = llvm.load %18 : !llvm.ptr -> i32
+    %55 = llvm.load %2 : !llvm.ptr -> i32
+    %56 = llvm.icmp "sle" %54, %55 : i32
+    llvm.cond_br %56, ^bb13, ^bb14
   ^bb13:  // pred: ^bb12
-    %74 = llvm.mlir.addressof @annonstr7 : !llvm.ptr
-    %75 = llvm.mlir.constant(27 : i32) : i32
-    llvm.call @print(%74, %75) : (!llvm.ptr, i32) -> ()
+    %57 = llvm.mlir.addressof @annonstr7 : !llvm.ptr
+    %58 = llvm.mlir.constant(27 : i32) : i32
+    llvm.call @print(%57, %58) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb14
   ^bb14:  // 2 preds: ^bb12, ^bb13
-    %76 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %77 = llvm.load %76 : !llvm.ptr -> i32
-    %78 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %79 = llvm.load %78 : !llvm.ptr -> i32
-    %80 = llvm.icmp "sle" %77, %79 : i32
-    llvm.cond_br %80, ^bb15, ^bb16
+    %59 = llvm.load %2 : !llvm.ptr -> i32
+    %60 = llvm.load %18 : !llvm.ptr -> i32
+    %61 = llvm.icmp "sle" %59, %60 : i32
+    llvm.cond_br %61, ^bb15, ^bb16
   ^bb15:  // pred: ^bb14
-    %81 = llvm.mlir.addressof @annonstr8 : !llvm.ptr
-    %82 = llvm.mlir.constant(27 : i32) : i32
-    llvm.call @print(%81, %82) : (!llvm.ptr, i32) -> ()
+    %62 = llvm.mlir.addressof @annonstr8 : !llvm.ptr
+    %63 = llvm.mlir.constant(27 : i32) : i32
+    llvm.call @print(%62, %63) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb16
   ^bb16:  // 2 preds: ^bb14, ^bb15
-    %83 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %84 = llvm.load %83 : !llvm.ptr -> i32
-    %85 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %86 = llvm.load %85 : !llvm.ptr -> i32
-    %87 = llvm.icmp "sle" %84, %86 : i32
-    llvm.cond_br %87, ^bb17, ^bb18
+    %64 = llvm.load %2 : !llvm.ptr -> i32
+    %65 = llvm.load %2 : !llvm.ptr -> i32
+    %66 = llvm.icmp "sle" %64, %65 : i32
+    llvm.cond_br %66, ^bb17, ^bb18
   ^bb17:  // pred: ^bb16
-    %88 = llvm.mlir.addressof @annonstr9 : !llvm.ptr
-    %89 = llvm.mlir.constant(27 : i32) : i32
-    llvm.call @print(%88, %89) : (!llvm.ptr, i32) -> ()
+    %67 = llvm.mlir.addressof @annonstr9 : !llvm.ptr
+    %68 = llvm.mlir.constant(27 : i32) : i32
+    llvm.call @print(%67, %68) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb18
   ^bb18:  // 2 preds: ^bb16, ^bb17
-    %90 = llvm.extractvalue %25[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %91 = llvm.load %90 : !llvm.ptr -> i32
-    %92 = llvm.extractvalue %7[1] : !llvm.struct<(ptr, ptr, i64)> 
-    %93 = llvm.load %92 : !llvm.ptr -> i32
-    %94 = llvm.icmp "slt" %91, %93 : i32
-    llvm.cond_br %94, ^bb19, ^bb20
+    %69 = llvm.load %18 : !llvm.ptr -> i32
+    %70 = llvm.load %2 : !llvm.ptr -> i32
+    %71 = llvm.icmp "slt" %69, %70 : i32
+    llvm.cond_br %71, ^bb19, ^bb20
   ^bb19:  // pred: ^bb18
-    %95 = llvm.mlir.addressof @annonstr10 : !llvm.ptr
-    %96 = llvm.mlir.constant(18 : i32) : i32
-    llvm.call @print(%95, %96) : (!llvm.ptr, i32) -> ()
+    %72 = llvm.mlir.addressof @annonstr10 : !llvm.ptr
+    %73 = llvm.mlir.constant(18 : i32) : i32
+    llvm.call @print(%72, %73) : (!llvm.ptr, i32) -> ()
     llvm.br ^bb20
   ^bb20:  // 2 preds: ^bb18, ^bb19
     llvm.return

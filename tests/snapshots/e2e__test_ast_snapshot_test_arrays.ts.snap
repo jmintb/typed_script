@@ -275,70 +275,46 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                     Assignment(
                         Assignment {
                             id: TSIdentifier(
-                                "a",
-                            ),
-                            expression: Value(
-                                Integer(
-                                    2,
-                                ),
-                                Integer,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "b",
-                            ),
-                            expression: Value(
-                                Integer(
-                                    3,
-                                ),
-                                Integer,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "result",
-                            ),
-                            expression: Operation(
-                                Binary(
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "b",
-                                            ),
-                                        ),
-                                        Unknown,
-                                    ),
-                                    Multiplication,
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "a",
-                                            ),
-                                        ),
-                                        Unknown,
-                                    ),
-                                ),
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "output",
+                                "val",
                             ),
                             expression: Value(
                                 String(
-                                    "result: %d",
+                                    "test",
                                 ),
                                 String,
+                            ),
+                            typed_annotation: None,
+                        },
+                    ),
+                    Assignment(
+                        Assignment {
+                            id: TSIdentifier(
+                                "vals",
+                            ),
+                            expression: Array(
+                                Array {
+                                    item_type: String,
+                                    items: [
+                                        Value(
+                                            String(
+                                                "first \\n",
+                                            ),
+                                            String,
+                                        ),
+                                        Value(
+                                            String(
+                                                "second \\n",
+                                            ),
+                                            String,
+                                        ),
+                                        Value(
+                                            String(
+                                                "third \\n",
+                                            ),
+                                            String,
+                                        ),
+                                    ],
+                                },
                             ),
                             typed_annotation: None,
                         },
@@ -346,32 +322,27 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                     Expression(
                         Call(
                             TSIdentifier(
-                                "sprintf",
+                                "print",
                             ),
                             [
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
+                                ArrayLookup(
+                                    ArrayLookup {
+                                        array_identifier: TSIdentifier(
+                                            "vals",
                                         ),
-                                    ),
-                                    Unknown,
+                                        index_expression: Value(
+                                            Integer(
+                                                0,
+                                            ),
+                                            Integer,
+                                        ),
+                                    },
                                 ),
                                 Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
+                                    Integer(
+                                        7,
                                     ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "result",
-                                        ),
-                                    ),
-                                    Unknown,
+                                    Integer,
                                 ),
                             ],
                         ),
@@ -382,17 +353,50 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                                 "print",
                             ),
                             [
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
+                                ArrayLookup(
+                                    ArrayLookup {
+                                        array_identifier: TSIdentifier(
+                                            "vals",
                                         ),
-                                    ),
-                                    Unknown,
+                                        index_expression: Value(
+                                            Integer(
+                                                1,
+                                            ),
+                                            Integer,
+                                        ),
+                                    },
                                 ),
                                 Value(
                                     Integer(
-                                        12,
+                                        8,
+                                    ),
+                                    Integer,
+                                ),
+                            ],
+                        ),
+                    ),
+                    Expression(
+                        Call(
+                            TSIdentifier(
+                                "print",
+                            ),
+                            [
+                                ArrayLookup(
+                                    ArrayLookup {
+                                        array_identifier: TSIdentifier(
+                                            "vals",
+                                        ),
+                                        index_expression: Value(
+                                            Integer(
+                                                2,
+                                            ),
+                                            Integer,
+                                        ),
+                                    },
+                                ),
+                                Value(
+                                    Integer(
+                                        7,
                                     ),
                                     Integer,
                                 ),

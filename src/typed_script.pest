@@ -45,8 +45,14 @@ boolean = {
 false = {"false"}
 true = {"true"}
 
+return = { "return" ~ expression? }
+
+array = { "[" ~ ( expression ~ ",")* ~ expression? ~ "]"}
+
+array_lookup = { identifier ~ "[" ~ expression ~ "]"}
+
 expression = _{
-	assign | if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation  
+	array | array_lookup | return | assign | if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation    
 }
 
 condition = _{ expression }

@@ -23,12 +23,13 @@ use melior::{
     utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
     Context, ExecutionEngine,
 };
+use mlir_sys::mlirCreateGPUGpuLaunchSinkIndexComputations;
 
 use crate::{
     parser::{Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue},
     typed_ast::{
-        self, Assign, Assignment, Decl, FunctionArg, IfStatement, TypedAst, TypedExpression,
-        TypedProgram, While,
+        self, Array, ArrayLookup, Assign, Assignment, Decl, FunctionArg, IfStatement, Return,
+        TypedAst, TypedExpression, TypedProgram, While,
     },
 };
 
@@ -438,7 +439,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             func::func(
                 &self.context,
                 StringAttribute::new(&self.context, &id.0),
-                TypeAttribute::new(FunctionType::new(&self.context, &argument_types, &[]).into()),
+                TypeAttribute::new(
+                    FunctionType::new(
+                        &self.context,
+                        &argument_types,
+                        &[return_type.as_mlir_type(&self.context)],
+                    )
+                    .into(),
+                ),
                 function_region,
                 &[],
                 location,
@@ -541,7 +549,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         //     current_block.append_operation(func::r#return(&[return_value], location));
         // } else {
         if function_scope {
-            current_block.append_operation(func::r#return(&[], location));
+            // current_block.append_operation(func::r#return(&[], location));
         } else {
             current_block.append_operation(scf::r#yield(&[], location));
         }
@@ -704,11 +712,16 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         .add_results(&[return_type.as_mlir_type(self.context)])
                         .build()
                 } else {
+                    let return_types = if let typed_ast::Type::Unit = **return_type {
+                        Vec::new()
+                    } else {
+                        vec![return_type.as_mlir_type(self.context)]
+                    };
                     func::call(
                         &self.context,
                         FlatSymbolRefAttribute::new(&self.context, &id.0),
                         &actual_args,
-                        &[],
+                        &return_types,
                         location,
                     )
                 };
@@ -993,6 +1006,121 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 None
             }
 
+            TypedExpression::Return(Return { expression }) => {
+                let return_values = if let Some(expression) = expression {
+                    let return_val = self
+                        .gen_expression_code(*expression, current_block, variable_store)?
+                        .unwrap();
+                    vec![return_val]
+                } else {
+                    Vec::new()
+                };
+
+                current_block
+                    .append_operation(melior::dialect::func::r#return(&return_values, location));
+
+                None
+            }
+
+            TypedExpression::Array(Array { item_type, items }) => {
+                let array_len = items.len();
+                let item_values = items
+                    .into_iter()
+                    .map(|item| self.gen_expression_code(item, current_block, variable_store))
+                    .collect::<Result<Vec<Option<Value>>>>()?;
+
+                let array_ptr = current_block
+                    .append_operation(memref::alloca(
+                        self.context,
+                        MemRefType::new(
+                            item_values[0].unwrap().r#type().into(),
+                            &[array_len as u64],
+                            None,
+                            None,
+                        ),
+                        &[],
+                        &[],
+                        None,
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap()
+                    .into();
+
+                for (index, item) in item_values.into_iter().enumerate() {
+                    let item = item.unwrap();
+                    let index = current_block
+                        .append_operation(melior::dialect::index::constant(
+                            self.context,
+                            IntegerAttribute::new(
+                                index as i64,
+                                melior::ir::Type::index(self.context),
+                            )
+                            .into(),
+                            location,
+                        ))
+                        .result(0)
+                        .unwrap();
+
+                    current_block.append_operation(memref::store(
+                        item,
+                        array_ptr,
+                        &[index.into()],
+                        location,
+                    ));
+                }
+
+                Some(array_ptr)
+            }
+
+            TypedExpression::ArrayLookup(ArrayLookup {
+                array_identifier,
+                index_expression,
+            }) => {
+                let Some(array_ptr) = variable_store.get(&array_identifier) else {
+                    bail!("failed to find array {}", array_identifier.0);
+                };
+
+                let Some(typed_ast::Type::Array(array_type, ..)) =
+                    self.var_to_type.get(&array_identifier)
+                else {
+                    bail!("failed to find array type for {}", array_identifier.0);
+                };
+
+                let index = self
+                    .gen_expression_code(
+                        *index_expression,
+                        current_block,
+                        &mut variable_store.clone(),
+                    )?
+                    .unwrap();
+
+                let casted_index = current_block
+                    .append_operation(melior::dialect::index::casts(
+                        index,
+                        melior::ir::Type::index(self.context),
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap();
+
+                let gep_op = current_block
+                    .append_operation(memref::load(*array_ptr, &[], location))
+                    .result(0)
+                    .unwrap();
+
+                let gep_op_2 = current_block
+                    .append_operation(memref::load(
+                        gep_op.into(),
+                        &[casted_index.into()],
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap();
+
+                Some(gep_op_2.into())
+            }
+
             _ => todo!("code gen uninplemented for {:?}", exp),
         };
 
@@ -1106,6 +1234,8 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     pass_manager.add_pass(pass::conversion::create_scf_to_control_flow());
     pass_manager.add_pass(pass::conversion::create_control_flow_to_llvm());
     pass_manager.add_pass(pass::conversion::create_finalize_mem_ref_to_llvm());
+    pass_manager.add_pass(pass::conversion::create_index_to_llvm());
+    pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
     // register_all_passes();
     // pass_manager.enable_verifier(true);

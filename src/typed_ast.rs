@@ -15,6 +15,7 @@ pub enum Type {
     Boolean,
     Pointer,
     Unit,
+    Array( Box<Type>, usize),
 }
 
 impl Type {
@@ -69,6 +70,11 @@ pub struct Assign {
 }
 
 #[derive(Debug, Clone)]
+pub struct Return {
+    pub expression: Option<Box<TypedExpression>>
+}
+
+#[derive(Debug, Clone)]
 pub enum TypedExpression {
     Value(TSValue, Type),
     Call(TSIdentifier, Vec<TypedExpression>),
@@ -78,8 +84,22 @@ pub enum TypedExpression {
     If(IfStatement),
     While(While),
     Assign(Assign),
+    Return(Return),
+    Array(Array),
+    ArrayLookup(ArrayLookup),
 }
 
+#[derive(Debug, Clone)]
+pub struct ArrayLookup {
+    pub array_identifier: TSIdentifier, 
+    pub index_expression: Box<TypedExpression> 
+}
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub item_type: Type,
+    pub items: Vec<TypedExpression>
+}
 
 
 impl TypedExpression {
@@ -102,6 +122,21 @@ impl TypedExpression {
             Self::If(_) => Ok(Type::Unit),
             Self::While(_) => Ok(Type::Unit),
             Self::Assign(_) => Ok(Type::Unit),
+            Self::Return(Return { expression }) => {
+               Ok(if let Some(expression) = expression {
+                   expression.r#type(types)? 
+                } else {
+                    Type::Unit
+                })
+            }
+            Self::Array(Array { item_type, items }) => Ok(Type::Array(Box::new(item_type.clone()), items.len() )),
+            Self::ArrayLookup(ArrayLookup { array_identifier, ..}) => {
+               if let Some(Type::Array(item_type, .. )) = types.get(array_identifier) {
+                    Ok(*item_type.clone())
+                } else {
+                    bail!("failed to find array type for array lookup of {}", array_identifier.0)
+                }
+            }
          } 
     }
 }
@@ -338,8 +373,33 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
         TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into()),
         TSExpression::If(IfStatement) => TypedExpression::If(type_if(IfStatement)?),
         TSExpression::While(While) => TypedExpression::While(type_while(While)?),
-        TSExpression::Assign(assign) => TypedExpression::Assign(type_assign(assign)?)
+        TSExpression::Assign(assign) => TypedExpression::Assign(type_assign(assign)?),
+        TSExpression::Return(r#return) => TypedExpression::Return(type_return(r#return)?),
+        TSExpression::Array(array) => TypedExpression::Array(type_array(array)? ),
+        TSExpression::ArrayLookup(array_lookup) => TypedExpression::ArrayLookup(type_array_lookup(array_lookup)?),
     })
+}
+
+fn type_array_lookup(array_lookup: parser::ArrayLookup) -> Result<ArrayLookup>{
+    let index = type_expression(*array_lookup.index_expression)?;
+    Ok(ArrayLookup { array_identifier: array_lookup.array_identifier, index_expression: Box::new(index) })   
+}
+
+fn type_array(array: parser::Array) -> Result<Array> {
+    let items = array.items.into_iter().map(type_expression).collect::<Result<Vec<TypedExpression>>>()?;
+    let item_type = items[0].r#type(&HashMap::new())?;
+
+    Ok(Array { item_type: item_type, items })
+}
+
+fn type_return(r#return: parser::Return) -> Result<Return>{
+    let return_expression = if let Some(expression) = r#return.expression {
+       Some(type_expression(*expression)?.into()) 
+    } else {
+        None
+    };
+
+    Ok(Return { expression: return_expression })
 }
 
 fn type_assign(assign: parser::Assign) -> Result<Assign> {

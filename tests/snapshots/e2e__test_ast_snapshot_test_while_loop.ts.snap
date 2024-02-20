@@ -275,128 +275,93 @@ expression: "String::from_utf8(cmd.ok().unwrap().stdout)?"
                     Assignment(
                         Assignment {
                             id: TSIdentifier(
-                                "a",
+                                "i",
                             ),
                             expression: Value(
                                 Integer(
-                                    2,
+                                    0,
                                 ),
                                 Integer,
                             ),
                             typed_annotation: None,
                         },
                     ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "b",
-                            ),
-                            expression: Value(
-                                Integer(
-                                    3,
+                    Expression(
+                        While(
+                            While {
+                                condition: Operation(
+                                    Binary(
+                                        Value(
+                                            Variable(
+                                                TSIdentifier(
+                                                    "i",
+                                                ),
+                                            ),
+                                            Unknown,
+                                        ),
+                                        LessThan,
+                                        Value(
+                                            Integer(
+                                                10,
+                                            ),
+                                            Integer,
+                                        ),
+                                    ),
                                 ),
-                                Integer,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "result",
-                            ),
-                            expression: Operation(
-                                Binary(
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "b",
+                                block: Block {
+                                    statements: [
+                                        Expression(
+                                            Assign(
+                                                Assign {
+                                                    id: TSIdentifier(
+                                                        "i",
+                                                    ),
+                                                    expression: Operation(
+                                                        Binary(
+                                                            Value(
+                                                                Variable(
+                                                                    TSIdentifier(
+                                                                        "i",
+                                                                    ),
+                                                                ),
+                                                                Unknown,
+                                                            ),
+                                                            Addition,
+                                                            Value(
+                                                                Integer(
+                                                                    1,
+                                                                ),
+                                                                Integer,
+                                                            ),
+                                                        ),
+                                                    ),
+                                                },
                                             ),
                                         ),
-                                        Unknown,
-                                    ),
-                                    Multiplication,
-                                    Value(
-                                        Variable(
-                                            TSIdentifier(
-                                                "a",
+                                        Expression(
+                                            Call(
+                                                TSIdentifier(
+                                                    "print",
+                                                ),
+                                                [
+                                                    Value(
+                                                        String(
+                                                            "hello \\n",
+                                                        ),
+                                                        String,
+                                                    ),
+                                                    Value(
+                                                        Integer(
+                                                            8,
+                                                        ),
+                                                        Integer,
+                                                    ),
+                                                ],
                                             ),
                                         ),
-                                        Unknown,
-                                    ),
-                                ),
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Assignment(
-                        Assignment {
-                            id: TSIdentifier(
-                                "output",
-                            ),
-                            expression: Value(
-                                String(
-                                    "result: %d",
-                                ),
-                                String,
-                            ),
-                            typed_annotation: None,
-                        },
-                    ),
-                    Expression(
-                        Call(
-                            TSIdentifier(
-                                "sprintf",
-                            ),
-                            [
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "result",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                            ],
-                        ),
-                    ),
-                    Expression(
-                        Call(
-                            TSIdentifier(
-                                "print",
-                            ),
-                            [
-                                Value(
-                                    Variable(
-                                        TSIdentifier(
-                                            "output",
-                                        ),
-                                    ),
-                                    Unknown,
-                                ),
-                                Value(
-                                    Integer(
-                                        12,
-                                    ),
-                                    Integer,
-                                ),
-                            ],
+                                    ],
+                                },
+                            },
                         ),
                     ),
                     Expression(
