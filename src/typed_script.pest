@@ -86,10 +86,12 @@ function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ i
 
 stmt = _{  function | struct |( (assignment  | expression  ) ~ ";"? )  }
 
+structFieldDecl = { identifier ~ ":" ~ identifier }
 
-struct = { "struct " ~ identifier ~ "{" ~  (identifier ~ "," )* ~ identifier? ~ "}"    }
+struct = { "struct " ~ identifier ~ "{" ~  (structFieldDecl~ "," )* ~ structFieldDecl? ~ "}"    }
 
-structInit = { identifier ~ "{" ~ ( expression ~ ",")* ~ expression? ~ "}" }
+
+structInit = { identifier ~ "{" ~ ( expression ~ ",")* ~ expression ? ~ "}" }
 
 structFieldRef = ${ identifier ~ "." ~ identifier }
 

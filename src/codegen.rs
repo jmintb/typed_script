@@ -6,13 +6,14 @@ use melior::{
     dialect::{
         arith,
         func::{self, call},
+        index,
         llvm::{self, attributes::Linkage, r#type::function, AllocaOptions, LoadStoreOptions},
         memref, scf, DialectRegistry,
     },
     ir::{
         attribute::{
-            ArrayAttribute, DenseI32ArrayAttribute, FlatSymbolRefAttribute, IntegerAttribute,
-            StringAttribute, TypeAttribute,
+            ArrayAttribute, DenseI32ArrayAttribute, DenseI64ArrayAttribute, FlatSymbolRefAttribute,
+            IntegerAttribute, StringAttribute, TypeAttribute,
         },
         operation::{OperationBuilder, OperationResult},
         r#type::{FunctionType, IntegerType, MemRefType},
@@ -23,13 +24,12 @@ use melior::{
     utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
     Context, ExecutionEngine,
 };
-use mlir_sys::mlirCreateGPUGpuLaunchSinkIndexComputations;
 
 use crate::{
-    parser::{Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue},
+    parser::{FunctionKeyword, TSExpression, TSIdentifier, TSValue},
     typed_ast::{
         self, Array, ArrayLookup, Assign, Assignment, Decl, FunctionArg, IfStatement, Return,
-        TypedAst, TypedExpression, TypedProgram, While,
+        StructField, StructType, TypedAst, TypedExpression, TypedProgram, While,
     },
 };
 
@@ -113,9 +113,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
         let argument_types = arguments
             .iter()
-            .map(|arg_type| arg_type.r#type.as_mlir_type(self.context))
+            .map(|arg_type| arg_type.r#type.as_mlir_type(self.context, &self.type_store))
             .collect::<Vec<Type<'ctx>>>();
-        let mlir_return_type = return_type.as_mlir_type(self.context);
+        let mlir_return_type = return_type.as_mlir_type(self.context, &self.type_store);
 
         let function_region = Region::new();
         let location = melior::ir::Location::unknown(self.context);
@@ -412,10 +412,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 StringAttribute::new(&self.context, &id.0),
                 TypeAttribute::new(
                     llvm::r#type::function(
-                        return_type.as_mlir_type(&self.context),
+                        return_type.as_mlir_type(&self.context, &self.type_store),
                         arguments
                             .iter()
-                            .map(|a| a.r#type.as_mlir_type(&self.context))
+                            .map(|a| a.r#type.as_mlir_type(&self.context, &self.type_store))
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         false,
@@ -443,7 +443,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     FunctionType::new(
                         &self.context,
                         &argument_types,
-                        &[return_type.as_mlir_type(&self.context)],
+                        &[return_type.as_mlir_type(&self.context, &self.type_store)],
                     )
                     .into(),
                 ),
@@ -628,6 +628,22 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(())
     }
 
+    fn gen_const_index<'a>(
+        &self,
+        index: i64,
+        current_block: &'a Block<'ctx>,
+    ) -> Result<Value<'ctx, 'a>> {
+        let location = melior::ir::Location::unknown(self.context);
+        Ok(current_block
+            .append_operation(index::constant(
+                self.context,
+                IntegerAttribute::new(index, melior::ir::Type::index(self.context)),
+                location,
+            ))
+            .result(0)?
+            .into())
+    }
+
     fn gen_expression_code<'a>(
         &self,
         exp: TypedExpression,
@@ -678,7 +694,17 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     bail!("Failed to find variable {}", id.0)
                 }
             }
-            TypedExpression::StructFieldRef(..) => todo!(),
+            // TypedExpression::StructFieldRef(struct_id, field_id) => {
+            //     let Some(var_ptr) = variable_store.get(&struct_id) else {
+            //         bail!("failed to find struct variable {}", struct_id.0);
+            //     };
+
+            //     let Some(typed_ast::Type::Struct(fields)) = self.var_to_type.get(&struct_id) else {
+            //         bail!("failed to find struct {}", struct_id.0);
+            //     };
+
+            //     let field_ref = memref::load(, , )
+            // }
             TypedExpression::Call(id, args) => {
                 let actual_args = args
                     .iter()
@@ -709,13 +735,13 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                             Identifier::new(&self.context, "callee"),
                             FlatSymbolRefAttribute::new(&self.context, &id.0).into(),
                         )])
-                        .add_results(&[return_type.as_mlir_type(self.context)])
+                        .add_results(&[return_type.as_mlir_type(self.context, &self.type_store)])
                         .build()
                 } else {
                     let return_types = if let typed_ast::Type::Unit = **return_type {
                         Vec::new()
                     } else {
-                        vec![return_type.as_mlir_type(self.context)]
+                        vec![return_type.as_mlir_type(self.context, &self.type_store)]
                     };
                     func::call(
                         &self.context,
@@ -764,8 +790,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 let struct_type = self.var_to_type.get(&struct_id).unwrap();
                 let struct_ptr = variable_store.get(&struct_id).unwrap().to_owned();
 
-                let Some(field_index) = (if let typed_ast::Type::Struct(fields) = struct_type {
-                    fields.iter().position(|f| f.0 == field_id)
+                let Some((field_index, field_type)) = (if let typed_ast::Type::Struct(
+                    StructType { identifier, fields },
+                ) = struct_type
+                {
+                    fields
+                        .iter()
+                        .position(|f| f.field_name == field_id)
+                        .map(|pos| (pos, fields[pos].field_type.clone()))
                 } else {
                     bail!(
                         "Expected to find a struct type for variable {} instead found {:#?}",
@@ -780,25 +812,22 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     );
                 };
 
-                let gep = llvm::get_element_ptr(
+                let const_field_index = self.gen_const_index(field_index as i64, current_block)?;
+
+                let loaded_ptr = current_block
+                    .append_operation(memref::load(struct_ptr, &[], location))
+                    .result(0)?;
+
+                let gep = llvm::extract_value(
                     self.context,
-                    struct_ptr.into(),
-                    DenseI32ArrayAttribute::new(self.context, &[0, field_index as i32]),
-                    struct_type.as_mlir_type(&self.context).to_owned(),
-                    llvm::r#type::opaque_pointer(self.context),
+                    loaded_ptr.into(),
+                    DenseI64ArrayAttribute::new(self.context, &[field_index as i64]),
+                    field_type.as_mlir_type(self.context, &self.type_store),
                     location,
                 );
+
                 let gep_ref: Value = current_block.append_operation(gep).result(0)?.into();
 
-                let v = llvm::load(
-                    &self.context,
-                    gep_ref.into(),
-                    llvm::r#type::opaque_pointer(self.context),
-                    location,
-                    LoadStoreOptions::new(),
-                );
-
-                current_block.append_operation(v);
                 Some(gep_ref)
             }
             TypedExpression::Struct(id, fields) => {
@@ -813,7 +842,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     .expect("expected arith operation to produce a result");
 
                 let ptr_type = if let Some(ty) = self.type_store.get(&id).cloned() {
-                    llvm::r#type::pointer(ty.as_mlir_type(self.context), 0)
+                    llvm::r#type::pointer(ty.as_mlir_type(self.context, &self.type_store), 0)
                 } else {
                     bail!("Could not find an LLVM type for ID: {id:?}");
                 };
@@ -830,52 +859,43 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     _ => todo!("missing implementation"),
                 };
 
+                let typed_ast::Type::Struct(struct_ts_type) = self.type_store.get(&id).unwrap()
+                else {
+                    todo!()
+                };
+
                 let struct_type = llvm::r#type::r#struct(
                     self.context,
-                    fields
+                    struct_ts_type
+                        .fields
                         .clone()
                         .into_iter()
-                        .map(exp_ptr)
+                        .map(|exp| exp.field_type.as_mlir_type(self.context, &self.type_store))
                         .collect::<Vec<Type>>()
                         .as_slice(),
                     true,
                 );
 
-                let struct_ptr: Value = current_block
-                    .append_operation(llvm::alloca(
-                        &self.context,
-                        res.into(),
-                        ptr_type,
-                        location,
-                        AllocaOptions::new(),
-                    ))
+                let mut struct_ptr: Value = current_block
+                    .append_operation(llvm::undef(struct_type, location))
                     .result(0)?
                     .into();
 
                 for (i, f) in fields.into_iter().enumerate() {
-                    let field_ptr = current_block
-                        .append_operation(llvm::get_element_ptr(
-                            &self.context,
-                            struct_ptr,
-                            DenseI32ArrayAttribute::new(&self.context, &[0, i as i32]),
-                            struct_type,
-                            llvm::r#type::opaque_pointer(&self.context),
-                            location,
-                        ))
-                        .result(0)?
-                        .into();
-
                     let mut exp_ptr = self
                         .gen_expression_code(f, current_block, variable_store)?
                         .unwrap();
 
-                    let store_op = llvm::store(
-                        &self.context,
-                        exp_ptr.into(),
-                        field_ptr,
-                        location,
-                        LoadStoreOptions::new(),
-                    );
+                    struct_ptr = current_block
+                        .append_operation(llvm::insert_value(
+                            &self.context,
+                            struct_ptr,
+                            DenseI64ArrayAttribute::new(self.context, &[i as i64]),
+                            exp_ptr,
+                            location,
+                        ))
+                        .result(0)?
+                        .into();
                 }
                 Some(struct_ptr)
             }

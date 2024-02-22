@@ -6,7 +6,7 @@ use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSVa
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    Struct(Vec<(TSIdentifier, Type)>),
+    Struct(StructType),
     Function(Vec<FunctionKeyword>, Vec<FunctionArg>, Box<Type>),
     Named(TSIdentifier),
     String,
@@ -19,21 +19,22 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn as_mlir_type<'c>(&self, context: &'c Context) -> melior::ir::Type<'c> {
+    pub fn as_mlir_type<'c>(&self, context: &'c Context, types: &HashMap<TSIdentifier, Type>) -> melior::ir::Type<'c> {
         match self {
             Type::Pointer => llvm::r#type::opaque_pointer(context),
             Type::String => llvm::r#type::opaque_pointer(context),
             Type::Integer => IntegerType::new(context, 32).into(),
             Type::Unit => llvm::r#type::void(context),
-            Type::Struct(fields) => llvm::r#type::r#struct(
+            Type::Struct(StructType { identifier, fields }) => llvm::r#type::r#struct(
                 &context,
                 fields
                     .iter()
-                    .map(|f| f.1.as_mlir_type(context))
+                    .map(|f| f.field_type.as_mlir_type(context, types))
                     .collect::<Vec<melior::ir::Type>>()
                     .as_slice(),
                 true,
             ),
+            Type::Named(id) => types.get(id).unwrap().as_mlir_type(context, types) ,
             _ => todo!("unimplemented type to mlir type {:?}", self),
         }
     }
@@ -89,6 +90,7 @@ pub enum TypedExpression {
     ArrayLookup(ArrayLookup),
 }
 
+
 #[derive(Debug, Clone)]
 pub struct ArrayLookup {
     pub array_identifier: TSIdentifier, 
@@ -103,7 +105,7 @@ pub struct Array {
 
 
 impl TypedExpression {
-    fn r#type(&self, types: &HashMap<TSIdentifier, Type>) -> Result<Type> {
+    pub fn r#type(&self, types: &HashMap<TSIdentifier, Type>) -> Result<Type> {
        match self {
             Self::Value(_, r#type ) => Ok(r#type.clone()),
             Self::Call(type_id, _  ) => types.get(type_id).map(|expression_type| match expression_type.clone() {
@@ -162,7 +164,7 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Decl {
-    Struct(TSIdentifier, Vec<(TSIdentifier, Type)>),
+    Struct(StructType),
     Function {
         keywords: Vec<FunctionKeyword>,
         id: TSIdentifier,
@@ -171,6 +173,19 @@ pub enum Decl {
         return_type: Type,
     },
 }
+
+#[derive(Debug, Clone)]
+pub struct StructType {
+    pub identifier: TSIdentifier,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructField {
+    pub field_name: TSIdentifier,
+    pub field_type: Type,
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Assignment {
@@ -205,10 +220,10 @@ pub enum Operation {
 fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
     Ok(match node {
         parser::TypedAst::Expression(exp) => TypedAst::Expression(type_expression(exp)?),
-        parser::TypedAst::StructType(struct_id, fields) => TypedAst::Decl(Decl::Struct(
-            struct_id,
-            fields.into_iter().map(|f| (f, Type::String)).collect(),
-        )),
+        parser::TypedAst::StructType(parser::TSStructType { identifier, fields }) => TypedAst::Decl(Decl::Struct(StructType { 
+            identifier,
+            fields: fields.into_iter().map(|f|StructField { field_name: f.field_name , field_type: f.field_type.into()  } ).collect(),
+        })),
         parser::TypedAst::Assignment(var_id, init_expression) => {
             let expression = type_expression(init_expression)?;
             
@@ -283,8 +298,8 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
         match node {
             TypedAst::Decl(decl) => {
                 match decl {
-                    Decl::Struct(id, fields) => {
-                        types.insert(id, Type::Struct(fields));
+                    Decl::Struct(t) => {
+                        types.insert(t.identifier.clone(), Type::Struct(t));
                     }
                     Decl::Function {
                         keywords,
@@ -318,10 +333,19 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
             TypedAst::Decl(decl) => {
                 match decl {
                     Decl::Function {
-                        body, ..
+                        body, arguments, ..
                     } => {
                         if let Some(mut body) = body {
                             nodes.append(&mut body);
+                        }
+
+                        for arg in arguments {
+                            let ty = if let Type::Named(ty_id) = arg.r#type {
+                                types.get(&ty_id).unwrap().clone()
+                            } else {
+                                arg.r#type
+                            };
+                            variable_types.insert(arg.name, ty );
                         }
                     }
                      _ => ()

@@ -138,7 +138,19 @@ pub enum TypedAst {
         body: Option<Vec<TypedAst>>,
         return_type: Option<TSIdentifier>,
     },
-    StructType(TSIdentifier, Vec<TSIdentifier>),
+    StructType(TSStructType),
+}
+
+#[derive(Debug, Clone)]
+pub struct TSStructType {
+    pub identifier: TSIdentifier,
+    pub fields: Vec<TSStructField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TSStructField {
+    pub field_name: TSIdentifier,
+    pub field_type: TSIdentifier,
 }
 
 #[derive(Debug, Clone)]
@@ -213,11 +225,25 @@ fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
 fn parse_struct_decl(decl: Pair<Rule>) -> Result<TypedAst> {
     let mut decl = decl.into_inner();
 
-    let identifer = TSIdentifier(decl.next().unwrap().as_str().to_string());
+    let identifier = TSIdentifier(decl.next().unwrap().as_str().to_string());
 
-    let fields = decl.map(|d| TSIdentifier(d.as_str().to_string())).collect();
+    let fields = decl
+        .map(parse_struct_field_declaration)
+        .collect::<Result<Vec<TSStructField>>>()?;
 
-    Ok(TypedAst::StructType(identifer, fields))
+    Ok(TypedAst::StructType(TSStructType { identifier, fields }))
+}
+
+fn parse_struct_field_declaration(decl: Pair<Rule>) -> Result<TSStructField> {
+    let mut decl = decl.into_inner();
+
+    let field_name = TSIdentifier(decl.next().unwrap().as_str().to_string());
+    let field_type = TSIdentifier(decl.next().unwrap().as_str().to_string());
+
+    Ok(TSStructField {
+        field_name,
+        field_type,
+    })
 }
 
 fn parse_struct_init(init: Pair<Rule>) -> Result<TSExpression> {
@@ -523,7 +549,7 @@ fn parse_string(string: Pair<Rule>) -> Result<TSValue> {
 
 fn parse_integer(integer: Pair<Rule>) -> Result<TSValue> {
     if let Rule::integer = integer.as_rule() {
-        Ok(TSValue::Integer(integer.as_str().parse()?))
+        Ok(TSValue::Integer(integer.as_str().trim().parse()?))
     } else {
         bail!("expected string , got {:?}", integer.as_rule())
     }
