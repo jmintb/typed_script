@@ -29,14 +29,14 @@ fn load_std_lib() -> String {
     // TODO: should stdout be closed?
     "
         
-extern fn fdopen(fd: integer, mode: string) -> ptr;
-extern fn fclose(fd: string);
-extern fn fwrite(val: string, size: integer, len: integer, file: string) -> integer;
-extern fn sprintf(output: string, format: string, number: integer) -> integer;
-extern fn fflush(file: string) -> integer;
+extern fn fdopen(fd: integer, mode: str) -> ptr;
+extern fn fclose(fd: str);
+extern fn fwrite(val: str, size: integer, len: integer, file: str) -> integer;
+extern fn sprintf(output: str, format: str, number: integer) -> integer;
+extern fn fflush(file: str) -> integer;
 extern fn sleep(time: integer) -> integer;
 
-fn print(val: string, len: integer) {
+fn print(val: str, len: integer) {
      let stdoutptr = fdopen(1, \"w\");
      fwrite(val, len, 1, stdoutptr);
      return;

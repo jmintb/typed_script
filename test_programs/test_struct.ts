@@ -1,15 +1,15 @@
 struct Test {
-  fielda: string,
-  fieldb: string,
+  fielda: str,
+  fieldb: str,
   fie: integer,
 }
 
 struct String {
-  val: string,
+  val: [u8],
   len: integer,
 }
 
-fn new_string(val: string, len: integer) -> String {
+fn new_string(val: str, len: integer) -> String {
   return String { val, len} 
 }
 

@@ -57,6 +57,17 @@ expression = _{
 
 condition = _{ expression }
 
+array_type = { "[" ~ type ~ "]"}
+
+signed_integer = { "integer" } 
+
+unsigned_integer = { "u8" }
+
+string_type = { "str" }
+
+type = {
+	array_type | integer | unsigned_integer | string_type | identifier
+}
 
 if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
 
@@ -73,7 +84,7 @@ callArgs = { (expression ~ ",")* ~  expression? }
 call = { identifier ~ "(" ~ callArgs? ~ ")" }
 
 // TODO make function arg types parse properly
-functionArg = { identifier ~ ( ":" ~ identifier)? }
+functionArg = { identifier ~ ( ":" ~ type)? }
 
 functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 
@@ -82,11 +93,11 @@ functionBody = { (stmt)* }
 functionKeyword = { identifier* }
 functionType = { "fn " | "extern fn "}
 
-function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ identifier)? ~  ( "{" ~ functionBody ~ "}" | ";") }
+function = {   functionType ~ identifier ~ "(" ~ functionArgs? ~ ")" ~ ("->" ~ type )? ~  ( "{" ~ functionBody ~ "}" | ";") }
 
 stmt = _{  function | struct |( (assignment  | expression  ) ~ ";"? )  }
 
-structFieldDecl = { identifier ~ ":" ~ identifier }
+structFieldDecl = { identifier ~ ":" ~ type }
 
 struct = { "struct " ~ identifier ~ "{" ~  (structFieldDecl~ "," )* ~ structFieldDecl? ~ "}"    }
 
