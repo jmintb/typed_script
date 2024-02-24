@@ -937,9 +937,6 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     let code_gen = Box::leak(code_gen);
 
     code_gen.gen_ast_code(ast, emit_mlir)?;
-    if !emit_mlir {
-        //        assert!(module.as_operation().verify());
-    }
 
     let pass_manager = pass::PassManager::new(&code_gen.context);
     pass_manager.add_pass(pass::conversion::create_func_to_llvm());
@@ -957,6 +954,10 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
     pass_manager.run(&mut module)?;
+
+    if !emit_mlir {
+        assert!(module.as_operation().verify());
+    }
 
     if emit_mlir {
         println!("{}", module.as_operation());
