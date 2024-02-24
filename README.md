@@ -1,6 +1,6 @@
 # [Lang Name]
 
-[Lang Name] is an exploratory programming language which will eventually turn into a fully functional programming language forefilling the following properties. 
+[Lang Name] is an exploratory programming language which will eventually turn into a  programming language forefilling the following properties. 
 
 ### Goals
 
@@ -35,6 +35,8 @@
 #### "auto" optimising for hardware similar to mojo
 
 #### Mojo claims to expose MLIR primitives, can we do the same?
+
+#### Mutable value semantics
 
 ### Process
 

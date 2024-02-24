@@ -52,6 +52,7 @@ pub fn get_element_ptr_typed<'c>(
         .add_operands(&[ptr])
         .add_results(&[result_type])
         .build()
+        .unwrap()
 }
 
 struct CodeGen<'ctx, 'module> {
@@ -736,7 +737,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                             FlatSymbolRefAttribute::new(&self.context, &id.0).into(),
                         )])
                         .add_results(&[return_type.as_mlir_type(self.context, &self.type_store)])
-                        .build()
+                        .build()?
                 } else {
                     let return_types = if let typed_ast::Type::Unit = **return_type {
                         Vec::new()
@@ -1054,7 +1055,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         self.context,
                         MemRefType::new(
                             item_values[0].unwrap().r#type().into(),
-                            &[array_len as u64],
+                            &[array_len as i64],
                             None,
                             None,
                         ),
@@ -1168,7 +1169,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             (value.len()) as u32,
         );
         let op = OperationBuilder::new("llvm.mlir.global", location)
-            .add_regions(vec![Region::new()])
+            .add_regions([Region::new()])
             .add_attributes(&[
                 (
                     Identifier::new(&self.context, "value"),
@@ -1188,7 +1189,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     llvm::attributes::linkage(&self.context, Linkage::Internal),
                 ),
             ])
-            .build();
+            .build()?;
 
         self.module.body().append_operation(op);
 
@@ -1199,7 +1200,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 FlatSymbolRefAttribute::new(&self.context, &id).into(),
             )])
             .add_results(&[llvm::r#type::opaque_pointer(&self.context)])
-            .build();
+            .build()?;
 
         Ok(current_block.append_operation(address_op))
     }

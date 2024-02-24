@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.75", features = ["backtrace"] }
-clap = { version = "4.4.1", features = ["derive"] }
-insta = "1.31.0"
-melior = "0.12.2"
-mlir-sys = "0.2.0"
-pest = "2.5.5"
-pest_derive = "2.5.5"
+anyhow = { version = "1.0.80", features = ["backtrace"] }
+clap = { version = "4.5.1", features = ["derive"] }
+insta = "1.35.1"
+melior = "0.16.2"
+mlir-sys = "0.2.1"
+pest = "2.7.7"
+pest_derive = "2.7.7"
 
 [dev-dependencies]
-assert_cmd = { version = "2.0.12", features = ["color"] }
+assert_cmd = { version = "2.0.14", features = ["color"] }
 rstest = "0.18.2"
