@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, ops::Index};
+use std::{cell::RefCell, collections::HashMap};
 
 use anyhow::{bail, Result};
 
@@ -17,8 +17,8 @@ use melior::{
         },
         operation::OperationBuilder,
         r#type::{FunctionType, IntegerType, MemRefType},
-        Attribute, AttributeLike, Block, Identifier, Location, Module, Operation, OperationRef,
-        Region, Type, Value, ValueLike,
+        Attribute, Block, Identifier, Location, Module, Operation, OperationRef, Region, Type,
+        Value, ValueLike,
     },
     pass,
     utility::{register_all_dialects, register_all_llvm_translations},
@@ -431,7 +431,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 )
             }
             // TODO: enter function arguments into variable store
-            TypedExpression::Value(TSValue::Variable(ref id), _Type) => {
+            TypedExpression::Value(TSValue::Variable(ref id), _type) => {
                 if let Some(v) = variable_store.get(id) {
                     let load = current_block
                         .append_operation(memref::load(*v, &[], location))
@@ -956,7 +956,7 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     pass_manager.add_pass(pass::conversion::create_index_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
-    pass_manager.run(&mut module);
+    pass_manager.run(&mut module)?;
 
     if emit_mlir {
         println!("{}", module.as_operation());

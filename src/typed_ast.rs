@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
-use melior::{dialect::{llvm}, ir::r#type::{IntegerType}, Context};
-use std::{collections::HashMap};
+use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
+use std::collections::HashMap;
 
 use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType};
 
@@ -218,11 +218,6 @@ pub struct FunctionArg {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypedAstBuilder {
-    types: HashMap<TSIdentifier, Type>,
-}
-
-#[derive(Debug, Clone)]
 pub struct TypedProgram {
     pub types: HashMap<TSIdentifier, Type>,
     pub ast: Vec<TypedAst>,
@@ -407,8 +402,8 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
         }
 
         TSExpression::Operation(operation) => TypedExpression::Operation(typed_operator(operation)?.into()),
-        TSExpression::If(IfStatement) => TypedExpression::If(type_if(IfStatement)?),
-        TSExpression::While(While) => TypedExpression::While(type_while(While)?),
+        TSExpression::If(if_statement) => TypedExpression::If(type_if(if_statement)?),
+        TSExpression::While(r#while) => TypedExpression::While(type_while(r#while)?),
         TSExpression::Assign(assign) => TypedExpression::Assign(type_assign(assign)?),
         TSExpression::Return(r#return) => TypedExpression::Return(type_return(r#return)?),
         TSExpression::Array(array) => TypedExpression::Array(type_array(array)? ),
