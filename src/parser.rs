@@ -441,7 +441,7 @@ fn parse_array_lookup(expression: Pair<'_, Rule>) -> Result<ArrayLookup> {
 }
 
 fn parse_array(expression: Pair<'_, Rule>) -> Result<Array> {
-    let mut inner = if let Rule::array = expression.as_rule() {
+    let inner = if let Rule::array = expression.as_rule() {
         expression.into_inner()
     } else {
         bail!("expected array rule found {}", expression.as_str())

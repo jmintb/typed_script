@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
-use melior::{dialect::{llvm, memref}, ir::r#type::{IntegerType, MemRefType}, Context};
-use std::{collections::HashMap, fmt::Binary};
+use melior::{dialect::{llvm}, ir::r#type::{IntegerType}, Context};
+use std::{collections::HashMap};
 
 use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType};
 
@@ -26,7 +26,7 @@ impl Type {
             Type::String => llvm::r#type::opaque_pointer(context),
             Type::Integer => IntegerType::new(context, 32).into(),
             Type::Unit => llvm::r#type::void(context),
-            Type::Struct(StructType { identifier, fields }) => llvm::r#type::r#struct(
+            Type::Struct(StructType { identifier: _, fields }) => llvm::r#type::r#struct(
                 &context,
                 fields
                     .iter()

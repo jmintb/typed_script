@@ -1,35 +1,35 @@
 use std::{cell::RefCell, collections::HashMap, ops::Index};
 
 use anyhow::{bail, Result};
-use clap::builder;
+
 use melior::{
     dialect::{
         arith,
-        func::{self, call},
+        func::{self},
         index,
-        llvm::{self, attributes::Linkage, r#type::function, AllocaOptions, LoadStoreOptions},
+        llvm::{self, attributes::Linkage},
         memref, scf, DialectRegistry,
     },
     ir::{
         attribute::{
-            ArrayAttribute, DenseI32ArrayAttribute, DenseI64ArrayAttribute, FlatSymbolRefAttribute,
+            DenseI32ArrayAttribute, DenseI64ArrayAttribute, FlatSymbolRefAttribute,
             IntegerAttribute, StringAttribute, TypeAttribute,
         },
-        operation::{OperationBuilder, OperationResult},
+        operation::OperationBuilder,
         r#type::{FunctionType, IntegerType, MemRefType},
-        Attribute, AttributeLike, Block, BlockRef, Identifier, Location, Module, Operation,
-        OperationRef, Region, Type, Value, ValueLike,
+        Attribute, AttributeLike, Block, Identifier, Location, Module, Operation, OperationRef,
+        Region, Type, Value, ValueLike,
     },
     pass,
-    utility::{register_all_dialects, register_all_llvm_translations, register_all_passes},
+    utility::{register_all_dialects, register_all_llvm_translations},
     Context, ExecutionEngine,
 };
 
 use crate::{
-    parser::{FunctionKeyword, TSExpression, TSIdentifier, TSValue},
+    parser::{FunctionKeyword, TSIdentifier, TSValue},
     typed_ast::{
-        self, Array, ArrayLookup, Assign, Assignment, Decl, FunctionArg, IfStatement, Return,
-        StructField, StructType, TypedAst, TypedExpression, TypedProgram, While,
+        self, Array, ArrayLookup, Assign, Assignment, Decl, IfStatement, Return, StructType,
+        TypedAst, TypedExpression, TypedProgram, While,
     },
 };
 
@@ -114,7 +114,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .iter()
             .map(|arg_type| arg_type.r#type.as_mlir_type(self.context, &self.type_store))
             .collect::<Vec<Type<'ctx>>>();
-        let mlir_return_type = return_type.as_mlir_type(self.context, &self.type_store);
+        let _mlir_return_type = return_type.as_mlir_type(self.context, &self.type_store);
 
         let function_region = Region::new();
         let location = melior::ir::Location::unknown(self.context);
@@ -237,7 +237,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(functiom_decl)
     }
 
-    fn gen_ast_code(&'ctx self, ast: TypedProgram, emit_mlir: bool) -> Result<()> {
+    fn gen_ast_code(&'ctx self, ast: TypedProgram, _emit_mlir: bool) -> Result<()> {
         let location = Location::unknown(&self.context);
 
         for node in ast.ast {
@@ -267,7 +267,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
         let _ = self.gen_statements(block.statements, &builder, &mut variable_store, false);
 
-        let mut region = Region::new();
+        let region = Region::new();
         region.append_block(builder);
 
         Ok((region, None))
@@ -289,7 +289,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 TypedAst::Expression(exp) => {
                     let _ = self.gen_expression_code(exp, current_block, variable_store)?;
                 }
-                TypedAst::Decl(decl) => {
+                TypedAst::Decl(_decl) => {
                     todo!("we do not support declarations inside functions yet");
                 }
                 TypedAst::Assignment(assignment) => {
@@ -399,7 +399,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     ) -> Result<Option<Value<'ctx, 'a>>> {
         let location = melior::ir::Location::unknown(self.context);
         let val: Option<Value> = match exp {
-            TypedExpression::Value(TSValue::String(val), vtype) => {
+            TypedExpression::Value(TSValue::String(val), _vtype) => {
                 // TODO: \n is getting escaped, perhap we need a raw string?
                 let val = if val == "\\n" { "\n" } else { &val };
                 let val = val.replace("\\n", "\n");
@@ -431,7 +431,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 )
             }
             // TODO: enter function arguments into variable store
-            TypedExpression::Value(TSValue::Variable(ref id), Type) => {
+            TypedExpression::Value(TSValue::Variable(ref id), _Type) => {
                 if let Some(v) = variable_store.get(id) {
                     let load = current_block
                         .append_operation(memref::load(*v, &[], location))
@@ -526,21 +526,24 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 let struct_type = self.var_to_type.get(&struct_id).unwrap();
                 let struct_ptr = variable_store.get(&struct_id).unwrap().to_owned();
 
-                let Some((field_index, field_type)) = (if let typed_ast::Type::Struct(
-                    StructType { identifier, fields },
-                ) = struct_type
-                {
-                    fields
-                        .iter()
-                        .position(|f| f.field_name == field_id)
-                        .map(|pos| (pos, fields[pos].field_type.clone()))
-                } else {
-                    bail!(
-                        "Expected to find a struct type for variable {} instead found {:#?}",
-                        struct_id.0,
-                        struct_type
-                    );
-                }) else {
+                let Some((field_index, field_type)) =
+                    (if let typed_ast::Type::Struct(StructType {
+                        identifier: _,
+                        fields,
+                    }) = struct_type
+                    {
+                        fields
+                            .iter()
+                            .position(|f| f.field_name == field_id)
+                            .map(|pos| (pos, fields[pos].field_type.clone()))
+                    } else {
+                        bail!(
+                            "Expected to find a struct type for variable {} instead found {:#?}",
+                            struct_id.0,
+                            struct_type
+                        );
+                    })
+                else {
                     bail!(
                         "Failed to find field {} in struct {:?}",
                         field_id.0,
@@ -565,7 +568,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 Some(gep_ref)
             }
             TypedExpression::Struct(id, fields) => {
-                let size = melior::dialect::arith::constant(
+                let _size = melior::dialect::arith::constant(
                     &self.context,
                     IntegerAttribute::new(1, IntegerType::new(&self.context, 32).into()).into(),
                     location,
@@ -721,7 +724,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         location,
                     ));
 
-                    let mut region = Region::new();
+                    let region = Region::new();
                     region.append_block(block);
                     region
                 };
