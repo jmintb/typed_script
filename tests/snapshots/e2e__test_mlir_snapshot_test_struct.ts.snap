@@ -78,13 +78,11 @@ module attributes {llvm.data_layout = ""} {
     %5 = llvm.mlir.constant(0 : index) : i64
     %6 = llvm.insertvalue %5, %4[2] : !llvm.struct<(ptr, ptr, i64)> 
     llvm.store %arg0, %1 : !llvm.struct<packed (ptr, i32)>, !llvm.ptr
-    %7 = llvm.mlir.constant(0 : i64) : i64
-    %8 = llvm.load %1 : !llvm.ptr -> !llvm.struct<packed (ptr, i32)>
-    %9 = llvm.extractvalue %8[0] : !llvm.struct<packed (ptr, i32)> 
-    %10 = llvm.mlir.constant(1 : i64) : i64
-    %11 = llvm.load %1 : !llvm.ptr -> !llvm.struct<packed (ptr, i32)>
-    %12 = llvm.extractvalue %11[1] : !llvm.struct<packed (ptr, i32)> 
-    llvm.call @print(%9, %12) : (!llvm.ptr, i32) -> ()
+    %7 = llvm.load %1 : !llvm.ptr -> !llvm.struct<packed (ptr, i32)>
+    %8 = llvm.extractvalue %7[0] : !llvm.struct<packed (ptr, i32)> 
+    %9 = llvm.load %1 : !llvm.ptr -> !llvm.struct<packed (ptr, i32)>
+    %10 = llvm.extractvalue %9[1] : !llvm.struct<packed (ptr, i32)> 
+    llvm.call @print(%8, %10) : (!llvm.ptr, i32) -> ()
     llvm.return
   }
   llvm.mlir.global internal @annonstr1("ac \0A") {addr_space = 0 : i32}
@@ -109,5 +107,3 @@ module attributes {llvm.data_layout = ""} {
     llvm.return
   }
 }
-
-
