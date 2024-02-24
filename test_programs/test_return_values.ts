@@ -4,6 +4,6 @@ fn main() {
   return
 }
 
-fn generate_message() -> string {
+fn generate_message() -> str {
   return "a message \n"
 }

@@ -3,7 +3,7 @@ fn main() {
   return
 }
 
-fn println(value: string, len: integer) {
+fn println(value: str, len: integer) {
   print(value, len);
   print("\n",2);
   return

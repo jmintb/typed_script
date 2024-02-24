@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
-use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
+use melior::{dialect::{llvm, memref}, ir::r#type::{IntegerType, MemRefType}, Context};
 use std::{collections::HashMap, fmt::Binary};
 
-use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator};
+use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType};
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -12,6 +12,7 @@ pub enum Type {
     String,
     Unknown,
     Integer,
+    UnsignedInteger,
     Boolean,
     Pointer,
     Unit,
@@ -34,7 +35,9 @@ impl Type {
                     .as_slice(),
                 true,
             ),
-            Type::Named(id) => types.get(id).unwrap().as_mlir_type(context, types) ,
+            Type::Named(id) => types.get(id).expect(&format!("failed to find named type {}", id.0.clone())).as_mlir_type(context, types) ,
+            Type::Array(item_type, length ) => llvm::r#type::array(item_type.as_mlir_type(context, types), *length as u32),
+            Type::UnsignedInteger => IntegerType::unsigned(context, 8).into(),
             _ => todo!("unimplemented type to mlir type {:?}", self),
         }
     }
@@ -50,6 +53,20 @@ impl From<TSIdentifier> for Type {
             _ => Self::Named(value),
         }
     }
+}
+
+impl From<TSType> for Type {
+   fn from(ty: TSType) -> Self {
+        match ty {
+            TSType::StringLiteral => Self::String,
+            TSType::SignedInteger => Self::Integer,
+            TSType::UnsignedInteger => Self::UnsignedInteger,
+            TSType::Array(ty, length ) => Self::Array(Type::from(*ty).into(), length ),
+            TSType::Named(name) => Self::Named(name),
+            TSType::Pointer => Self::Pointer,
+            _ => todo!()
+        }
+    } 
 }
 
 impl Default for Type {
@@ -243,13 +260,8 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
                 .map(|f| FunctionArg {
                     name: f.name,
                     r#type: f
-                        .r#type
-                        .map(|ty_id| match ty_id.0.as_str().trim() {
-                            "integer" => Type::Integer,
-                            "string" => Type::String,
-                            _ => Type::Named(ty_id),
-                        })
-                        .unwrap_or_default(),
+                        .r#type.unwrap().into()
+                        ,
                 })
                 .collect(),
             body: body.map(|body| {
@@ -341,7 +353,7 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
 
                         for arg in arguments {
                             let ty = if let Type::Named(ty_id) = arg.r#type {
-                                types.get(&ty_id).unwrap().clone()
+                                types.get(&ty_id).expect(&format!("failed to find {}", ty_id.0)).clone()
                             } else {
                                 arg.r#type
                             };

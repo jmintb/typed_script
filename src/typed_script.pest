@@ -57,16 +57,20 @@ expression = _{
 
 condition = _{ expression }
 
-array_type = { "[" ~ type ~ "]"}
+array_type = { "[" ~ type ~ ";" ~ integer~ "]"}
 
 signed_integer = { "integer" } 
 
-unsigned_integer = { "u8" }
+unsigned_integer = { "u8"  }
 
 string_type = { "str" }
 
+named_type = { identifier }
+
+pointer = { "ptr" }
+
 type = {
-	array_type | integer | unsigned_integer | string_type | identifier
+	array_type | pointer | signed_integer | unsigned_integer | string_type | named_type
 }
 
 if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
@@ -84,7 +88,7 @@ callArgs = { (expression ~ ",")* ~  expression? }
 call = { identifier ~ "(" ~ callArgs? ~ ")" }
 
 // TODO make function arg types parse properly
-functionArg = { identifier ~ ( ":" ~ type)? }
+functionArg = { identifier ~ ( ":" ~ type) }
 
 functionArgs = { ( functionArg ~ ",")* ~ functionArg }
 

@@ -5,7 +5,7 @@ struct Test {
 }
 
 struct String {
-  val: [u8],
+  val: ptr,
   len: integer,
 }
 

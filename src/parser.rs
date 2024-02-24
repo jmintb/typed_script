@@ -101,9 +101,13 @@ pub enum TSValue {
 pub enum TSType {
     String,
     StringLiteral,
-    Number,
+    SignedInteger,
+    UnsignedInteger,
     Boolean,
     Function,
+    Named(TSIdentifier),
+    Array(Box<TSType>, usize),
+    Pointer,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -136,7 +140,7 @@ pub enum TypedAst {
         id: TSIdentifier,
         arguments: Vec<FunctionArg>,
         body: Option<Vec<TypedAst>>,
-        return_type: Option<TSIdentifier>,
+        return_type: Option<TSType>,
     },
     StructType(TSStructType),
 }
@@ -150,13 +154,13 @@ pub struct TSStructType {
 #[derive(Debug, Clone)]
 pub struct TSStructField {
     pub field_name: TSIdentifier,
-    pub field_type: TSIdentifier,
+    pub field_type: TSType,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunctionArg {
     pub name: TSIdentifier,
-    pub r#type: Option<TSIdentifier>,
+    pub r#type: Option<TSType>,
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -238,11 +242,34 @@ fn parse_struct_field_declaration(decl: Pair<Rule>) -> Result<TSStructField> {
     let mut decl = decl.into_inner();
 
     let field_name = TSIdentifier(decl.next().unwrap().as_str().to_string());
-    let field_type = TSIdentifier(decl.next().unwrap().as_str().to_string());
+
+    let field_type = parse_type(decl.next().unwrap())?;
 
     Ok(TSStructField {
         field_name,
         field_type,
+    })
+}
+
+fn parse_type(ty: Pair<Rule>) -> Result<TSType> {
+    let mut inner = ty.into_inner();
+
+    let next = inner.next().unwrap();
+    Ok(match next.as_rule() {
+        Rule::signed_integer => TSType::SignedInteger,
+        Rule::unsigned_integer => TSType::UnsignedInteger,
+        Rule::array_type => {
+            let mut next_inner = next.into_inner();
+            let item_type = parse_type(next_inner.next().unwrap())?;
+            let len = next_inner.next().unwrap().as_str().parse::<usize>()?;
+            TSType::Array(item_type.into(), len)
+        }
+        Rule::string_type => TSType::StringLiteral,
+        Rule::named_type => TSType::Named(TSIdentifier(
+            next.into_inner().next().unwrap().as_str().to_string(),
+        )),
+        Rule::pointer => TSType::Pointer,
+        _ => bail!("expected a type rule got: {:?}", next),
     })
 }
 
@@ -282,12 +309,10 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
             vec![]
         };
 
-    let return_type = if let Some(Rule::identifier) = next.clone().map(|next| next.as_rule()) {
-        let ty = next
-            .clone()
-            .map(|next| TSIdentifier(next.as_str().to_string()));
+    let return_type = if let Some(Rule::r#type) = next.clone().map(|next| next.as_rule()) {
+        let ty = parse_type(next.unwrap())?;
         next = decl.next();
-        ty
+        Some(ty)
     } else {
         None
     };
@@ -317,9 +342,7 @@ fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {
 
     Ok(FunctionArg {
         name: TSIdentifier(inner_rules.next().unwrap().as_str().to_string()),
-        r#type: inner_rules
-            .next()
-            .map(|ty_id| TSIdentifier(ty_id.as_str().to_string())),
+        r#type: inner_rules.next().map(|ty_id| parse_type(ty_id).unwrap()),
     })
 }
 
