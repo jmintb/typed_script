@@ -1,0 +1,106 @@
+---
+source: src/ir.rs
+expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variables)"
+---
+{
+    BlockId(
+        0,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    1,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    2,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        3,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    4,
+                ),
+            ),
+            Move(
+                SSAID(
+                    1,
+                ),
+            ),
+            Move(
+                SSAID(
+                    2,
+                ),
+            ),
+            Move(
+                SSAID(
+                    4,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        5,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    6,
+                ),
+            ),
+            Move(
+                SSAID(
+                    6,
+                ),
+            ),
+        ],
+    },
+} 
+ {
+    SSAID(
+        1,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            1,
+        ),
+    },
+    SSAID(
+        2,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "len",
+        ),
+        id: SSAID(
+            2,
+        ),
+    },
+    SSAID(
+        4,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "stdoutptr",
+        ),
+        id: SSAID(
+            4,
+        ),
+    },
+    SSAID(
+        6,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "message",
+        ),
+        id: SSAID(
+            6,
+        ),
+    },
+}
