@@ -36,25 +36,6 @@ use crate::{
 // TODO: something inside the module is dropped when it is returned.
 // That is why we return the exection engine at the moment.
 
-/// Creates a `llvm.getelementptr` operation.
-pub fn get_element_ptr_typed<'c>(
-    context: &'c Context,
-    ptr: Value<'c, '_>,
-    indices: DenseI32ArrayAttribute<'c>,
-    result_type: Type<'c>,
-    location: Location<'c>,
-) -> Operation<'c> {
-    OperationBuilder::new("llvm.getelementptr", location)
-        .add_attributes(&[(
-            Identifier::new(context, "rawConstantIndices"),
-            indices.into(),
-        )])
-        .add_operands(&[ptr])
-        .add_results(&[result_type])
-        .build()
-        .unwrap()
-}
-
 struct CodeGen<'ctx, 'module> {
     context: &'ctx Context,
     module: &'module Module<'ctx>,
