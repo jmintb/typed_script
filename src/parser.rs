@@ -23,6 +23,14 @@ pub enum TSExpression {
     ArrayLookup(ArrayLookup),
 }
 
+#[derive(Debug, Clone, Default, Copy)]
+pub enum AccessModes {
+    #[default]
+    Let,
+    Owned,
+    Inout,
+}
+
 #[derive(Debug, Clone)]
 pub struct ArrayLookup {
     pub array_identifier: TSIdentifier,
@@ -128,7 +136,7 @@ impl TryFrom<String> for FunctionKeyword {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash, Ord)]
 pub struct TSIdentifier(pub String);
 
 #[derive(Debug, Clone)]
@@ -161,6 +169,7 @@ pub struct TSStructField {
 pub struct FunctionArg {
     pub name: TSIdentifier,
     pub r#type: Option<TSType>,
+    pub access_mode: AccessModes,
 }
 
 pub struct Ast(pub Vec<TypedAst>);
@@ -339,9 +348,36 @@ fn parse_function_decl(decl: Pair<Rule>) -> Result<TypedAst> {
 
 fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {
     let mut inner_rules = arg.into_inner();
+    let n_rules = inner_rules.len();
+    let Some(first_rule) = inner_rules.next() else {
+        bail!("function argument was empty");
+    };
+
+    let access_mode = if let Rule::accessMode = first_rule.as_rule() {
+        match first_rule
+            .clone()
+            .into_inner()
+            .next()
+            .map(|inner| inner.as_rule())
+        {
+            Some(Rule::letAccess) => AccessModes::Let,
+            Some(Rule::ownedAccess) => AccessModes::Owned,
+            Some(Rule::inoutAccess) => AccessModes::Inout,
+            e @ _ => bail!("exptec to find an access found instead foud {:?}", e),
+        }
+    } else {
+        AccessModes::default()
+    };
+
+    let name = if n_rules == 2 {
+        TSIdentifier(first_rule.as_str().to_string())
+    } else {
+        TSIdentifier(inner_rules.next().unwrap().as_str().to_string())
+    };
 
     Ok(FunctionArg {
-        name: TSIdentifier(inner_rules.next().unwrap().as_str().to_string()),
+        access_mode,
+        name,
         r#type: inner_rules.next().map(|ty_id| parse_type(ty_id).unwrap()),
     })
 }

@@ -23,22 +23,63 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
         3,
     ): Block {
         instructions: [
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fdopen",
+                    ),
+                ),
+                [],
+            ),
             Assign(
                 SSAID(
                     4,
                 ),
             ),
-            Move(
+            Borrow(
                 SSAID(
                     1,
                 ),
             ),
-            Move(
+            Borrow(
                 SSAID(
                     2,
                 ),
             ),
-            Move(
+            Borrow(
+                SSAID(
+                    4,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fwrite",
+                    ),
+                ),
+                [
+                    SSAID(
+                        1,
+                    ),
+                    SSAID(
+                        2,
+                    ),
+                    SSAID(
+                        4,
+                    ),
+                ],
+            ),
+            BorrowEnd(
+                SSAID(
+                    1,
+                ),
+            ),
+            BorrowEnd(
+                SSAID(
+                    2,
+                ),
+            ),
+            BorrowEnd(
                 SSAID(
                     4,
                 ),
@@ -54,7 +95,24 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                     6,
                 ),
             ),
-            Move(
+            Borrow(
+                SSAID(
+                    6,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "print",
+                    ),
+                ),
+                [
+                    SSAID(
+                        6,
+                    ),
+                ],
+            ),
+            BorrowEnd(
                 SSAID(
                     6,
                 ),

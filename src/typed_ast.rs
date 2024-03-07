@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 use std::collections::HashMap;
 
-use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType};
+use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType, AccessModes};
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -215,6 +215,7 @@ pub struct Assignment {
 pub struct FunctionArg {
     pub name: TSIdentifier,
     pub r#type: Type,
+    pub access_mode: AccessModes,
 }
 
 #[derive(Debug, Clone)]
@@ -255,7 +256,8 @@ fn ast_to_typed(node: parser::TypedAst) -> Result<TypedAst> {
                 .map(|f| FunctionArg {
                     name: f.name,
                     r#type: f
-                        .r#type.unwrap().into()
+                        .r#type.unwrap().into(),
+                    access_mode: f.access_mode
                         ,
                 })
                 .collect(),

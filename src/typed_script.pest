@@ -88,9 +88,19 @@ callArgs = { (expression ~ ",")* ~  expression? }
 call = { identifier ~ "(" ~ callArgs? ~ ")" }
 
 // TODO make function arg types parse properly
-functionArg = { identifier ~ ( ":" ~ type) }
+functionArg = { accessMode? ~ identifier ~ ( ":" ~ type) }
 
 functionArgs = { ( functionArg ~ ",")* ~ functionArg }
+
+accessMode = {
+	letAccess | ownedAccess | inoutAccess
+}
+
+letAccess =  { "let" }
+
+ownedAccess =  { "owned" }
+
+inoutAccess =  { "inout" }
 
 functionBody = { (stmt)* }
 

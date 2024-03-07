@@ -3,9 +3,13 @@ use anyhow::Result;
 use std::collections::BTreeMap;
 
 use crate::ir::{Instruction, IrProgram, SSAID};
+use crate::parser::AccessModes;
 
+#[derive(Debug)]
 pub enum VariableState {
     Ready,
+    Borrowed,
+    MutBorrowed,
     Moved,
 }
 
@@ -21,18 +25,91 @@ impl BorrowChecker {
     }
 
     pub fn check(&mut self, ir_program: IrProgram) -> Result<()> {
+        println!("vars: {:#?}", ir_program.ssa_variables);
         for block in ir_program.blocks.into_values() {
             for instruction in block.instructions {
+                println!("instruction {instruction:#?} state {:#?}", self.variable_states);
                 match instruction {
+                    Instruction::Call(function_id, args ) => {
+                        ()
+                    }
                     Instruction::Assign(id) => {
                         self.variable_states.insert(id, VariableState::Ready);
                     }
-                    Instruction::Move(id) => match self.variable_states.get(&id) {
+                    Instruction::Borrow(id) => match self.variable_states.get(&id) {
+                        Some(VariableState::Ready) => {
+                            self.variable_states.insert(id, VariableState::Borrowed);
+                        }
+                        Some(VariableState::Borrowed) => (),
+                        Some(VariableState::MutBorrowed) => {
+                            bail!(format!(
+                                "variable {} was already mutably borrowed",
+                                ir_program
+                                    .ssa_variables
+                                    .get(&id)
+                                    .unwrap()
+                                    .original_variable
+                                    .0
+                            ))
+                        }
+                        None => bail!(format!("Failed to borrow, Variable {} was not in any state, this should not be possible", ir_program
+                                    .ssa_variables
+                                    .get(&id)
+                                    .unwrap()
+                                    .original_variable
+                                    .0
+                            )),
+
+                        Some(VariableState::Moved) => {
+                            bail!(format!(
+                                "variable {} was already moved",
+                                ir_program
+                                    .ssa_variables
+                                    .get(&id)
+                                    .unwrap()
+                                    .original_variable
+                                    .0
+                            ))
+                        }
+                    },
+                    Instruction::MutBorrow(id) => match self.variable_states.get(&id) {
+                        Some(VariableState::Ready) => {
+                            self.variable_states.insert(id, VariableState::MutBorrowed);
+                        }
+                        e => bail!(format!("can not mut borrow a variable {} which is in state {e:?}",
+                            
+                            ir_program
+                                .ssa_variables
+                                .get(&id)
+                                .unwrap()
+                                .original_variable
+                                .0
+                             ))
+                    },
+                    Instruction::BorrowEnd(id) => {
+                        let old_state =  self.variable_states.insert(id, VariableState::Ready );          match old_state {
+                            Some(VariableState::Borrowed) => (),
+                            e => bail!("can not unborrow a variabled which is in state: {e:?}")
+                        }       
+                        
+                           }
+
+                    Instruction::MutBorrowEnd(id) => {
+                        let old_state =  self.variable_states.insert(id, VariableState::Ready );          match old_state {
+                            Some(VariableState::Ready) => (),
+                            e => bail!("can not un mutborrow a variabled which is in state: {e:?}")
+                        }       
+                        
+                           }
+
+
+
+                    Instruction::Drop(id) | Instruction::Move(id) => match self.variable_states.get(&id) {
                         Some(VariableState::Ready) => {
                             self.variable_states.insert(id, VariableState::Moved);
                         }
-                        _ => bail!(format!(
-                            "variable {} was already moved",
+                        e => bail!(format!(
+                            "variable {} was already {e:?}",
                             ir_program
                                 .ssa_variables
                                 .get(&id)
@@ -72,7 +149,7 @@ mod test {
 
         insta::assert_snapshot!(
             format!(
-                "test_well_formed_ir_{}",
+                "test_borrow_checking{}",
                 path.file_name().unwrap().to_str().unwrap()
             ),
             format!("{:#?}", analysis_result)

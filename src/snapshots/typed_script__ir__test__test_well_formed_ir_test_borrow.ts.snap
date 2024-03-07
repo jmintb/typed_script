@@ -95,7 +95,7 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                     6,
                 ),
             ),
-            Move(
+            Borrow(
                 SSAID(
                     6,
                 ),
@@ -103,7 +103,7 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
             Call(
                 FunctionId(
                     TSIdentifier(
-                        "consume",
+                        "borrow",
                     ),
                 ),
                 [
@@ -112,7 +112,12 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                     ),
                 ],
             ),
-            Move(
+            BorrowEnd(
+                SSAID(
+                    6,
+                ),
+            ),
+            Borrow(
                 SSAID(
                     6,
                 ),
@@ -120,7 +125,7 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
             Call(
                 FunctionId(
                     TSIdentifier(
-                        "consume",
+                        "borrow",
                     ),
                 ),
                 [
@@ -128,6 +133,11 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                         6,
                     ),
                 ],
+            ),
+            BorrowEnd(
+                SSAID(
+                    6,
+                ),
             ),
             Assign(
                 SSAID(
@@ -187,7 +197,7 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
         7,
     ): Variable {
         original_variable: TSIdentifier(
-            "message",
+            "test",
         ),
         id: SSAID(
             7,

@@ -1,6 +1,10 @@
 fn main() {
     let message = "hello world!";
-    print(message, 12);
-    print(message, 12);
+    consume(message, 12);
+    consume(message, 12);
     return;
+}
+
+fn consume(owned message: ptr) {
+    
 }
