@@ -1,0 +1,201 @@
+---
+source: src/ir.rs
+expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variables)"
+---
+{
+    BlockId(
+        0,
+    ): Block {
+        instructions: [],
+    },
+    BlockId(
+        1,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    2,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    3,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        4,
+    ): Block {
+        instructions: [
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fdopen",
+                    ),
+                ),
+                [],
+            ),
+            Assign(
+                SSAID(
+                    5,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    2,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    3,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    5,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fwrite",
+                    ),
+                ),
+                [
+                    SSAID(
+                        2,
+                    ),
+                    SSAID(
+                        3,
+                    ),
+                    SSAID(
+                        5,
+                    ),
+                ],
+            ),
+            BorrowEnd(
+                SSAID(
+                    2,
+                ),
+            ),
+            BorrowEnd(
+                SSAID(
+                    3,
+                ),
+            ),
+            BorrowEnd(
+                SSAID(
+                    5,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        6,
+    ): Block {
+        instructions: [],
+    },
+    BlockId(
+        7,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    8,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        9,
+    ): Block {
+        instructions: [
+            Move(
+                SSAID(
+                    8,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "move_val",
+                    ),
+                ),
+                [
+                    SSAID(
+                        8,
+                    ),
+                ],
+            ),
+        ],
+    },
+    BlockId(
+        10,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    11,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        12,
+    ): Block {
+        instructions: [],
+    },
+} 
+ {
+    SSAID(
+        2,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            2,
+        ),
+    },
+    SSAID(
+        3,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "len",
+        ),
+        id: SSAID(
+            3,
+        ),
+    },
+    SSAID(
+        5,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "stdoutptr",
+        ),
+        id: SSAID(
+            5,
+        ),
+    },
+    SSAID(
+        8,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            8,
+        ),
+    },
+    SSAID(
+        11,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "v",
+        ),
+        id: SSAID(
+            11,
+        ),
+    },
+}

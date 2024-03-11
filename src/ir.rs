@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
-
-use melior::ir::r#type::FunctionType;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::{
     parser::{AccessModes, TSIdentifier, TSValue},
     typed_ast::{
-        self, Array, ArrayLookup, Assign, Assignment, Decl, IfStatement, Operation, Return, Type,
-        TypedAst, TypedExpression, TypedProgram, While,
+        self, Array, ArrayLookup, Assign, Assignment, Decl, Operation, Return, Type, TypedAst,
+        TypedExpression, TypedProgram, While,
     },
 };
 
@@ -18,11 +16,71 @@ pub struct BlockId(usize);
 pub struct FunctionId(TSIdentifier);
 
 #[derive(Clone, Debug)]
+pub struct ControlFlowGraph {
+    pub graph: BTreeMap<BlockId, Vec<BlockId>>,
+
+    pub entry_point: BlockId,
+}
+
+impl ControlFlowGraph {
+    fn new(entry_point: BlockId) -> Self {
+        Self {
+            graph: BTreeMap::new(),
+            entry_point,
+        }
+    }
+
+    fn insert(&mut self, parent: BlockId, child: BlockId) {
+        self.graph
+            .entry(parent)
+            .and_modify(|children| children.push(child))
+            .or_insert(vec![child]);
+    }
+
+    pub fn dominates(&self, node_a: BlockId, node_b: BlockId) -> bool {
+        // TODO: We don't need a vecdeque.
+        let mut child_queue = VecDeque::from(self.graph.get(&node_b).cloned().unwrap_or_default());
+        let mut visited_nodes = BTreeSet::new();
+
+        while let Some(child) = child_queue.pop_front() {
+            // Found a loop that is not dominated.
+            if visited_nodes.contains(&child) {
+                return false;
+            }
+            visited_nodes.insert(child);
+
+            let grand_children = self.graph.get(&child).cloned().unwrap_or_default();
+            if child != node_a && !grand_children.is_empty() {
+                for grand_child in grand_children {
+                    child_queue.push_back(grand_child);
+                }
+            } else if child != node_a && grand_children.is_empty() {
+                // Found a dead end
+                return false;
+            }
+
+            // At this point we have found our way back to the parent and simply clear it from the queue.
+        }
+
+        true
+    }
+
+    pub fn predecessors<'a>(&'a self, id: &'a BlockId) -> impl Iterator<Item = BlockId> + 'a {
+        self.graph
+            .clone()
+            .into_iter()
+            .filter(|(_, children)| children.contains(id))
+            .map(|(predecessor_id, _)| predecessor_id)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct IrProgram {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub blocks: BTreeMap<BlockId, Block>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
-    entry_block: BlockId,
+    pub control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph>,
+    pub entry_block: BlockId,
 }
 
 #[derive(Clone, Debug)]
@@ -74,6 +132,8 @@ pub struct IrGenerator {
     entry_block: BlockId,
     access_modes: BTreeMap<SSAID, AccessModes>,
     types: BTreeMap<TSIdentifier, Type>,
+    control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph>,
+    current_function: FunctionId,
 }
 
 impl IrGenerator {
@@ -85,6 +145,8 @@ impl IrGenerator {
         let entry_block_id = BlockId(0);
         let mut blocks = BTreeMap::new();
         blocks.insert(entry_block_id, entry_block);
+        // Also starts from main.
+        let entry_function = FunctionId(TSIdentifier("main".to_string()));
 
         Self {
             ssa_variables: BTreeMap::new(),
@@ -93,6 +155,8 @@ impl IrGenerator {
             entry_block: entry_block_id,
             access_modes: BTreeMap::new(),
             types: BTreeMap::new(),
+            control_flow_graphs: BTreeMap::new(),
+            current_function: entry_function,
         }
     }
 
@@ -148,6 +212,7 @@ impl IrGenerator {
         for (key, val) in program.types {
             self.types.insert(key, val);
         }
+
         let mut current_block = self.entry_block;
         for node in program.ast {
             current_block = self.convert_statement(node, current_block);
@@ -158,7 +223,19 @@ impl IrGenerator {
             blocks: self.blocks,
             entry_block: self.entry_block,
             access_modes: self.access_modes,
+            control_flow_graphs: self.control_flow_graphs,
         }
+    }
+
+    fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
+        self.control_flow_graphs
+            .entry(self.current_function.clone())
+            .and_modify(|cfg| cfg.insert(parent, child))
+            .or_insert_with(|| {
+                let mut cfg = ControlFlowGraph::new(parent);
+                cfg.insert(parent, child);
+                cfg
+            });
     }
 
     fn convert_statement(&mut self, statement: TypedAst, current_block: BlockId) -> BlockId {
@@ -180,10 +257,15 @@ impl IrGenerator {
     }
 
     fn convert_block(&mut self, block: typed_ast::Block, current_block: BlockId) -> BlockId {
-        let mut current_block = self.add_block();
+        let mut current_block = current_block;
+        let mut parent_block = current_block;
 
         for statement in block.statements {
             current_block = self.convert_statement(statement, current_block);
+            if current_block != parent_block {
+                self.record_cfg_connection(parent_block, current_block);
+                parent_block = current_block;
+            }
         }
 
         current_block
@@ -287,6 +369,9 @@ impl IrGenerator {
             }
 
             TypedExpression::While(While { condition, block }) => {
+                let condition_block = self.add_block();
+                self.record_cfg_connection(current_block, condition_block);
+                current_block = condition_block;
                 (current_block, _) = self.convert_expression(*condition, current_block);
                 current_block = self.convert_block(block, current_block);
             }
@@ -340,14 +425,22 @@ impl IrGenerator {
                 return_type,
             } => {
                 if let Some(body) = body {
+                    self.current_function = FunctionId(id);
+                    let entry_block = self.add_block();
+
                     for arg in arguments {
                         let ssa_id = self.add_ssa_variable(arg.name);
                         let assign_instruction = Instruction::Assign(ssa_id);
                         self.access_modes.insert(ssa_id, arg.access_mode);
-                        self.add_instruction(current_block, assign_instruction);
+                        self.add_instruction(entry_block, assign_instruction);
                     }
-                    return self
-                        .convert_block(typed_ast::Block { statements: body }, current_block);
+
+                    let cfg = ControlFlowGraph::new(entry_block);
+                    self.control_flow_graphs
+                        .insert(self.current_function.clone(), cfg);
+
+                    let new_block =
+                        self.convert_block(typed_ast::Block { statements: body }, entry_block);
                 }
             }
 
