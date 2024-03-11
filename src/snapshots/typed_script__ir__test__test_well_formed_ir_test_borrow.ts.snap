@@ -6,23 +6,22 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
     BlockId(
         0,
     ): Block {
+        instructions: [],
+    },
+    BlockId(
+        1,
+    ): Block {
         instructions: [
-            Assign(
-                SSAID(
-                    1,
-                ),
-            ),
             Assign(
                 SSAID(
                     2,
                 ),
             ),
-        ],
-    },
-    BlockId(
-        3,
-    ): Block {
-        instructions: [
+            Assign(
+                SSAID(
+                    3,
+                ),
+            ),
             Call(
                 FunctionId(
                     TSIdentifier(
@@ -38,12 +37,12 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
             ),
             Borrow(
                 SSAID(
-                    1,
+                    2,
                 ),
             ),
             Borrow(
                 SSAID(
-                    2,
+                    3,
                 ),
             ),
             Borrow(
@@ -59,10 +58,10 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                 ),
                 [
                     SSAID(
-                        1,
+                        2,
                     ),
                     SSAID(
-                        2,
+                        3,
                     ),
                     SSAID(
                         4,
@@ -71,12 +70,12 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
             ),
             BorrowEnd(
                 SSAID(
-                    1,
+                    2,
                 ),
             ),
             BorrowEnd(
                 SSAID(
-                    2,
+                    3,
                 ),
             ),
             BorrowEnd(
@@ -139,38 +138,39 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
                     6,
                 ),
             ),
+        ],
+    },
+    BlockId(
+        7,
+    ): Block {
+        instructions: [
             Assign(
                 SSAID(
-                    7,
+                    8,
                 ),
             ),
         ],
     },
-    BlockId(
-        8,
-    ): Block {
-        instructions: [],
-    },
 } 
  {
     SSAID(
-        1,
+        2,
     ): Variable {
         original_variable: TSIdentifier(
             "val",
         ),
         id: SSAID(
-            1,
+            2,
         ),
     },
     SSAID(
-        2,
+        3,
     ): Variable {
         original_variable: TSIdentifier(
             "len",
         ),
         id: SSAID(
-            2,
+            3,
         ),
     },
     SSAID(
@@ -194,13 +194,13 @@ expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variab
         ),
     },
     SSAID(
-        7,
+        8,
     ): Variable {
         original_variable: TSIdentifier(
             "test",
         ),
         id: SSAID(
-            7,
+            8,
         ),
     },
 }
