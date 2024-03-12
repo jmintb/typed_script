@@ -1,0 +1,258 @@
+---
+source: src/ir.rs
+expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variables)"
+---
+{
+    BlockId(
+        0,
+    ): Block {
+        instructions: [],
+    },
+    BlockId(
+        1,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    2,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    3,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fdopen",
+                    ),
+                ),
+                [],
+            ),
+            Assign(
+                SSAID(
+                    4,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    2,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    3,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    4,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "fwrite",
+                    ),
+                ),
+                [
+                    SSAID(
+                        2,
+                    ),
+                    SSAID(
+                        3,
+                    ),
+                    SSAID(
+                        4,
+                    ),
+                ],
+            ),
+            BorrowEnd(
+                SSAID(
+                    2,
+                ),
+            ),
+            BorrowEnd(
+                SSAID(
+                    3,
+                ),
+            ),
+            BorrowEnd(
+                SSAID(
+                    4,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        5,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    6,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    7,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        8,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    9,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    10,
+                ),
+            ),
+            Move(
+                SSAID(
+                    9,
+                ),
+            ),
+            Borrow(
+                SSAID(
+                    10,
+                ),
+            ),
+            Call(
+                FunctionId(
+                    TSIdentifier(
+                        "borrow_and_move",
+                    ),
+                ),
+                [
+                    SSAID(
+                        9,
+                    ),
+                    SSAID(
+                        10,
+                    ),
+                ],
+            ),
+            BorrowEnd(
+                SSAID(
+                    10,
+                ),
+            ),
+        ],
+    },
+    BlockId(
+        11,
+    ): Block {
+        instructions: [
+            Assign(
+                SSAID(
+                    12,
+                ),
+            ),
+            Assign(
+                SSAID(
+                    13,
+                ),
+            ),
+        ],
+    },
+} 
+ {
+    SSAID(
+        2,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            2,
+        ),
+    },
+    SSAID(
+        3,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "len",
+        ),
+        id: SSAID(
+            3,
+        ),
+    },
+    SSAID(
+        4,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "stdoutptr",
+        ),
+        id: SSAID(
+            4,
+        ),
+    },
+    SSAID(
+        6,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            6,
+        ),
+    },
+    SSAID(
+        7,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "i",
+        ),
+        id: SSAID(
+            7,
+        ),
+    },
+    SSAID(
+        9,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "val",
+        ),
+        id: SSAID(
+            9,
+        ),
+    },
+    SSAID(
+        10,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "i",
+        ),
+        id: SSAID(
+            10,
+        ),
+    },
+    SSAID(
+        12,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "input",
+        ),
+        id: SSAID(
+            12,
+        ),
+    },
+    SSAID(
+        13,
+    ): Variable {
+        original_variable: TSIdentifier(
+            "j",
+        ),
+        id: SSAID(
+            13,
+        ),
+    },
+}
