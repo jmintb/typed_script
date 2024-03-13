@@ -1,6 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeMap;
 
 use crate::{
+    control_flow_graph::ControlFlowGraph,
     parser::{AccessModes, TSIdentifier, TSValue},
     typed_ast::{
         self, Array, ArrayLookup, Assign, Assignment, Decl, Operation, Return, Type, TypedAst,
@@ -16,70 +17,11 @@ pub struct BlockId(usize);
 pub struct FunctionId(TSIdentifier);
 
 #[derive(Clone, Debug)]
-pub struct ControlFlowGraph {
-    pub graph: BTreeMap<BlockId, Vec<BlockId>>,
-
-    pub entry_point: BlockId,
-}
-
-impl ControlFlowGraph {
-    fn new(entry_point: BlockId) -> Self {
-        Self {
-            graph: BTreeMap::new(),
-            entry_point,
-        }
-    }
-
-    fn insert(&mut self, parent: BlockId, child: BlockId) {
-        self.graph
-            .entry(parent)
-            .and_modify(|children| children.push(child))
-            .or_insert(vec![child]);
-    }
-
-    pub fn dominates(&self, node_a: BlockId, node_b: BlockId) -> bool {
-        // TODO: We don't need a vecdeque.
-        let mut child_queue = VecDeque::from(self.graph.get(&node_b).cloned().unwrap_or_default());
-        let mut visited_nodes = BTreeSet::new();
-
-        while let Some(child) = child_queue.pop_front() {
-            // Found a loop that is not dominated.
-            if visited_nodes.contains(&child) {
-                return false;
-            }
-            visited_nodes.insert(child);
-
-            let grand_children = self.graph.get(&child).cloned().unwrap_or_default();
-            if child != node_a && !grand_children.is_empty() {
-                for grand_child in grand_children {
-                    child_queue.push_back(grand_child);
-                }
-            } else if child != node_a && grand_children.is_empty() {
-                // Found a dead end
-                return false;
-            }
-
-            // At this point we have found our way back to the parent and simply clear it from the queue.
-        }
-
-        true
-    }
-
-    pub fn predecessors<'a>(&'a self, id: &'a BlockId) -> impl Iterator<Item = BlockId> + 'a {
-        self.graph
-            .clone()
-            .into_iter()
-            .filter(|(_, children)| children.contains(id))
-            .map(|(predecessor_id, _)| predecessor_id)
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct IrProgram {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub blocks: BTreeMap<BlockId, Block>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
-    pub control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph>,
+    pub control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
 }
 
@@ -132,7 +74,7 @@ pub struct IrGenerator {
     entry_block: BlockId,
     access_modes: BTreeMap<SSAID, AccessModes>,
     types: BTreeMap<TSIdentifier, Type>,
-    control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph>,
+    control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph<BlockId>>,
     current_function: FunctionId,
 }
 
@@ -170,7 +112,7 @@ impl IrGenerator {
         let id = self.new_ssa_id();
         let ssa_var = Variable {
             original_variable: original_variable_id,
-            id: id,
+            id,
         };
 
         self.ssa_variables.insert(id, ssa_var);
@@ -230,10 +172,10 @@ impl IrGenerator {
     fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
         self.control_flow_graphs
             .entry(self.current_function.clone())
-            .and_modify(|cfg| cfg.insert(parent, child))
+            .and_modify(|cfg| cfg.insert_edge(parent, child))
             .or_insert_with(|| {
                 let mut cfg = ControlFlowGraph::new(parent);
-                cfg.insert(parent, child);
+                cfg.insert_edge(parent, child);
                 cfg
             });
     }
