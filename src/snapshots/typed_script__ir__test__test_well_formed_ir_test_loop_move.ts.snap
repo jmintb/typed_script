@@ -1,185 +1,23 @@
 ---
 source: src/ir.rs
-expression: "format!(\"{:#?} \\n {:#?}\", ir_progam.blocks, ir_progam.ssa_variables)"
+expression: "format!(\"{}\", ir_progam)"
 ---
-{
-    BlockId(
-        0,
-    ): Block {
-        instructions: [],
-    },
-    BlockId(
-        1,
-    ): Block {
-        instructions: [
-            Assign(
-                SSAID(
-                    2,
-                ),
-            ),
-            Assign(
-                SSAID(
-                    3,
-                ),
-            ),
-            Call(
-                FunctionId(
-                    TSIdentifier(
-                        "fdopen",
-                    ),
-                ),
-                [],
-            ),
-            Assign(
-                SSAID(
-                    4,
-                ),
-            ),
-            Borrow(
-                SSAID(
-                    2,
-                ),
-            ),
-            Borrow(
-                SSAID(
-                    3,
-                ),
-            ),
-            Borrow(
-                SSAID(
-                    4,
-                ),
-            ),
-            Call(
-                FunctionId(
-                    TSIdentifier(
-                        "fwrite",
-                    ),
-                ),
-                [
-                    SSAID(
-                        2,
-                    ),
-                    SSAID(
-                        3,
-                    ),
-                    SSAID(
-                        4,
-                    ),
-                ],
-            ),
-            BorrowEnd(
-                SSAID(
-                    2,
-                ),
-            ),
-            BorrowEnd(
-                SSAID(
-                    3,
-                ),
-            ),
-            BorrowEnd(
-                SSAID(
-                    4,
-                ),
-            ),
-        ],
-    },
-    BlockId(
-        5,
-    ): Block {
-        instructions: [
-            Assign(
-                SSAID(
-                    6,
-                ),
-            ),
-        ],
-    },
-    BlockId(
-        7,
-    ): Block {
-        instructions: [
-            Move(
-                SSAID(
-                    6,
-                ),
-            ),
-            Call(
-                FunctionId(
-                    TSIdentifier(
-                        "move_val",
-                    ),
-                ),
-                [
-                    SSAID(
-                        6,
-                    ),
-                ],
-            ),
-        ],
-    },
-    BlockId(
-        8,
-    ): Block {
-        instructions: [
-            Assign(
-                SSAID(
-                    9,
-                ),
-            ),
-        ],
-    },
-} 
- {
-    SSAID(
-        2,
-    ): Variable {
-        original_variable: TSIdentifier(
-            "val",
-        ),
-        id: SSAID(
-            2,
-        ),
-    },
-    SSAID(
-        3,
-    ): Variable {
-        original_variable: TSIdentifier(
-            "len",
-        ),
-        id: SSAID(
-            3,
-        ),
-    },
-    SSAID(
-        4,
-    ): Variable {
-        original_variable: TSIdentifier(
-            "stdoutptr",
-        ),
-        id: SSAID(
-            4,
-        ),
-    },
-    SSAID(
-        6,
-    ): Variable {
-        original_variable: TSIdentifier(
-            "value",
-        ),
-        id: SSAID(
-            6,
-        ),
-    },
-    SSAID(
-        9,
-    ): Variable {
-        original_variable: TSIdentifier(
-            "v",
-        ),
-        id: SSAID(
-            9,
-        ),
-    },
-}
+IR:
+fn main:
+BLOCK: 50: = 6_value
+BLOCK: 7BLOCK: 80: move(6_value)
+1: @move_val( owned 6_value,)
+BLOCK: 9fn move_val:
+BLOCK: 100: = 11_v
+fn print:
+BLOCK: 10: = 2_val
+1: = 3_len
+2: @fdopen()
+3: = 4_stdoutptr
+4: borrow(2_val)
+5: borrow(3_len)
+6: borrow(4_stdoutptr)
+7: @fwrite( let 2_val, let 3_len, let 4_stdoutptr,)
+8: borrow_end(2_val)
+9: borrow_end(3_len)
+10: borrow_end(4_stdoutptr)

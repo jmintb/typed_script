@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display};
 
 use crate::{
     control_flow_graph::ControlFlowGraph,
@@ -10,11 +10,11 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
-pub struct SSAID(usize);
+pub struct SSAID(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
-pub struct BlockId(usize);
+pub struct BlockId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-pub struct FunctionId(TSIdentifier);
+pub struct FunctionId(pub TSIdentifier);
 
 #[derive(Clone, Debug)]
 pub struct IrProgram {
@@ -23,6 +23,31 @@ pub struct IrProgram {
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     pub control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
+}
+
+impl Display for IrProgram {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("IR:\n")?;
+        for (function_id, control_flow_graph) in self.control_flow_graphs.clone() {
+            f.write_fmt(format_args!("fn {}:\n", function_id.0 .0))?;
+            for block_id in control_flow_graph.clone().into_ordered_iterator() {
+                let block = self.blocks.get(&block_id).unwrap();
+                f.write_fmt(format_args!("BLOCK: {}", block_id.0))?;
+
+                for (instruction_count, instruction) in block.instructions.iter().enumerate() {
+                    f.write_fmt(format_args!(
+                        "{}: {}\n",
+                        instruction_count,
+                        instruction.to_display_string(&self.ssa_variables)
+                    ))?;
+                }
+            }
+        }
+
+        f.write_str("\n")?;
+
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +72,7 @@ pub enum Instruction {
     MutBorrow(SSAID),
     MutBorrowEnd(SSAID),
     Drop(SSAID),
-    Call(FunctionId, Vec<SSAID>),
+    Call(FunctionId, Vec<(SSAID, AccessModes)>),
 }
 
 impl Instruction {
@@ -56,6 +81,75 @@ impl Instruction {
             Self::Borrow(id) => Some(Self::BorrowEnd(id)),
             Self::MutBorrow(id) => Some(Self::MutBorrowEnd(id)),
             _ => None,
+        }
+    }
+
+    fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
+        match self {
+            Self::Assign(id) => {
+                format!(
+                    "= {}_{}",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::Move(id) => {
+                format!(
+                    "move({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+
+            Self::Borrow(id) => {
+                format!(
+                    "borrow({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::BorrowEnd(id) => {
+                format!(
+                    "borrow_end({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::MutBorrow(id) => {
+                format!(
+                    "mut_borrow({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::MutBorrowEnd(id) => {
+                format!(
+                    "mut_borrow_end({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::Drop(id) => {
+                format!(
+                    "drop({}_{})",
+                    id.0,
+                    ssa_variables.get(id).unwrap().original_variable.0
+                )
+            }
+            Self::Call(function_id, args) => {
+                format!(
+                    "@{}({})",
+                    function_id.0 .0,
+                    args.iter()
+                        .map(|(variable_id, access_mode)| format!(
+                            "{} {}_{},",
+                            access_mode,
+                            variable_id.0,
+                            ssa_variables.get(variable_id).unwrap().original_variable.0
+                        ))
+                        .fold(String::new(), |acc, next| format!("{} {}", acc, next))
+                )
+            }
         }
     }
 }
@@ -129,6 +223,7 @@ impl IrGenerator {
     fn add_block(&mut self) -> BlockId {
         let id = self.new_block_id();
         let block = Block::new();
+        println!("add block {}", id.0);
 
         self.blocks.insert(id, block);
 
@@ -170,6 +265,7 @@ impl IrGenerator {
     }
 
     fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
+        println!("record cfg connection {} -> {}", parent.0, child.0);
         self.control_flow_graphs
             .entry(self.current_function.clone())
             .and_modify(|cfg| cfg.insert_edge(parent, child))
@@ -205,7 +301,7 @@ impl IrGenerator {
         for statement in block.statements {
             current_block = self.convert_statement(statement, current_block);
             if current_block != parent_block {
-                self.record_cfg_connection(parent_block, current_block);
+                // self.record_cfg_connection(parent_block, current_block);
                 parent_block = current_block;
             }
         }
@@ -252,7 +348,7 @@ impl IrGenerator {
                         let access_instruction = self.get_access_instruction(ssa_var);
                         setup_instructions.push(access_instruction.clone());
                         self.add_instruction(current_block, access_instruction);
-                        function_args.push(ssa_var);
+                        function_args.push((ssa_var, arg_types[i].access_mode));
 
                         if let Some(release_instruction) = self
                             .get_access_instruction(ssa_var)
@@ -315,7 +411,13 @@ impl IrGenerator {
                 self.record_cfg_connection(current_block, condition_block);
                 current_block = condition_block;
                 (current_block, _) = self.convert_expression(*condition, current_block);
-                current_block = self.convert_block(block, current_block);
+                let body_block = self.add_block();
+                self.record_cfg_connection(condition_block, body_block);
+                let body_block = self.convert_block(block, body_block);
+                self.record_cfg_connection(body_block, condition_block);
+                let post_loop_block = self.add_block();
+                self.record_cfg_connection(condition_block, post_loop_block);
+                current_block = post_loop_block;
             }
 
             TypedExpression::Return(Return { expression }) => {
@@ -426,7 +528,7 @@ mod test {
                 "test_well_formed_ir_{}",
                 path.file_name().unwrap().to_str().unwrap()
             ),
-            format!("{:#?} \n {:#?}", ir_progam.blocks, ir_progam.ssa_variables)
+            format!("{}", ir_progam)
         );
         Ok(())
     }

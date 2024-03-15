@@ -3,5 +3,5 @@ source: src/analysis/borrow_checker.rs
 expression: "format!(\"{:#?}\", analysis_result)"
 ---
 Err(
-    "variable value was already Some(Moved)",
+    "variable value in block 8 was already Some(Moved)",
 )

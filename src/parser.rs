@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt::Display;
 
 use anyhow::{bail, Result};
 use pest::{iterators::Pair, Parser};
@@ -29,6 +30,18 @@ pub enum AccessModes {
     Let,
     Owned,
     Inout,
+}
+
+impl Display for AccessModes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Let => f.write_str("let")?,
+            Self::Owned => f.write_str("owned")?,
+            Self::Inout => f.write_str("inout")?,
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]

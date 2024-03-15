@@ -12,20 +12,23 @@ use super::borrow_checker::VariableState;
 #[derive(Clone, Debug)]
 pub struct IrScope {
     pub blocks: BTreeMap<BlockId, Block>,
+    pub control_flow_graph: ControlFlowGraph<BlockId>,
 }
 
 #[derive(Clone, Debug)]
-pub struct IrInterpreter {
+pub struct IrInterpreter<Ctx> {
     scope: IrScope,
     control_flow_graph: ControlFlowGraph<BlockId>,
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
+    context: Ctx,
 }
 
 pub struct IrBlockIterator {
     queue: VecDeque<BlockId>,
     visited_blocks: BTreeSet<BlockId>,
     control_flow_graph: ControlFlowGraph<BlockId>,
+    visit_again: BTreeSet<BlockId>,
 }
 
 impl IrBlockIterator {
@@ -36,6 +39,7 @@ impl IrBlockIterator {
             control_flow_graph,
             queue,
             visited_blocks: BTreeSet::new(),
+            visit_again: BTreeSet::new(),
         }
     }
 }
@@ -45,20 +49,34 @@ impl Iterator for IrBlockIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut next = self.queue.pop_front()?;
+        while self.visited_blocks.contains(&next) && !self.visit_again.contains(&next) {
+            next = self.queue.pop_front()?;
+        }
+
+        self.visited_blocks.remove(&next);
+
+        println!("next: {}, queue {:?}", next.0, self.queue);
         for predecessor in self.control_flow_graph.predecessors(&next.clone()) {
             if !self.visited_blocks.contains(&predecessor) {
                 if self.control_flow_graph.dominates(next, predecessor) {
                     // TODO: remove predecssor from grandchildren, as we end up visiting it again.
                     // This logic tricky, as we need to ensure we revisit the dominated block after visting the dominator.
-                    self.queue.push_front(next);
                     self.queue.push_front(predecessor);
+                    self.queue.push_front(next);
                     next = predecessor;
+                    self.visit_again.insert(next);
                     continue; // TODO: Continuing probably doesn't make sense here as we could have multiple unvisited predecessors I think.
                 } else {
-                    todo!("this should not be possible, but how do we handle it?");
+                    // todo!(
+                    //     "this should not be possible, but how do we handle it? ,{:#?} {} {}",
+                    //     self.control_flow_graph,
+                    //     predecessor.0,
+                    //     next.0
+                    // );
                 }
             }
         }
+        println!("processing block: {}", next.0);
 
         for &grand_child in self
             .control_flow_graph
@@ -94,22 +112,25 @@ pub struct TransformContext {
     pub variable_states: BTreeMap<SSAID, VariableState>,
 }
 
-type TransformFn = dyn FnMut(usize, &mut TransformContext, &BlockId) -> Result<usize>;
+type TransformFn<Ctx: Clone> =
+    dyn FnMut(usize, &mut TransformContext, &BlockId, &mut Ctx) -> Result<usize>;
 
-impl IrInterpreter {
+impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
     pub fn new(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
         let scope = IrScope {
             blocks: program.blocks,
+            control_flow_graph: control_flow_graph.clone(),
         };
         Self {
             control_flow_graph,
             scope,
             ssa_variables: program.ssa_variables,
             access_modes: program.access_modes,
+            context: Ctx::default(),
         }
     }
 
-    pub fn transform(mut self, transform_fn: &mut TransformFn) -> Result<()> {
+    pub fn transform(mut self, transform_fn: &mut TransformFn<Ctx>) -> Result<Ctx> {
         let mut ctx = TransformContext {
             scope: self.scope.clone(),
             ssa_variables: self.ssa_variables.clone(),
@@ -119,20 +140,21 @@ impl IrInterpreter {
         for block in self.control_flow_graph.clone() {
             self.transform_block(block, transform_fn, &mut ctx)?;
         }
-        Ok(())
+        Ok(self.context)
     }
 
     fn transform_block(
         &mut self,
         block_id: BlockId,
-        transform_fn: &mut TransformFn,
+        transform_fn: &mut TransformFn<Ctx>,
         ctx: &mut TransformContext,
     ) -> Result<()> {
         let mut block = self.scope.blocks.get_mut(&block_id).unwrap();
         let mut instruction_counter = 0;
 
         loop {
-            instruction_counter = transform_fn(instruction_counter, ctx, &block_id)?;
+            instruction_counter =
+                transform_fn(instruction_counter, ctx, &block_id, &mut self.context)?;
 
             if instruction_counter == 0 {
                 break;
