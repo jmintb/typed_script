@@ -43,7 +43,7 @@ pub fn insert_free(
                 address.1
             };
 
-            let main_cfg = ir_program
+            let _main_cfg = ir_program
                 .control_flow_graphs
                 .get(&FunctionId(crate::parser::TSIdentifier("main".to_string())))
                 .unwrap();

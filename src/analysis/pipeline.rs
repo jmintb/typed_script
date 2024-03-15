@@ -1,7 +1,6 @@
 use crate::{
     analysis::{
-        borrow_checker,
-        free_dead_resources::{self, insert_free},
+        free_dead_resources::{insert_free},
     },
     ir::IrProgram,
 };
@@ -9,7 +8,7 @@ use anyhow::Result;
 
 use super::{
     borrow_checker::BorrowChecker,
-    liveness_analysis::{self, calculate_livenss},
+    liveness_analysis::{calculate_livenss},
 };
 
 pub fn transform_ir(ir_program: IrProgram) -> Result<IrProgram> {

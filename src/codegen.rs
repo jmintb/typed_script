@@ -12,7 +12,7 @@ use melior::{
     },
     ir::{
         attribute::{
-            DenseI32ArrayAttribute, DenseI64ArrayAttribute, FlatSymbolRefAttribute,
+            DenseI64ArrayAttribute, FlatSymbolRefAttribute,
             IntegerAttribute, StringAttribute, TypeAttribute,
         },
         operation::OperationBuilder,

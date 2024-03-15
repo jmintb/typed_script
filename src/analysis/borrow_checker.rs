@@ -1,13 +1,13 @@
 use anyhow::bail;
 use anyhow::Result;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::collections::VecDeque;
+
+
 
 use crate::analysis::ir_transformer::IrInterpreter;
 use crate::analysis::ir_transformer::TransformContext;
 use crate::ir::BlockId;
-use crate::ir::FunctionId;
+
 use crate::ir::{Instruction, IrProgram, SSAID};
 
 #[derive(Debug, Clone)]
@@ -42,14 +42,14 @@ impl BorrowChecker {
         }
     }
 
-    fn check_instruction(instruction_counter: usize, ctx: &mut TransformContext, block_id: &BlockId,  variable_states: &mut BTreeMap<SSAID, VariableState>) -> Result<(usize)> {
+    fn check_instruction(instruction_counter: usize, ctx: &mut TransformContext, block_id: &BlockId,  variable_states: &mut BTreeMap<SSAID, VariableState>) -> Result<usize> {
         
-                let mut block = ctx.scope.blocks.get_mut(block_id).unwrap();
+                let block = ctx.scope.blocks.get_mut(block_id).unwrap();
                 let Some(instruction) = block.instructions.get(instruction_counter) else {
                     return Ok(0);
                 };
                 match instruction {
-                    Instruction::Call(function_id, args ) => {
+                    Instruction::Call(_function_id, _args ) => {
                         ()
                     }
                     Instruction::Assign(id) => {

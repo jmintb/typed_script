@@ -93,7 +93,7 @@ where
     }
 
     pub fn find_cycle_successor(&self, block_id: &T) -> Option<&T> {
-        let mut predecessors = self.predecessors(block_id);
+        let predecessors = self.predecessors(block_id);
 
         for predecessor in predecessors {
             if predecessor != *block_id && self.dominates(predecessor, *block_id) {
@@ -139,7 +139,7 @@ impl Iterator for ControlFlowGraphOrderedIterator {
     type Item = BlockId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut next = self.queue.pop_front()?;
+        let next = self.queue.pop_front()?;
 
         for &grand_child in self
             .control_flow_graph

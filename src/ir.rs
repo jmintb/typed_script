@@ -455,11 +455,11 @@ impl IrGenerator {
     fn convert_declaration(&mut self, declaration: Decl, current_block: BlockId) -> BlockId {
         match declaration {
             Decl::Function {
-                keywords,
+                keywords: _,
                 id,
                 arguments,
                 body,
-                return_type,
+                return_type: _,
             } => {
                 if let Some(body) = body {
                     self.current_function = FunctionId(id);
@@ -476,7 +476,7 @@ impl IrGenerator {
                     self.control_flow_graphs
                         .insert(self.current_function.clone(), cfg);
 
-                    let new_block =
+                    let _new_block =
                         self.convert_block(typed_ast::Block { statements: body }, entry_block);
                 }
             }

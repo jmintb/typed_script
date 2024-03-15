@@ -1,11 +1,10 @@
 use std::collections::BTreeMap;
 
 use anyhow::{bail, Result};
-use melior::ir;
+
 
 use crate::{
     ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID},
-    parser::AccessModes,
 };
 
 use super::ir_transformer::IrInterpreter;

@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::control_flow_graph;
-use crate::ir::{Block, Instruction, IrProgram, Variable, SSAID};
+
+use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::parser::AccessModes;
-use crate::typed_ast::Type;
-use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId, parser::TSIdentifier};
+
+use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId};
 use anyhow::Result;
 use tracing::debug;
 
@@ -113,7 +113,7 @@ pub struct TransformContext {
     pub variable_states: BTreeMap<SSAID, VariableState>,
 }
 
-type TransformFn<Ctx: Clone> =
+type TransformFn<Ctx> =
     dyn FnMut(usize, &mut TransformContext, &BlockId, &mut Ctx) -> Result<usize>;
 
 impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
@@ -150,7 +150,7 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
         transform_fn: &mut TransformFn<Ctx>,
         ctx: &mut TransformContext,
     ) -> Result<()> {
-        let mut block = self.scope.blocks.get_mut(&block_id).unwrap();
+        let _block = self.scope.blocks.get_mut(&block_id).unwrap();
         let mut instruction_counter = 0;
 
         loop {
