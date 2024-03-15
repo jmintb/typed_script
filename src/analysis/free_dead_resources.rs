@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use tracing::debug;
+
 use crate::{
     analysis::liveness_analysis::AbstractAddress,
     ir::{BlockId, FunctionId, Instruction, IrProgram},
@@ -25,7 +27,7 @@ pub fn insert_free(
                 .into_values()
                 .find(|cfg| cfg.contains(&target_block_id))
             else {
-                println!("failed to find cfg containing {}", target_block_id.0);
+                debug!("failed to find cfg containing {}", target_block_id.0);
 
                 continue;
             };

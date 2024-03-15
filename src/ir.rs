@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, fmt::Display};
 
+use tracing::debug;
+
 use crate::{
     control_flow_graph::ControlFlowGraph,
     parser::{AccessModes, TSIdentifier, TSValue},
@@ -223,7 +225,7 @@ impl IrGenerator {
     fn add_block(&mut self) -> BlockId {
         let id = self.new_block_id();
         let block = Block::new();
-        println!("add block {}", id.0);
+        debug!("add block {}", id.0);
 
         self.blocks.insert(id, block);
 
@@ -265,7 +267,7 @@ impl IrGenerator {
     }
 
     fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
-        println!("record cfg connection {} -> {}", parent.0, child.0);
+        debug!("record cfg connection {} -> {}", parent.0, child.0);
         self.control_flow_graphs
             .entry(self.current_function.clone())
             .and_modify(|cfg| cfg.insert_edge(parent, child))
@@ -358,9 +360,6 @@ impl IrGenerator {
                         }
                     }
                 }
-                if function_id.0 == "fwrite".to_string() {
-                    println!("instructions {function_id:?} free_instructions{free_instructions:?} setup_instructions {setup_instructions:?}");
-                }
                 self.add_instruction(
                     current_block,
                     Instruction::Call(FunctionId(function_id), function_args),
@@ -374,12 +373,6 @@ impl IrGenerator {
             TypedExpression::Value(val, _) => match val {
                 TSValue::Variable(id) => {
                     let ssa_var = self.latest_gen_variable(id.clone()).unwrap();
-                    if id.0.clone() == "stdoutptr".to_string() {
-                        println!(
-                            "access instruction: {:?}",
-                            self.get_access_instruction(ssa_var)
-                        );
-                    }
                     // self.add_instruction(current_block, self.get_access_instruction(ssa_var));
                     return (current_block, Some(ssa_var));
                 }

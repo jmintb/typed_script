@@ -165,8 +165,10 @@ mod test {
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;
+    use tracing::debug;
 
     #[rstest]
+    #[test_log::test]
     fn test_borrow_checker(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
         let program = load_program(Some(path.to_str().unwrap().to_string()))?;
         let ast = parse(&program)?;
@@ -176,8 +178,8 @@ mod test {
         let ir_program = ir_generator.convert_to_ssa(typed_program);
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;
         let ir_program = crate::analysis::free_dead_resources::insert_free(liveness, ir_program);
-        println!("transformed IR program: {}", ir_program);
-        println!("CFG: {:#?}", ir_program.control_flow_graphs);
+        debug!("transformed IR program: {}", ir_program);
+        debug!("CFG: {:#?}", ir_program.control_flow_graphs);
         let mut borrow_checker = BorrowChecker::new();
         let analysis_result = borrow_checker.check(&ir_program);
 

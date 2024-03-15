@@ -6,6 +6,7 @@ use crate::parser::AccessModes;
 use crate::typed_ast::Type;
 use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId, parser::TSIdentifier};
 use anyhow::Result;
+use tracing::debug;
 
 use super::borrow_checker::VariableState;
 
@@ -55,7 +56,7 @@ impl Iterator for IrBlockIterator {
 
         self.visited_blocks.remove(&next);
 
-        println!("next: {}, queue {:?}", next.0, self.queue);
+        debug!("next: {}, queue {:?}", next.0, self.queue);
         for predecessor in self.control_flow_graph.predecessors(&next.clone()) {
             if !self.visited_blocks.contains(&predecessor) {
                 if self.control_flow_graph.dominates(next, predecessor) {
@@ -76,7 +77,7 @@ impl Iterator for IrBlockIterator {
                 }
             }
         }
-        println!("processing block: {}", next.0);
+        debug!("processing block: {}", next.0);
 
         for &grand_child in self
             .control_flow_graph
