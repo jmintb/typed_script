@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::Display,
+};
 
 use crate::ir::BlockId;
 
@@ -155,5 +158,20 @@ impl Iterator for ControlFlowGraphOrderedIterator {
         self.visited_blocks.insert(next);
 
         Some(next)
+    }
+}
+
+impl<T: Display + Copy> Display for ControlFlowGraph<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("entry point: {}\n", self.entry_point))?;
+        for (predecessor, successors) in self.graph.clone() {
+            let display_successors: String = successors
+                .iter()
+                .fold("".to_string(), |acc, next| format!("{}{}, ", acc, next));
+
+            f.write_str(&format!("{} -> [{}]\n", predecessor, display_successors))?;
+        }
+
+        Ok(())
     }
 }

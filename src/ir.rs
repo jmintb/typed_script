@@ -18,6 +18,18 @@ pub struct BlockId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct FunctionId(pub TSIdentifier);
 
+impl Display for FunctionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0 .0.fmt(f)
+    }
+}
+
+impl Display for BlockId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("block_{}", self.0))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IrProgram {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
@@ -525,6 +537,32 @@ mod test {
             ),
             format!("{}", ir_progam)
         );
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_control_flow_graph(
+        #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
+    ) -> Result<()> {
+        use crate::{parser::parse, typed_ast::type_ast};
+
+        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
+        let ast = parse(&program)?;
+        let typed_program = type_ast(ast)?;
+
+        let ir_generator = IrGenerator::new();
+        let ir_progam = ir_generator.convert_to_ssa(typed_program);
+
+        for (function_id, control_flow_graph) in ir_progam.control_flow_graphs {
+            insta::assert_snapshot!(
+                format!(
+                    "test_well_formed_control_flow_graph_{}_function_{function_id}",
+                    path.file_name().unwrap().to_str().unwrap()
+                ),
+                format!("{}", control_flow_graph)
+            );
+        }
+
         Ok(())
     }
 }
