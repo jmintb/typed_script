@@ -6,40 +6,24 @@ Ok(
     {
         FunctionId(
             TSIdentifier(
-                "borrow_and_move",
+                "borrow_val",
             ),
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    17,
+                    12,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            16,
+                            11,
                         ),
                         inststruction: 0,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            16,
+                            11,
                         ),
                         inststruction: 0,
-                    },
-                ),
-                SSAID(
-                    18,
-                ): AbstractAddressRange(
-                    AbstractAddress {
-                        block_id: BlockId(
-                            16,
-                        ),
-                        inststruction: 1,
-                    },
-                    AbstractAddress {
-                        block_id: BlockId(
-                            16,
-                        ),
-                        inststruction: 1,
                     },
                 ),
             },
@@ -63,68 +47,43 @@ Ok(
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            7,
+                            10,
                         ),
-                        inststruction: 0,
-                    },
-                ),
-                SSAID(
-                    9,
-                ): AbstractAddressRange(
-                    AbstractAddress {
-                        block_id: BlockId(
-                            7,
-                        ),
-                        inststruction: 1,
-                    },
-                    AbstractAddress {
-                        block_id: BlockId(
-                            7,
-                        ),
-                        inststruction: 1,
-                    },
-                ),
-                SSAID(
-                    13,
-                ): AbstractAddressRange(
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 0,
-                    },
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 2,
-                    },
-                ),
-                SSAID(
-                    14,
-                ): AbstractAddressRange(
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 1,
-                    },
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 5,
+                        inststruction: 4,
                     },
                 ),
             },
             variable_moved: {
                 SSAID(
-                    13,
-                ): true,
-                SSAID(
-                    14,
+                    8,
                 ): false,
             },
+            loans: {},
+        },
+        FunctionId(
+            TSIdentifier(
+                "move_val",
+            ),
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    15,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            14,
+                        ),
+                        inststruction: 0,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            14,
+                        ),
+                        inststruction: 0,
+                    },
+                ),
+            },
+            variable_moved: {},
             loans: {},
         },
         FunctionId(

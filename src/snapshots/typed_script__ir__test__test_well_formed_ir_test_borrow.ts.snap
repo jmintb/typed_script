@@ -4,24 +4,24 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn borrow:
-BLOCK: 70: = 8_test
-fn main:
-BLOCK: 50: = 6_message
-1: borrow(6_message)
-2: @borrow( let 6_message,)
-3: borrow_end(6_message)
-4: borrow(6_message)
-5: @borrow( let 6_message,)
-6: borrow_end(6_message)
+BLOCK: 90: = 10_test
+BLOCK: 11fn main:
+BLOCK: 6BLOCK: 70: = 8_message
+1: borrow(8_message)
+2: @borrow( let 8_message,)
+3: borrow_end(8_message)
+4: borrow(8_message)
+5: @borrow( let 8_message,)
+6: borrow_end(8_message)
 fn print:
 BLOCK: 10: = 2_val
 1: = 3_len
-2: @fdopen()
-3: = 4_stdoutptr
-4: borrow(2_val)
-5: borrow(3_len)
-6: borrow(4_stdoutptr)
-7: @fwrite( let 2_val, let 3_len, let 4_stdoutptr,)
-8: borrow_end(2_val)
-9: borrow_end(3_len)
-10: borrow_end(4_stdoutptr)
+BLOCK: 40: @fdopen()
+1: = 5_stdoutptr
+2: borrow(2_val)
+3: borrow(3_len)
+4: borrow(5_stdoutptr)
+5: @fwrite( let 2_val, let 3_len, let 5_stdoutptr,)
+6: borrow_end(2_val)
+7: borrow_end(3_len)
+8: borrow_end(5_stdoutptr)

@@ -299,6 +299,8 @@ impl IrGenerator {
     fn convert_block(&mut self, block: typed_ast::Block, current_block: BlockId) -> BlockId {
         let mut current_block = current_block;
         let mut parent_block = current_block;
+        current_block = self.add_block();
+        self.record_cfg_connection(parent_block, current_block);
 
         for statement in block.statements {
             current_block = self.convert_statement(statement, current_block);

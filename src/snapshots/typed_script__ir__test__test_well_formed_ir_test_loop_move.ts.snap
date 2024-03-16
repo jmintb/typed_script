@@ -4,20 +4,20 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn main:
-BLOCK: 50: = 6_value
-BLOCK: 7BLOCK: 80: move(6_value)
-1: @move_val( owned 6_value,)
-BLOCK: 9fn move_val:
-BLOCK: 100: = 11_v
-fn print:
+BLOCK: 6BLOCK: 70: = 8_value
+BLOCK: 9BLOCK: 10BLOCK: 12BLOCK: 110: move(8_value)
+1: @move_val( owned 8_value,)
+fn move_val:
+BLOCK: 130: = 14_v
+BLOCK: 15fn print:
 BLOCK: 10: = 2_val
 1: = 3_len
-2: @fdopen()
-3: = 4_stdoutptr
-4: borrow(2_val)
-5: borrow(3_len)
-6: borrow(4_stdoutptr)
-7: @fwrite( let 2_val, let 3_len, let 4_stdoutptr,)
-8: borrow_end(2_val)
-9: borrow_end(3_len)
-10: borrow_end(4_stdoutptr)
+BLOCK: 40: @fdopen()
+1: = 5_stdoutptr
+2: borrow(2_val)
+3: borrow(3_len)
+4: borrow(5_stdoutptr)
+5: @fwrite( let 2_val, let 3_len, let 5_stdoutptr,)
+6: borrow_end(2_val)
+7: borrow_end(3_len)
+8: borrow_end(5_stdoutptr)

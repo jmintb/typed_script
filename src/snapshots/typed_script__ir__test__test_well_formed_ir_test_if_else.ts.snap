@@ -1,0 +1,33 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", ir_progam)"
+---
+IR:
+fn borrow_val:
+BLOCK: 110: = 12_val
+BLOCK: 13fn main:
+BLOCK: 6BLOCK: 70: = 8_test_val
+BLOCK: 90: borrow(8_test_val)
+1: @borrow_val( let 8_test_val,)
+2: borrow_end(8_test_val)
+3: move(8_test_val)
+4: @move_val( owned 8_test_val,)
+BLOCK: 100: move(8_test_val)
+1: @move_val( owned 8_test_val,)
+2: borrow(8_test_val)
+3: @borrow_val( let 8_test_val,)
+4: borrow_end(8_test_val)
+fn move_val:
+BLOCK: 140: = 15_val
+BLOCK: 16fn print:
+BLOCK: 10: = 2_val
+1: = 3_len
+BLOCK: 40: @fdopen()
+1: = 5_stdoutptr
+2: borrow(2_val)
+3: borrow(3_len)
+4: borrow(5_stdoutptr)
+5: @fwrite( let 2_val, let 3_len, let 5_stdoutptr,)
+6: borrow_end(2_val)
+7: borrow_end(3_len)
+8: borrow_end(5_stdoutptr)

@@ -11,17 +11,17 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    6,
+                    8,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            5,
+                            7,
                         ),
                         inststruction: 0,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            5,
+                            7,
                         ),
                         inststruction: 3,
                     },
@@ -29,7 +29,7 @@ Ok(
             },
             variable_moved: {
                 SSAID(
-                    6,
+                    8,
                 ): false,
             },
             loans: {},
@@ -51,9 +51,9 @@ Ok(
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            1,
+                            4,
                         ),
-                        inststruction: 8,
+                        inststruction: 6,
                     },
                 ),
                 SSAID(
@@ -67,25 +67,25 @@ Ok(
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            1,
+                            4,
                         ),
-                        inststruction: 9,
+                        inststruction: 7,
                     },
                 ),
                 SSAID(
-                    4,
+                    5,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            1,
+                            4,
                         ),
-                        inststruction: 3,
+                        inststruction: 1,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            1,
+                            4,
                         ),
-                        inststruction: 10,
+                        inststruction: 8,
                     },
                 ),
             },
@@ -97,7 +97,7 @@ Ok(
                     3,
                 ): false,
                 SSAID(
-                    4,
+                    5,
                 ): false,
             },
             loans: {},

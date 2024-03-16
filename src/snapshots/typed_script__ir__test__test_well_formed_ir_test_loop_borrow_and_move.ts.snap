@@ -4,26 +4,26 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn borrow_and_move:
-BLOCK: 130: = 14_input
-1: = 15_j
-fn main:
-BLOCK: 50: = 6_val
-1: = 7_i
-BLOCK: 8BLOCK: 90: = 10_val
-1: = 11_i
-2: move(10_val)
-3: borrow(11_i)
-4: @borrow_and_move( owned 10_val, let 11_i,)
-5: borrow_end(11_i)
-BLOCK: 12fn print:
+BLOCK: 160: = 17_input
+1: = 18_j
+BLOCK: 19fn main:
+BLOCK: 6BLOCK: 70: = 8_val
+1: = 9_i
+BLOCK: 10BLOCK: 11BLOCK: 15BLOCK: 120: = 13_val
+1: = 14_i
+2: move(13_val)
+3: borrow(14_i)
+4: @borrow_and_move( owned 13_val, let 14_i,)
+5: borrow_end(14_i)
+fn print:
 BLOCK: 10: = 2_val
 1: = 3_len
-2: @fdopen()
-3: = 4_stdoutptr
-4: borrow(2_val)
-5: borrow(3_len)
-6: borrow(4_stdoutptr)
-7: @fwrite( let 2_val, let 3_len, let 4_stdoutptr,)
-8: borrow_end(2_val)
-9: borrow_end(3_len)
-10: borrow_end(4_stdoutptr)
+BLOCK: 40: @fdopen()
+1: = 5_stdoutptr
+2: borrow(2_val)
+3: borrow(3_len)
+4: borrow(5_stdoutptr)
+5: @fwrite( let 2_val, let 3_len, let 5_stdoutptr,)
+6: borrow_end(2_val)
+7: borrow_end(3_len)
+8: borrow_end(5_stdoutptr)
