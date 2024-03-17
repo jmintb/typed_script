@@ -2,6 +2,6 @@
 source: src/analysis/borrow_checker.rs
 expression: "format!(\"{:#?}\", analysis_result)"
 ---
-Err(
-    "variable test_val in block 11 was already moved ",
+Ok(
+    (),
 )

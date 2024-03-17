@@ -46,7 +46,7 @@ impl Display for IrProgram {
             f.write_fmt(format_args!("fn {}:\n", function_id.0 .0))?;
             for block_id in control_flow_graph.clone().into_ordered_iterator() {
                 let block = self.blocks.get(&block_id).unwrap();
-                f.write_fmt(format_args!("BLOCK: {}", block_id.0))?;
+                f.write_fmt(format_args!("{}\n", block_id))?;
 
                 for (instruction_count, instruction) in block.instructions.iter().enumerate() {
                     f.write_fmt(format_args!(
@@ -55,6 +55,8 @@ impl Display for IrProgram {
                         instruction.to_display_string(&self.ssa_variables)
                     ))?;
                 }
+
+                f.write_str("\n")?;
             }
         }
 
@@ -405,12 +407,18 @@ impl IrGenerator {
             }
 
             TypedExpression::If(if_statement) => {
+                let parent_block = current_block;
                 (current_block, _) =
                     self.convert_expression(*if_statement.condition, current_block);
                 current_block = self.convert_block(if_statement.then_block, current_block);
+                let post_if_block = self.add_block();
+                self.record_cfg_connection(current_block, post_if_block);
                 if let Some(block) = if_statement.else_block {
-                    current_block = self.convert_block(block, current_block);
+                    current_block = self.convert_block(block, parent_block);
+                    self.record_cfg_connection(current_block, post_if_block);
                 }
+
+                current_block = post_if_block;
             }
 
             TypedExpression::While(While { condition, block }) => {

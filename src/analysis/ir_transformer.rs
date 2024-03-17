@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-
+use std::thread::sleep;
+use std::time::Duration;
 
 use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::parser::AccessModes;
@@ -20,6 +21,7 @@ pub struct IrScope {
 pub struct IrInterpreter<Ctx> {
     scope: IrScope,
     control_flow_graph: ControlFlowGraph<BlockId>,
+    block_states: BTreeMap<BlockId, Ctx>,
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     context: Ctx,
@@ -54,26 +56,97 @@ impl Iterator for IrBlockIterator {
             next = self.queue.pop_front()?;
         }
 
-        self.visited_blocks.remove(&next);
+        // self.visited_blocks.remove(&next);
 
         debug!("next: {}, queue {:?}", next.0, self.queue);
-        for predecessor in self.control_flow_graph.predecessors(&next.clone()) {
-            if !self.visited_blocks.contains(&predecessor) {
-                if self.control_flow_graph.dominates(next, predecessor) {
-                    // TODO: remove predecssor from grandchildren, as we end up visiting it again.
-                    // This logic tricky, as we need to ensure we revisit the dominated block after visting the dominator.
-                    self.queue.push_front(predecessor);
-                    self.queue.push_front(next);
-                    next = predecessor;
-                    self.visit_again.insert(next);
-                    continue; // TODO: Continuing probably doesn't make sense here as we could have multiple unvisited predecessors I think.
-                } else {
-                    // todo!(
-                    //     "this should not be possible, but how do we handle it? ,{:#?} {} {}",
-                    //     self.control_flow_graph,
-                    //     predecessor.0,
-                    //     next.0
-                    // );
+
+        if !self.visited_blocks.contains(&next) {
+            for predecessor in self.control_flow_graph.direct_predecessors(&next.clone()) {
+                if !self.visited_blocks.contains(&predecessor) {
+                    if self.control_flow_graph.dominates(next, predecessor) {
+                        let mut predecessors_preds = self
+                            .control_flow_graph
+                            .predecessors(&predecessor)
+                            .unwrap()
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<Self::Item>>();
+
+                        debug!(
+                            "pred preds: {} \n  {} {}",
+                            self.control_flow_graph, predecessor, next
+                        );
+
+                        let Some(loop_start_pos) =
+                            predecessors_preds.iter().position(|pred| *pred == next)
+                        else {
+                            break;
+                        };
+
+                        let mut loop_blocks = predecessors_preds;
+                        loop_blocks.split_off(loop_start_pos);
+                        loop_blocks.reverse();
+
+                        debug!("cycle blocks: {:?}", loop_blocks);
+                        assert!(!loop_blocks.contains(&next));
+
+                        let mut loop_successors: Vec<BlockId> = self
+                            .control_flow_graph
+                            .successors(&loop_blocks[0])
+                            .unwrap()
+                            .into_iter()
+                            .flatten()
+                            .collect();
+
+                        debug!("loop successor blocks: {:?}", loop_successors);
+
+                        let cycle_completetion_position = loop_successors
+                            .iter()
+                            .position(|pred| *pred == next)
+                            .unwrap();
+
+                        loop_successors.split_off(cycle_completetion_position);
+
+                        loop_successors
+                            .into_iter()
+                            .for_each(|block| loop_blocks.push(block));
+
+                        self.visited_blocks.insert(next);
+                        self.visit_again.insert(next);
+                        if loop_blocks.len() == 1 {
+                            self.queue.push_front(loop_blocks[0]);
+                            self.queue.push_front(next);
+                            self.visit_again.insert(loop_blocks[0]);
+                            next = loop_blocks[0];
+                            continue;
+                        }
+
+                        let (loop_start, loop_blocks) = loop_blocks.split_first().unwrap();
+
+                        for loop_predecessor in loop_blocks {
+                            self.queue.push_front(*loop_predecessor);
+                            self.visit_again.insert(*loop_predecessor);
+                        }
+
+                        self.queue.push_front(next);
+                        self.queue.push_front(*loop_start);
+
+                        for loop_predecessor in loop_blocks {
+                            self.queue.push_front(*loop_predecessor);
+                        }
+
+                        // TODO: remove predecssor from grandchildren, as we end up visiting it again.
+                        // This logic tricky, as we need to ensure we revisit the dominated block after visting the dominator.
+                        next = *loop_start;
+                        break; // TODO: Continuing probably doesn't make sense here as we could have multiple unvisited predecessors I think.
+                    } else {
+                        // todo!(
+                        //     "this should not be possible, but how do we handle it? ,{:#?} {} {}",
+                        //     self.control_flow_graph,
+                        //     predecessor.0,
+                        //     next.0
+                        // );
+                    }
                 }
             }
         }
@@ -91,6 +164,8 @@ impl Iterator for IrBlockIterator {
         }
 
         self.visited_blocks.insert(next);
+
+        // sleep(Duration::from_secs(1));
 
         Some(next)
     }
@@ -127,6 +202,7 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             scope,
             ssa_variables: program.ssa_variables,
             access_modes: program.access_modes,
+            block_states: BTreeMap::new(),
             context: Ctx::default(),
         }
     }
@@ -138,6 +214,7 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             access_modes: self.access_modes.clone(),
             variable_states: BTreeMap::new(),
         };
+
         for block in self.control_flow_graph.clone() {
             self.transform_block(block, transform_fn, &mut ctx)?;
         }

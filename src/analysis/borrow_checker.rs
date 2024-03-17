@@ -1,5 +1,6 @@
 use anyhow::bail;
 use anyhow::Result;
+use tracing::debug;
 use std::collections::BTreeMap;
 
 
@@ -10,7 +11,7 @@ use crate::ir::BlockId;
 
 use crate::ir::{Instruction, IrProgram, SSAID};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum VariableState {
     Ready,
     Borrowed,
@@ -31,8 +32,44 @@ impl Default for BorrowCheckContext {
 }
 
 
+#[derive(Clone, Default, Debug)]
+struct BorrowCheckerState {
+    block_states: BTreeMap<BlockId, BTreeMap<SSAID, VariableState>>
+}
+
+
 pub struct BorrowChecker {
     variable_states: BTreeMap<SSAID, VariableState>,
+}
+
+pub fn ge_variable_state(lhs: VariableState, rhs: VariableState) -> bool {
+    match lhs {
+        rhs => true,
+        VariableState::Ready => false, // always false because rhs=Ready is caught in first match case.
+        VariableState::Borrowed => match rhs {
+           VariableState::Ready | VariableState::Borrowed  => true,
+            VariableState::Moved => false,
+            VariableState::MutBorrowed=> false
+
+        }
+        VariableState::MutBorrowed => match rhs {
+           VariableState::Ready | VariableState::Borrowed | VariableState::MutBorrowed => true  ,
+            VariableState::Moved => false
+        }
+        VariableState::Moved => true
+        }
+}
+
+
+fn stricter_variable_state(current: VariableState, new: VariableState) -> VariableState {
+
+    if ge_variable_state(current,new  ) {
+        current
+    } else {
+        new
+    }
+
+    
 }
 
 impl BorrowChecker {
@@ -42,12 +79,62 @@ impl BorrowChecker {
         }
     }
 
-    fn check_instruction(instruction_counter: usize, ctx: &mut TransformContext, block_id: &BlockId,  variable_states: &mut BTreeMap<SSAID, VariableState>) -> Result<usize> {
+    fn check_instruction(instruction_counter: usize, ctx: &mut TransformContext, block_id: &BlockId,  bc_ctx: &mut BorrowCheckerState) -> Result<usize> {
         
+        debug!("block states: {:#?}", bc_ctx.block_states);
+            let variable_states = if let Some(state) = bc_ctx.block_states.get_mut(block_id) {
+            debug!("founding existing variable state for {block_id}");
+            state
+        } else {
+            if block_id == &ctx.scope.control_flow_graph.entry_point {
+                debug!("inserting new variable state map for entry point {block_id}");
+                bc_ctx.block_states.insert(*block_id, BTreeMap::new() );
+                bc_ctx.block_states.get_mut(block_id).unwrap()
+
+            } else {
+                debug!("generating new variable based on parents variable states {block_id}");
+                let parents ={
+                    let mut parents: Vec<BlockId> = ctx.scope.control_flow_graph.direct_predecessors(block_id).collect();
+                    while parents.is_empty() || !parents.iter().all(|parent| bc_ctx.block_states.contains_key(parent)) {
+                    let parent_successors: Vec<BlockId> = parents.iter().map(|parent| ctx.scope.control_flow_graph.successors(parent).unwrap()).flatten().flatten().collect();
+                    let new_parents: Vec<BlockId> = parents.iter().map(|parent| ctx.scope.control_flow_graph.direct_predecessors(&parent)).flatten().filter(|new_parent| !parent_successors.contains(new_parent) )
+                    .collect(); 
+
+                        if new_parents.is_empty() {
+                            bail!("failed to find parents")
+                        }
+
+                        parents = new_parents
+                    }
+
+                    parents
+                }; 
+
+
+                let mut ctx: BTreeMap<SSAID, VariableState> = BTreeMap::new();
+                for state in parents.into_iter().map(|parent| bc_ctx.block_states.get(&parent).unwrap()) {
+                    for (key, val) in state {
+                       ctx.entry(*key).and_modify(|existing_state|  *existing_state = stricter_variable_state(*existing_state, *val )                                                                  ).or_insert(*val); 
+                    }
+                }
+
+                bc_ctx.block_states.insert(*block_id, ctx );
+                bc_ctx.block_states.get_mut(block_id).unwrap()
+
+            }
+            
+        }; 
+
+        
+            
+        
+        debug!("checking instruction {} in block {} with variable states {:#?}", instruction_counter, block_id, variable_states);
                 let block = ctx.scope.blocks.get_mut(block_id).unwrap();
                 let Some(instruction) = block.instructions.get(instruction_counter) else {
                     return Ok(0);
                 };
+                debug!("checking instruction {:?} {:?} {}", instruction, variable_states, block_id);
+
                 match instruction {
                     Instruction::Call(_function_id, _args ) => {
                         ()
@@ -146,7 +233,7 @@ impl BorrowChecker {
 
     pub fn check(&mut self, ir_program: &IrProgram) -> Result<()> {
         for function_id in ir_program.control_flow_graphs.keys() {
-        let interpreter = IrInterpreter::<BTreeMap<SSAID, VariableState>>::new(ir_program.control_flow_graphs.get(function_id).cloned().unwrap(), ir_program.clone());
+        let interpreter = IrInterpreter::<BorrowCheckerState>::new(ir_program.control_flow_graphs.get(function_id).cloned().unwrap(), ir_program.clone());
         interpreter.transform(&mut Self::check_instruction)?;
         }
 

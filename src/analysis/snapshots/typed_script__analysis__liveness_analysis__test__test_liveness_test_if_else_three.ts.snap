@@ -11,17 +11,17 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    13,
+                    16,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            12,
+                            15,
                         ),
                         inststruction: 0,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            12,
+                            15,
                         ),
                         inststruction: 0,
                     },
@@ -47,9 +47,9 @@ Ok(
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            11,
+                            10,
                         ),
-                        inststruction: 4,
+                        inststruction: 2,
                     },
                 ),
             },
@@ -67,17 +67,17 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    16,
+                    13,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            15,
+                            12,
                         ),
                         inststruction: 0,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            15,
+                            12,
                         ),
                         inststruction: 0,
                     },

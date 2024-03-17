@@ -4,40 +4,41 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn borrow_val:
-block_12
-0: = 13_val
+block_15
+0: = 16_test
 
-block_14
+block_17
 
 fn main:
 block_6
 
 block_7
-0: = 8_test_val
+0: = 8_test
 
 block_9
-0: borrow(8_test_val)
-1: @borrow_val( let 8_test_val,)
-2: borrow_end(8_test_val)
-3: move(8_test_val)
-4: @move_val( owned 8_test_val,)
+0: move(8_test)
+1: @move_val( owned 8_test,)
 
 block_11
-0: move(8_test_val)
-1: @move_val( owned 8_test_val,)
-2: borrow(8_test_val)
-3: @borrow_val( let 8_test_val,)
-4: borrow_end(8_test_val)
+0: borrow(8_test)
+1: @print( let 8_test,)
+2: borrow_end(8_test)
 
 block_10
+0: borrow(8_test)
+1: @borrow_val( let 8_test,)
+2: borrow_end(8_test)
 
 block_10
+0: borrow(8_test)
+1: @borrow_val( let 8_test,)
+2: borrow_end(8_test)
 
 fn move_val:
-block_15
-0: = 16_val
+block_12
+0: = 13_test
 
-block_17
+block_14
 
 fn print:
 block_1

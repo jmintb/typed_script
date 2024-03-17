@@ -4,21 +4,40 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn borrow_and_move:
-BLOCK: 160: = 17_input
+block_16
+0: = 17_input
 1: = 18_j
-BLOCK: 19fn main:
-BLOCK: 6BLOCK: 70: = 8_val
+
+block_19
+
+fn main:
+block_6
+
+block_7
+0: = 8_val
 1: = 9_i
-BLOCK: 10BLOCK: 11BLOCK: 15BLOCK: 120: = 13_val
+
+block_10
+
+block_11
+
+block_15
+
+block_12
+0: = 13_val
 1: = 14_i
 2: move(13_val)
 3: borrow(14_i)
 4: @borrow_and_move( owned 13_val, let 14_i,)
 5: borrow_end(14_i)
+
 fn print:
-BLOCK: 10: = 2_val
+block_1
+0: = 2_val
 1: = 3_len
-BLOCK: 40: @fdopen()
+
+block_4
+0: @fdopen()
 1: = 5_stdoutptr
 2: borrow(2_val)
 3: borrow(3_len)

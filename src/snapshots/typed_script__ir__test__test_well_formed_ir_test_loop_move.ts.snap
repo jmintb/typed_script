@@ -4,15 +4,34 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn main:
-BLOCK: 6BLOCK: 70: = 8_value
-BLOCK: 9BLOCK: 10BLOCK: 12BLOCK: 110: move(8_value)
+block_6
+
+block_7
+0: = 8_value
+
+block_9
+
+block_10
+
+block_12
+
+block_11
+0: move(8_value)
 1: @move_val( owned 8_value,)
+
 fn move_val:
-BLOCK: 130: = 14_v
-BLOCK: 15fn print:
-BLOCK: 10: = 2_val
+block_13
+0: = 14_v
+
+block_15
+
+fn print:
+block_1
+0: = 2_val
 1: = 3_len
-BLOCK: 40: @fdopen()
+
+block_4
+0: @fdopen()
 1: = 5_stdoutptr
 2: borrow(2_val)
 3: borrow(3_len)

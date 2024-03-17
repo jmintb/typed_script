@@ -6,32 +6,6 @@ Ok(
     {
         FunctionId(
             TSIdentifier(
-                "borrow_val",
-            ),
-        ): VariableLiveness {
-            variables: {
-                SSAID(
-                    13,
-                ): AbstractAddressRange(
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 0,
-                    },
-                    AbstractAddress {
-                        block_id: BlockId(
-                            12,
-                        ),
-                        inststruction: 0,
-                    },
-                ),
-            },
-            variable_moved: {},
-            loans: {},
-        },
-        FunctionId(
-            TSIdentifier(
                 "main",
             ),
         ): VariableLiveness {
@@ -49,7 +23,7 @@ Ok(
                         block_id: BlockId(
                             11,
                         ),
-                        inststruction: 4,
+                        inststruction: 2,
                     },
                 ),
             },
@@ -67,17 +41,17 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    16,
+                    13,
                 ): AbstractAddressRange(
                     AbstractAddress {
                         block_id: BlockId(
-                            15,
+                            12,
                         ),
                         inststruction: 0,
                     },
                     AbstractAddress {
                         block_id: BlockId(
-                            15,
+                            12,
                         ),
                         inststruction: 0,
                     },

@@ -33,10 +33,18 @@ pub fn insert_free(
             };
             let mut offset = 1;
             let address = if cfg.is_in_cycle(&target_block_id) {
-                let target_block_id = cfg.find_cycle_successor(&target_block_id).unwrap();
+                let target_block_id = cfg.find_cycle_successor(&target_block_id).expect(&format!(
+                    "expected to find a successor to the cycle in {} \n {} \n {}",
+                    target_block_id,
+                    ir_program,
+                    ir_program
+                        .control_flow_graphs
+                        .get(&FunctionId(crate::parser::TSIdentifier("main".to_string())))
+                        .unwrap()
+                ));
                 offset = 0;
                 AbstractAddress {
-                    block_id: *target_block_id,
+                    block_id: target_block_id,
                     inststruction: 0,
                 }
             } else {

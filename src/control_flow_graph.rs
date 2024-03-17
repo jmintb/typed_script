@@ -1,9 +1,12 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::Debug,
     fmt::Display,
 };
 
 use crate::ir::BlockId;
+use anyhow::{bail, Result};
+use tracing::debug;
 
 #[derive(Clone, Debug)]
 pub struct ControlFlowGraph<T> {
@@ -14,7 +17,7 @@ pub struct ControlFlowGraph<T> {
 
 impl<T> ControlFlowGraph<T>
 where
-    T: Copy + Ord + Eq + PartialEq + PartialOrd,
+    T: Copy + Ord + Eq + PartialEq + PartialOrd + Display + Debug,
 {
     pub fn new(entry_point: T) -> Self {
         Self {
@@ -61,12 +64,99 @@ where
         true
     }
 
-    pub fn predecessors<'a>(&'a self, id: &'a T) -> impl Iterator<Item = T> + 'a {
+    pub fn direct_predecessors<'a>(&'a self, id: &'a T) -> impl Iterator<Item = T> + 'a {
         self.graph
             .clone()
             .into_iter()
             .filter(|(_, children)| children.contains(id))
             .map(|(predecessor_id, _)| predecessor_id)
+    }
+
+    pub fn predecessors<'a>(&'a self, id: &'a T) -> Result<Vec<Vec<T>>> {
+        debug!("finding predecessors for {id}");
+        if !self.contains(id) {
+            bail!(format!("{} is not in this control flow graph", id));
+        }
+
+        let direct_predecessors = |ids: Vec<T>| {
+            ids.iter()
+                .map(|id| {
+                    self.graph
+                        .clone()
+                        .into_iter()
+                        .filter(|(parent, children)| children.contains(id))
+                        .map(|(parent, _)| parent)
+                })
+                .flatten()
+                .collect()
+        };
+
+        let mut queue: Vec<Vec<T>> = vec![direct_predecessors(vec![*id])];
+        let mut predecessors = Vec::new();
+        let mut seen_before = BTreeSet::new();
+
+        while let Some(parents) = queue.pop() {
+            debug!("parents {:?}", parents);
+            let new_parents: Vec<T> = parents
+                .clone()
+                .into_iter()
+                .filter(|parent| seen_before.insert(parent.clone()))
+                .collect();
+
+            if !new_parents.is_empty() {
+                predecessors.push(new_parents.clone());
+            }
+
+            let direct_predecessors: Vec<T> = direct_predecessors(new_parents)
+                .into_iter()
+                .filter(|parent| !seen_before.contains(parent))
+                .collect();
+
+            if !direct_predecessors.is_empty() {
+                queue.push(direct_predecessors);
+            }
+        }
+
+        Ok(predecessors)
+    }
+
+    pub fn successors<'a>(&'a self, id: &'a T) -> Result<Vec<Vec<T>>> {
+        if !self.contains(id) {
+            bail!(format!("{} is not in this control flow graph", id));
+        }
+
+        let starting_point = self.graph.get(id).cloned().unwrap_or(Vec::new());
+        let mut queue = vec![starting_point];
+        let mut successors = Vec::new();
+        let mut seen_before = BTreeSet::new();
+
+        let direct_children = |ids: Vec<T>| {
+            ids.into_iter()
+                .filter_map(|id| self.graph.get(&id).cloned())
+                .flatten()
+        };
+
+        while let Some(children) = queue.pop() {
+            let new_children: Vec<T> = children
+                .clone()
+                .into_iter()
+                .filter(|child| seen_before.insert(child.clone()))
+                .collect();
+
+            if !new_children.is_empty() {
+                successors.push(new_children.clone());
+            }
+
+            let direct_successors: Vec<T> = direct_children(new_children.clone())
+                .filter(|parent| !seen_before.contains(parent))
+                .collect();
+
+            if !direct_successors.is_empty() {
+                queue.push(direct_successors.clone());
+            }
+        }
+
+        Ok(successors)
     }
 
     pub fn is_in_cycle(&self, id: &T) -> bool {
@@ -95,14 +185,28 @@ where
         false
     }
 
-    pub fn find_cycle_successor(&self, block_id: &T) -> Option<&T> {
-        let predecessors = self.predecessors(block_id);
+    pub fn find_cycle_successor(&self, block_id: &T) -> Option<T> {
+        debug!("finding cycle successor for {block_id}");
 
-        for predecessor in predecessors {
-            if predecessor != *block_id && self.dominates(predecessor, *block_id) {
-                return self.graph.get(&predecessor).unwrap().iter().find(|child| {
-                    *child != block_id && !self.predecessors(block_id).any(|pred| **child == pred)
-                });
+        let predecessors: Vec<T> = self
+            .predecessors(block_id)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect();
+
+        debug!("predecessors: {:?}", predecessors);
+
+        for predecessor in predecessors.clone() {
+            if predecessor != *block_id && self.dominates(predecessor.clone(), *block_id) {
+                debug!("dominating predecessor {predecessor}");
+                return self
+                    .graph
+                    .get(&predecessor)
+                    .unwrap()
+                    .into_iter()
+                    .find(|child| !predecessors.contains(child))
+                    .cloned();
             }
         }
 

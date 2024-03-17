@@ -3,21 +3,26 @@ source: src/ir.rs
 expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
-fn consume:
-block_9
-0: = 10_message
-
-block_11
-
 fn main:
 block_6
 
 block_7
-0: = 8_message
-1: move(8_message)
-2: @consume( owned 8_message,)
-3: move(8_message)
-4: @consume( owned 8_message,)
+0: = 8_test
+
+block_9
+0: move(8_test)
+1: @move_val( owned 8_test,)
+
+block_10
+0: borrow(8_test)
+1: @print( let 8_test,)
+2: borrow_end(8_test)
+
+fn move_val:
+block_11
+0: = 12_input
+
+block_13
 
 fn print:
 block_1

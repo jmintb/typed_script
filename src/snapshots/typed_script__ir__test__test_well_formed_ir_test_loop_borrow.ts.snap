@@ -4,16 +4,35 @@ expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
 fn borrow_val:
-BLOCK: 130: = 14_v
-BLOCK: 15fn main:
-BLOCK: 6BLOCK: 70: = 8_val
-BLOCK: 9BLOCK: 10BLOCK: 12BLOCK: 110: borrow(8_val)
+block_13
+0: = 14_v
+
+block_15
+
+fn main:
+block_6
+
+block_7
+0: = 8_val
+
+block_9
+
+block_10
+
+block_12
+
+block_11
+0: borrow(8_val)
 1: @borrow_val( let 8_val,)
 2: borrow_end(8_val)
+
 fn print:
-BLOCK: 10: = 2_val
+block_1
+0: = 2_val
 1: = 3_len
-BLOCK: 40: @fdopen()
+
+block_4
+0: @fdopen()
 1: = 5_stdoutptr
 2: borrow(2_val)
 3: borrow(3_len)
