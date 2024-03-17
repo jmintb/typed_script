@@ -44,7 +44,7 @@ pub struct BorrowChecker {
 
 pub fn ge_variable_state(lhs: VariableState, rhs: VariableState) -> bool {
     match lhs {
-        rhs => true,
+        _rhs => true,
         VariableState::Ready => false, // always false because rhs=Ready is caught in first match case.
         VariableState::Borrowed => match rhs {
            VariableState::Ready | VariableState::Borrowed  => true,

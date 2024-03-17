@@ -84,7 +84,7 @@ where
                     self.graph
                         .clone()
                         .into_iter()
-                        .filter(|(parent, children)| children.contains(id))
+                        .filter(|(_parent, children)| children.contains(id))
                         .map(|(parent, _)| parent)
                 })
                 .flatten()
