@@ -2,10 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{bail, Result};
 
-
-use crate::{
-    ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID},
-};
+use crate::ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID};
 
 use super::ir_transformer::IrInterpreter;
 
@@ -122,7 +119,7 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, 
                             false,
                         )?;
                     }
-                    Instruction::Move(id) => {
+                    Instruction::Move(id) | Instruction::Drop(id) => {
                         variable_livness.insert_variable_end(
                             *id,
                             AbstractAddress {

@@ -1,0 +1,158 @@
+---
+source: src/analysis/liveness_analysis.rs
+expression: "format!(\"{:#?}\", analysis_result)"
+---
+Ok(
+    {
+        FunctionId(
+            TSIdentifier(
+                "borrow_val",
+            ),
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    17,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            16,
+                        ),
+                        inststruction: 0,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            16,
+                        ),
+                        inststruction: 0,
+                    },
+                ),
+            },
+            variable_moved: {},
+            loans: {},
+        },
+        FunctionId(
+            TSIdentifier(
+                "main",
+            ),
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    8,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            7,
+                        ),
+                        inststruction: 0,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            12,
+                        ),
+                        inststruction: 2,
+                    },
+                ),
+            },
+            variable_moved: {
+                SSAID(
+                    8,
+                ): false,
+            },
+            loans: {},
+        },
+        FunctionId(
+            TSIdentifier(
+                "move_val",
+            ),
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    14,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            13,
+                        ),
+                        inststruction: 0,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            13,
+                        ),
+                        inststruction: 0,
+                    },
+                ),
+            },
+            variable_moved: {},
+            loans: {},
+        },
+        FunctionId(
+            TSIdentifier(
+                "print",
+            ),
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    2,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            1,
+                        ),
+                        inststruction: 0,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            4,
+                        ),
+                        inststruction: 6,
+                    },
+                ),
+                SSAID(
+                    3,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            1,
+                        ),
+                        inststruction: 1,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            4,
+                        ),
+                        inststruction: 7,
+                    },
+                ),
+                SSAID(
+                    5,
+                ): AbstractAddressRange(
+                    AbstractAddress {
+                        block_id: BlockId(
+                            4,
+                        ),
+                        inststruction: 1,
+                    },
+                    AbstractAddress {
+                        block_id: BlockId(
+                            4,
+                        ),
+                        inststruction: 8,
+                    },
+                ),
+            },
+            variable_moved: {
+                SSAID(
+                    2,
+                ): false,
+                SSAID(
+                    3,
+                ): false,
+                SSAID(
+                    5,
+                ): false,
+            },
+            loans: {},
+        },
+    },
+)

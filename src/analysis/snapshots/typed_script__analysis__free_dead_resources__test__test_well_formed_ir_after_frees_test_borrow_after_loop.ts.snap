@@ -1,0 +1,58 @@
+---
+source: src/analysis/free_dead_resources.rs
+expression: "format!(\"{}\", ir_program)"
+---
+IR:
+fn borrow_val:
+block_16
+0: = 17_test
+1: drop(17_test)
+
+block_18
+
+fn main:
+block_6
+
+block_7
+
+block_8
+
+block_9
+
+block_12
+0: borrow(11_test)
+1: @borrow_val( let 11_test,)
+2: borrow_end(11_test)
+3: drop(11_test)
+
+block_10
+0: = 11_test
+1: borrow(11_test)
+2: @borrow_val( let 11_test,)
+3: borrow_end(11_test)
+
+fn move_val:
+block_13
+0: = 14_test
+1: drop(14_test)
+
+block_15
+
+fn print:
+block_1
+0: = 2_val
+1: = 3_len
+
+block_4
+0: @fdopen()
+1: = 5_stdoutptr
+2: borrow(2_val)
+3: borrow(3_len)
+4: borrow(5_stdoutptr)
+5: @fwrite( let 2_val, let 3_len, let 5_stdoutptr,)
+6: borrow_end(2_val)
+7: drop(2_val)
+8: borrow_end(3_len)
+9: drop(3_len)
+10: borrow_end(5_stdoutptr)
+11: drop(5_stdoutptr)
