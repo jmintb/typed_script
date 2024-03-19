@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::control_flow_graph;
+
 use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::parser::AccessModes;
 
@@ -91,7 +91,7 @@ impl Iterator for IrBlockIterator {
             for predecessor in self.control_flow_graph.direct_predecessors(&next.clone()) {
                 if !self.visited_blocks.contains(&predecessor) {
                     if self.control_flow_graph.dominates(next, predecessor) {
-                        let mut predecessors_preds = self
+                        let predecessors_preds = self
                             .control_flow_graph
                             .predecessors(&predecessor)
                             .unwrap()

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use melior::dialect::cf::assert;
-use tracing::{debug, field::debug};
+
+use tracing::{debug};
 
 use crate::{
     analysis::liveness_analysis::AbstractAddress,
@@ -91,10 +91,10 @@ pub fn insert_free(
 #[cfg(test)]
 mod test {
     use crate::{
-        analysis::liveness_analysis::calculate_livenss, cli::load_program, ir::IrGenerator,
+        cli::load_program, ir::IrGenerator,
     };
 
-    use super::*;
+    
     use anyhow::{bail, Result};
     use rstest::rstest;
     use std::path::PathBuf;

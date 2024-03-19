@@ -2,12 +2,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::Debug,
     fmt::Display,
-    ops::ControlFlow,
 };
 
 use crate::ir::BlockId;
-use anyhow::{anyhow, bail, Error, Result};
-use mlir_sys::MlirDiagnosticSeverity_MlirDiagnosticWarning;
+use anyhow::{anyhow, bail, Result};
+
 use tracing::debug;
 
 #[derive(Clone, Debug)]

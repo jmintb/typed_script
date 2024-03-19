@@ -1,10 +1,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env,
 };
 
-use anyhow::{bail, ensure, Context, Result};
-use melior::ir::block;
+use anyhow::{Result};
+
 use tracing::debug;
 
 use crate::{
@@ -84,7 +83,7 @@ impl VariableLiveness {
         moved: bool,
         control_flow_graph: &ControlFlowGraph<BlockId>,
     ) -> Result<()> {
-        let variables = self.variables.clone();
+        let _variables = self.variables.clone();
         let Some(entry) = self.variables.get_mut(&id) else {
             self.variables
                 .insert(id, AbstractAddressRange::new(address));
@@ -94,7 +93,7 @@ impl VariableLiveness {
             return Ok(());
         };
 
-        if let Some(end_in_current_block) = entry
+        if let Some(_end_in_current_block) = entry
             .end_addresses
             .iter()
             .position(|end_address| end_address.block_id == address.block_id)
