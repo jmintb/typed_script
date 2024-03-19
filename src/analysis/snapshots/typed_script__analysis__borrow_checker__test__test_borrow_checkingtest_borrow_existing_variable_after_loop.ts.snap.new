@@ -1,7 +1,8 @@
 ---
 source: src/analysis/borrow_checker.rs
+assertion_line: 276
 expression: "format!(\"{:#?}\", analysis_result)"
 ---
-Ok(
-    (),
+Err(
+    "failed to find parents",
 )

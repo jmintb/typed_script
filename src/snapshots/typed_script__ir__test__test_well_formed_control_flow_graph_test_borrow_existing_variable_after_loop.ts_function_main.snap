@@ -5,6 +5,9 @@ expression: "format!(\"{}\", control_flow_graph)"
 entry point: block_6
 block_6 -> [block_7, ]
 block_7 -> [block_9, ]
-block_9 -> [block_10, block_12, ]
+block_9 -> [block_10, block_15, ]
 block_10 -> [block_11, ]
-block_11 -> [block_9, ]
+block_11 -> [block_12, block_14, ]
+block_12 -> [block_13, ]
+block_13 -> [block_9, ]
+block_14 -> [block_13, ]
