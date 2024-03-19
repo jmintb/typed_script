@@ -86,11 +86,12 @@ impl Iterator for IrBlockIterator {
 
         debug!("next: {}, queue {:?}", next.0, self.queue);
 
+        // TODO: cycles  seem to be handled , but we need a rigorous test and to avoid the extra visits currently happening.
         if !self.visited_blocks.contains(&next) {
             for predecessor in self.control_flow_graph.direct_predecessors(&next.clone()) {
                 if !self.visited_blocks.contains(&predecessor) {
                     if self.control_flow_graph.dominates(next, predecessor) {
-                        let predecessors_preds = self
+                        let mut predecessors_preds = self
                             .control_flow_graph
                             .predecessors(&predecessor)
                             .unwrap()
@@ -99,8 +100,8 @@ impl Iterator for IrBlockIterator {
                             .collect::<Vec<Self::Item>>();
 
                         debug!(
-                            "pred preds: {} \n  {} {}",
-                            self.control_flow_graph, predecessor, next
+                            "pred preds: {:?} \n  {} {}",
+                            predecessors_preds, predecessor, next
                         );
 
                         let Some(loop_start_pos) =
@@ -112,6 +113,7 @@ impl Iterator for IrBlockIterator {
                         let mut loop_blocks = predecessors_preds;
                         loop_blocks.split_off(loop_start_pos);
                         loop_blocks.reverse();
+                        loop_blocks.push(predecessor);
 
                         debug!("cycle blocks: {:?}", loop_blocks);
                         assert!(!loop_blocks.contains(&next));
@@ -124,8 +126,6 @@ impl Iterator for IrBlockIterator {
                             .flatten()
                             .collect();
 
-                        debug!("loop successor blocks: {:?}", loop_successors);
-
                         let cycle_completetion_position = loop_successors
                             .iter()
                             .position(|pred| *pred == next)
@@ -133,9 +133,10 @@ impl Iterator for IrBlockIterator {
 
                         loop_successors.split_off(cycle_completetion_position);
 
-                        loop_successors
-                            .into_iter()
-                            .for_each(|block| loop_blocks.push(block));
+                        // loop_successors
+                        //     .clone()
+                        //     .into_iter()
+                        //     .for_each(|block| loop_blocks.push(block));
 
                         self.visited_blocks.insert(next);
                         self.visit_again.insert(next);
@@ -148,18 +149,27 @@ impl Iterator for IrBlockIterator {
                         }
 
                         let (loop_start, loop_blocks) = loop_blocks.split_first().unwrap();
+                        debug!(
+                            "loop successor blocks: {:?} {:?} {} {}",
+                            loop_successors, loop_blocks, loop_start, predecessor
+                        );
+                        let mut loop_blocks = loop_blocks.to_vec().clone();
 
-                        for loop_predecessor in loop_blocks {
-                            self.queue.push_front(*loop_predecessor);
-                            self.visit_again.insert(*loop_predecessor);
+                        loop_blocks.reverse();
+
+                        self.queue.push_front(*loop_start);
+                        for loop_predecessor in loop_blocks.clone() {
+                            self.queue.push_front(loop_predecessor);
+                            self.visit_again.insert(loop_predecessor);
                         }
 
                         self.queue.push_front(next);
                         self.queue.push_front(*loop_start);
-
+                        self.visit_again.insert(*loop_start);
                         for loop_predecessor in loop_blocks {
-                            self.queue.push_front(*loop_predecessor);
+                            self.queue.push_front(loop_predecessor);
                         }
+                        debug!("skipping {next} {loop_start}");
 
                         // TODO: remove predecssor from grandchildren, as we end up visiting it again.
                         // This logic tricky, as we need to ensure we revisit the dominated block after visting the dominator.
@@ -274,9 +284,9 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
                 self.transform_block(block, transform_fn, &mut ctx)?;
             }
         } else {
-            for block in self.control_flow_graph.clone() {
-                debug!("block order {}", block);
-            }
+            // for block in self.control_flow_graph.clone() {
+            //     debug!("block order {}", block);
+            // }
             for block in self.control_flow_graph.clone() {
                 self.transform_block(block, transform_fn, &mut ctx)?;
             }
