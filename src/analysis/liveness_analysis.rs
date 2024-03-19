@@ -1,30 +1,48 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env,
+};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Context, Result};
+use melior::ir::block;
+use tracing::debug;
 
-use crate::ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID};
+use crate::{
+    control_flow_graph::ControlFlowGraph,
+    ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID},
+};
 
 use super::ir_transformer::IrInterpreter;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct AbstractAddress {
     pub block_id: BlockId,
     pub inststruction: usize,
 }
 
 #[derive(Clone, Debug)]
-pub struct AbstractAddressRange(pub AbstractAddress, pub AbstractAddress);
+pub struct AbstractAddressRange {
+    pub start_address: AbstractAddress,
+    pub end_addresses: Vec<AbstractAddress>,
+}
 
 impl AbstractAddressRange {
-    fn set_end(&mut self, address: AbstractAddress) {
-        self.1 = address;
+    fn insert_end(&mut self, address: AbstractAddress) {
+        self.end_addresses.push(address);
+    }
+
+    fn new(start_address: AbstractAddress) -> Self {
+        Self {
+            start_address,
+            end_addresses: vec![start_address],
+        }
     }
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct VariableLiveness {
     pub variables: BTreeMap<SSAID, AbstractAddressRange>,
-    pub variable_moved: BTreeMap<SSAID, bool>,
+    pub variable_moved: BTreeMap<SSAID, BTreeSet<BlockId>>,
     pub loans: BTreeMap<SSAID, Vec<SSAID>>,
 }
 
@@ -43,9 +61,20 @@ impl VariableLiveness {
         address: AbstractAddress,
     ) -> Result<()> {
         self.variables
-            .insert(variable_id, AbstractAddressRange(address.clone(), address));
+            .entry(variable_id)
+            .and_modify(|entry| entry.start_address = address)
+            .or_insert(AbstractAddressRange::new(address));
 
         Ok(())
+    }
+
+    fn insert_move(&mut self, variable_id: SSAID, block_id: BlockId) {
+        self.variable_moved
+            .entry(variable_id)
+            .and_modify(|drop_ids| {
+                drop_ids.insert(block_id);
+            })
+            .or_insert(BTreeSet::from_iter(vec![block_id].into_iter()));
     }
 
     fn insert_variable_end(
@@ -53,42 +82,78 @@ impl VariableLiveness {
         id: SSAID,
         address: AbstractAddress,
         moved: bool,
+        control_flow_graph: &ControlFlowGraph<BlockId>,
     ) -> Result<()> {
+        let variables = self.variables.clone();
         let Some(entry) = self.variables.get_mut(&id) else {
-            bail!(format!(
-                "missing entry for {id:?}, can't insert end of liveness"
-            ));
+            self.variables
+                .insert(id, AbstractAddressRange::new(address));
+            if moved {
+                self.insert_move(id, address.block_id);
+            }
+            return Ok(());
         };
 
-        entry.set_end(address);
-        self.variable_moved.insert(id, moved);
+        if let Some(end_in_current_block) = entry
+            .end_addresses
+            .iter()
+            .position(|end_address| end_address.block_id == address.block_id)
+        {
+            return Ok(());
+        } else {
+            let entry_clone = entry.clone();
+            if entry_clone
+                .end_addresses
+                .iter()
+                .enumerate()
+                .any(|(_, end_address)| {
+                    control_flow_graph
+                        .cycle_aware_successors(&address.block_id)
+                        .unwrap()
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<BlockId>>()
+                        .contains(&end_address.block_id)
+                })
+            {
+                return Ok(());
+            }
+            entry.end_addresses.push(address);
+            if moved {
+                self.insert_move(id, address.block_id);
+            }
+        }
 
         Ok(())
     }
 
-    pub fn variabled_moved(&self, id: &SSAID) -> bool {
-        *self.variable_moved.get(id).unwrap_or(&false)
-    }
+    // TODO: next use reverse traverself to calcuate liveness. If two blocks diverge keep end addresses.
 
-    fn insert_load(&mut self, loanee: SSAID, loaner: SSAID) -> Result<()> {
-        self.loans
-            .entry(loaner)
-            .and_modify(|loans| {
-                loans.push(loanee);
-            })
-            .or_insert(vec![loanee]);
-
-        Ok(())
+    pub fn variabled_moved(&self, id: &SSAID, block_id: BlockId) -> bool {
+        self.variable_moved
+            .get(id)
+            .map(|block_ids| block_ids.contains(&block_id))
+            .unwrap_or(false)
     }
 }
 
 pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, VariableLiveness>> {
+    debug!("calculating livenss for program: {ir_program}");
+
     let mut liveness_for_fn = BTreeMap::new();
-    for function_id in ir_program.control_flow_graphs.keys() {
-        let interpreter = IrInterpreter::<VariableLiveness>::new(
+    for (function_id, control_flow_graph) in ir_program.control_flow_graphs.clone() {
+        debug!(
+            "control flow graph: {}: {}\n predecessors: {:#?}",
+            function_id.0 .0,
+            control_flow_graph,
+            control_flow_graph
+                .cycle_aware_successors(&control_flow_graph.entry_point)
+                .unwrap()
+        );
+        let interpreter = IrInterpreter::<VariableLiveness>::new_reversed(
             ir_program
                 .control_flow_graphs
-                .get(function_id)
+                .get(&function_id)
                 .cloned()
                 .unwrap(),
             ir_program.clone(),
@@ -96,9 +161,13 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, 
 
         let livenss = interpreter.transform(
             &mut |instruction_counter, ctx, block_id, variable_livness| {
+                debug!(
+                    "liveness for {} at instruction {}",
+                    block_id, instruction_counter
+                );
                 let block = ctx.scope.blocks.get(block_id).unwrap();
                 let Some(instruction) = block.instructions.get(instruction_counter) else {
-                    return Ok(0);
+                    return Ok(block.instructions.len());
                 };
 
                 match instruction {
@@ -117,6 +186,7 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, 
                                 inststruction: instruction_counter,
                             },
                             false,
+                            &ctx.scope.control_flow_graph,
                         )?;
                     }
                     Instruction::Move(id) | Instruction::Drop(id) => {
@@ -127,12 +197,17 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, 
                                 inststruction: instruction_counter,
                             },
                             true,
+                            &ctx.scope.control_flow_graph,
                         )?;
                     }
                     _ => (),
                 }
 
-                Ok(instruction_counter + 1)
+                Ok(if instruction_counter == 0 {
+                    block.instructions.len()
+                } else {
+                    instruction_counter - 1
+                })
             },
         )?;
 

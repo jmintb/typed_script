@@ -2,10 +2,12 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::Debug,
     fmt::Display,
+    ops::ControlFlow,
 };
 
 use crate::ir::BlockId;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Error, Result};
+use mlir_sys::MlirDiagnosticSeverity_MlirDiagnosticWarning;
 use tracing::debug;
 
 #[derive(Clone, Debug)]
@@ -36,7 +38,7 @@ where
             .or_insert(vec![child]);
     }
 
-    pub fn dominates(&self, node_a: T, node_b: T) -> bool {
+    pub fn dominates_2(&self, node_a: T, node_b: T) -> bool {
         // TODO: We don't need a vecdeque.
         let mut child_queue = VecDeque::from(self.graph.get(&node_b).cloned().unwrap_or_default());
         let mut visited_nodes = BTreeSet::new();
@@ -44,6 +46,7 @@ where
         while let Some(child) = child_queue.pop_front() {
             // Found a loop that is not dominated.
             if visited_nodes.contains(&child) {
+                debug!("{} does not dominate {}", node_a, node_b);
                 return false;
             }
             visited_nodes.insert(child);
@@ -55,12 +58,50 @@ where
                 }
             } else if child != node_a && grand_children.is_empty() {
                 // Found a dead end
+                debug!("{} does not dominate {}", node_a, node_b);
                 return false;
             }
 
             // At this point we have found our way back to the parent and simply clear it from the queue.
         }
 
+        debug!("{} does dominate {}", node_a, node_b);
+        true
+    }
+
+    pub fn dominates(&self, node_a: T, node_b: T) -> bool {
+        let mut visisted_nodes = BTreeSet::new();
+        let mut paths: VecDeque<T> = self.direct_predecessors(&node_b).collect();
+        if paths.is_empty() {
+            return false;
+        }
+
+        while let Some(path) = paths.pop_back() {
+            debug!("paths for {} {} {:?} {}", node_a, node_b, paths, path);
+            if path == node_a {
+                continue;
+            }
+            if visisted_nodes.contains(&path) {
+                debug!("{} does not dominate {}", node_a, node_b);
+                return false;
+            }
+
+            visisted_nodes.insert(path);
+
+            let direct_predecssors: Vec<T> = self.direct_predecessors(&path).collect();
+            if !direct_predecssors.is_empty() {
+                direct_predecssors.into_iter().for_each(|path| {
+                    if !paths.contains(&path) {
+                        paths.push_front(path)
+                    }
+                });
+            } else {
+                debug!("{} does not dominate {}", node_a, node_b);
+                return false;
+            }
+        }
+
+        debug!("{} does dominate {}", node_a, node_b);
         true
     }
 
@@ -70,6 +111,37 @@ where
             .into_iter()
             .filter(|(_, children)| children.contains(id))
             .map(|(predecessor_id, _)| predecessor_id)
+    }
+
+    pub fn is_direct_predecessor(&self, child: &T, potential_parent: &T) -> bool {
+        assert!(self.contains(child));
+        assert!(self.contains(potential_parent));
+        debug!(
+            "calcuating if {} is a direct predecessors of {}",
+            potential_parent, child
+        );
+
+        self.graph
+            .get(potential_parent)
+            .map(|children| children.contains(child))
+            .unwrap_or(false)
+            || (self.is_in_cycle(potential_parent)
+                && &self.find_cycle_successor(potential_parent).unwrap() == child
+                && self.distance(potential_parent, child).unwrap() == 2)
+    }
+
+    pub fn distance(&self, parent: &T, child: &T) -> Result<usize> {
+        let distance = self
+            .successors(parent)?
+            .iter()
+            .inspect(|successors| debug!("found successors for {} {:?}", parent, successors))
+            .position(|successor| successor.iter().any(|successor| successor == child))
+            .map(|position| position + 1)
+            .ok_or(anyhow!("child was not a successor".to_string()));
+
+        debug!("distance between {parent} and {child} is {:?}", distance);
+
+        distance
     }
 
     pub fn predecessors<'a>(&'a self, id: &'a T) -> Result<Vec<Vec<T>>> {
@@ -117,6 +189,8 @@ where
             }
         }
 
+        debug!("predecessors for {} {:?}", id, predecessors);
+
         Ok(predecessors)
     }
 
@@ -159,12 +233,131 @@ where
         Ok(successors)
     }
 
+    pub fn cycle_aware_successors<'a>(&'a self, id: &'a T) -> Result<Vec<Vec<T>>> {
+        if !self.contains(id) {
+            bail!(format!("{} is not in this control flow graph", id));
+        }
+
+        let starting_point = self.graph.get(id).cloned().unwrap_or(Vec::new());
+        let mut queue = VecDeque::from(vec![starting_point]);
+        let mut successors = Vec::new();
+        let mut seen_before = BTreeSet::new();
+
+        let direct_children = |ids: Vec<T>| {
+            ids.into_iter()
+                .filter_map(|id| self.graph.get(&id).cloned())
+                .flatten()
+        };
+
+        while let Some(children) = queue.pop_front() {
+            let new_children: Vec<T> = BTreeSet::from_iter(children.clone().into_iter())
+                .into_iter()
+                .filter(|child| !seen_before.contains(child))
+                .collect();
+
+            // let cycle_successors: Vec<T> = new_children
+            //     .iter()
+            //     .filter_map(|child| {
+            //         self.find_cycle_successor(child)
+            //         // .map(|cycle_successor| (cycle_successor, child))
+            //     })
+            //     .filter(|cycle_successor| cycle_found.insert(*cycle_successor))
+            //     .collect();
+
+            // let new_children: Vec<T> = new_children
+            //     .into_iter()
+            //     .filter(|child| !cycle_successors.contains(child))
+            //     .collect();
+            debug!(
+                "finding cycle aware successors: {:?} {:?} {:?}",
+                new_children, queue, successors
+            );
+
+            // if !cycle_successors.is_empty() {
+            //     assert!(cycle_successors.len() == 1);
+
+            //     queue.push_front(cycle_successors);
+            //     queue.push_front(children);
+            //     continue;
+            // }
+
+            if !new_children.is_empty() {
+                new_children.iter().for_each(|child| {
+                    seen_before.insert(child.clone());
+                });
+                successors.push(new_children.clone());
+            }
+
+            let direct_successors: Vec<T> = direct_children(new_children.clone())
+                .filter(|parent| !seen_before.contains(parent))
+                .collect();
+
+            for direct_successor in direct_successors.clone() {
+                debug!(
+                    "children is in  cycle: {:?} {:?} {:?}",
+                    self.is_in_cycle(&direct_successor),
+                    self.find_cycle_successor(&direct_successor),
+                    direct_successor
+                );
+            }
+
+            if direct_successors.iter().any(|child| {
+                self.is_in_cycle(child)
+                    && self
+                        .find_cycle_entry(child)
+                        .map(|entry| entry == new_children[0])
+                        .unwrap_or(false)
+            }) {
+                assert!(new_children.len() == 1);
+                let mut children_in_cycles: Vec<T> = direct_successors
+                    .clone()
+                    .into_iter()
+                    .filter(|child| {
+                        self.is_in_cycle(child) && self.dominates(new_children[0], *child)
+                    })
+                    .collect();
+                debug!(
+                    "children in cycle: {:?} {:?}",
+                    children_in_cycles, direct_successors
+                );
+                // assert!(children_in_cycles.len() == 1);
+                queue.push_back(children_in_cycles.clone());
+
+                while !children_in_cycles.contains(&new_children[0]) {
+                    children_in_cycles = children_in_cycles
+                        .iter()
+                        .map(|child| self.graph.get(child).cloned().unwrap_or(Vec::new()))
+                        .flatten()
+                        .collect();
+
+                    queue.push_back(children_in_cycles.clone());
+                }
+
+                // TODO: What happens if we somehow break out of the cycle here?
+                // we are assuming that we can "consume" ever block "inside" the cycle.
+
+                for direct_successor in direct_successors {
+                    if !self.is_in_cycle(&direct_successor) {
+                        queue.push_back(vec![direct_successor]);
+                    }
+                }
+            } else {
+                if !direct_successors.is_empty() {
+                    queue.push_back(direct_successors.clone());
+                }
+            }
+        }
+
+        Ok(successors)
+    }
+
     pub fn is_in_cycle(&self, id: &T) -> bool {
         let mut child_queue = VecDeque::from(self.graph.get(id).cloned().unwrap_or_default());
         let mut visited_nodes = BTreeSet::new();
 
         while let Some(child) = child_queue.pop_front() {
             if &child == id {
+                debug!("{} is in cycle", id);
                 return true;
             }
 
@@ -181,6 +374,8 @@ where
 
             // At this point we have found our way back to the parent and simply clear it from the queue.
         }
+
+        debug!("{} is not in cycle", id);
 
         false
     }
@@ -200,15 +395,38 @@ where
         for predecessor in predecessors.clone() {
             if predecessor != *block_id && self.dominates(predecessor.clone(), *block_id) {
                 debug!("dominating predecessor {predecessor}");
-                return self
+                if let Some(successor) = self
                     .graph
                     .get(&predecessor)
                     .unwrap()
                     .into_iter()
                     .find(|child| !predecessors.contains(child))
-                    .cloned();
+                    .cloned()
+                {
+                    return Some(successor);
+                }
             }
         }
+
+        None
+    }
+
+    pub fn find_cycle_entry(&self, block_id: &T) -> Option<T> {
+        let predecessors: Vec<T> = self
+            .predecessors(block_id)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect();
+
+        for predecessor in predecessors.clone() {
+            if predecessor != *block_id && self.dominates(predecessor.clone(), *block_id) {
+                debug!("found cycle entry for {} {}", block_id, predecessor);
+                return Some(predecessor);
+            }
+        }
+
+        debug!("failed to find cycle entry for {}", block_id);
 
         None
     }

@@ -92,7 +92,7 @@ impl BorrowChecker {
                 bc_ctx.block_states.get_mut(block_id).unwrap()
 
             } else {
-                debug!("generating new variable based on parents variable states {block_id}");
+                debug!("generating new variable based on parents variable states {block_id} {:?}", bc_ctx.block_states);
                 let parents ={
                     let mut parents: Vec<BlockId> = ctx.scope.control_flow_graph.direct_predecessors(block_id).collect();
                     while parents.is_empty() || !parents.iter().all(|parent| bc_ctx.block_states.contains_key(parent)) {
@@ -225,6 +225,7 @@ impl BorrowChecker {
                     , block_id.0
                         )),
                     },
+            _ => ()
                 }
                 
                 Ok(instruction_counter + 1)
@@ -245,7 +246,7 @@ impl BorrowChecker {
 
 #[cfg(test)]
 mod test {
-    use crate::cli::load_program;
+    use crate::{cli::load_program, ir::FunctionId};
 
     use super::*;
     use crate::{ir::IrGenerator, parser::parse, typed_ast::type_ast};
@@ -264,11 +265,13 @@ mod test {
         let ir_generator = IrGenerator::new();
         let ir_program = ir_generator.convert_to_ssa(typed_program);
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;
-        let ir_program = crate::analysis::free_dead_resources::insert_free(liveness, ir_program);
-        debug!("transformed IR program: {}", ir_program);
-        debug!("CFG: {:#?}", ir_program.control_flow_graphs);
+        let ir_program = crate::analysis::free_dead_resources::insert_free(liveness.clone(), ir_program);
+
+        // debug!("CFG: {:#?}", ir_program.control_flow_graphs);
         let mut borrow_checker = BorrowChecker::new();
         let analysis_result = borrow_checker.check(&ir_program);
+        debug!("transformed IR program: {} \n liveness {:#?}", ir_program, liveness);
+        debug!("cfg: {} ", ir_program.control_flow_graphs.get(&FunctionId(crate::parser::TSIdentifier("main".to_string()))).unwrap());
 
         insta::assert_snapshot!(
             format!(

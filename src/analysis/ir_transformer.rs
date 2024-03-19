@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-
-
+use crate::control_flow_graph;
 use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::parser::AccessModes;
 
@@ -25,6 +24,33 @@ pub struct IrInterpreter<Ctx> {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     context: Ctx,
+    reverse_traversel: bool,
+}
+
+pub struct ReverseCycleAwareBlockIterator {
+    qeueue: Vec<Vec<BlockId>>,
+}
+
+impl ReverseCycleAwareBlockIterator {
+    fn new(control_flow_graph: ControlFlowGraph<BlockId>) -> Self {
+        Self {
+            qeueue: {
+                let mut successors = control_flow_graph
+                    .cycle_aware_successors(&control_flow_graph.entry_point)
+                    .unwrap();
+                successors.insert(0, vec![control_flow_graph.entry_point]);
+                successors
+            },
+        }
+    }
+}
+
+impl Iterator for ReverseCycleAwareBlockIterator {
+    type Item = Vec<BlockId>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.qeueue.pop()
+    }
 }
 
 pub struct IrBlockIterator {
@@ -181,6 +207,12 @@ impl IntoIterator for ControlFlowGraph<BlockId> {
     }
 }
 
+impl ControlFlowGraph<BlockId> {
+    fn into_reverse_cycle_aware_iterator(self) -> ReverseCycleAwareBlockIterator {
+        ReverseCycleAwareBlockIterator::new(self)
+    }
+}
+
 pub struct TransformContext {
     pub scope: IrScope,
     pub ssa_variables: BTreeMap<SSAID, Variable>,
@@ -204,6 +236,23 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             access_modes: program.access_modes,
             block_states: BTreeMap::new(),
             context: Ctx::default(),
+            reverse_traversel: false,
+        }
+    }
+
+    pub fn new_reversed(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
+        let scope = IrScope {
+            blocks: program.blocks,
+            control_flow_graph: control_flow_graph.clone(),
+        };
+        Self {
+            control_flow_graph,
+            scope,
+            ssa_variables: program.ssa_variables,
+            access_modes: program.access_modes,
+            block_states: BTreeMap::new(),
+            context: Ctx::default(),
+            reverse_traversel: true,
         }
     }
 
@@ -215,9 +264,24 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             variable_states: BTreeMap::new(),
         };
 
-        for block in self.control_flow_graph.clone() {
-            self.transform_block(block, transform_fn, &mut ctx)?;
+        if self.reverse_traversel {
+            for block in self
+                .control_flow_graph
+                .clone()
+                .into_reverse_cycle_aware_iterator()
+                .flatten()
+            {
+                self.transform_block(block, transform_fn, &mut ctx)?;
+            }
+        } else {
+            for block in self.control_flow_graph.clone() {
+                debug!("block order {}", block);
+            }
+            for block in self.control_flow_graph.clone() {
+                self.transform_block(block, transform_fn, &mut ctx)?;
+            }
         }
+
         Ok(self.context)
     }
 
@@ -227,14 +291,24 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
         transform_fn: &mut TransformFn<Ctx>,
         ctx: &mut TransformContext,
     ) -> Result<()> {
-        let _block = self.scope.blocks.get_mut(&block_id).unwrap();
-        let mut instruction_counter = 0;
+        let block = self.scope.blocks.get_mut(&block_id).unwrap();
+        if block.instructions.is_empty() && self.reverse_traversel {
+            return Ok(());
+        }
+
+        let mut instruction_counter = if self.reverse_traversel {
+            block.instructions.len() - 1
+        } else {
+            0
+        };
 
         loop {
             instruction_counter =
                 transform_fn(instruction_counter, ctx, &block_id, &mut self.context)?;
 
-            if instruction_counter == 0 {
+            if (instruction_counter == 0 && !self.reverse_traversel)
+                || (self.reverse_traversel && instruction_counter == block.instructions.len())
+            {
                 break;
             }
         }
