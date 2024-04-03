@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+};
 
 use anyhow::{bail, Result};
 
@@ -12,8 +15,8 @@ use melior::{
     },
     ir::{
         attribute::{
-            DenseI64ArrayAttribute, FlatSymbolRefAttribute,
-            IntegerAttribute, StringAttribute, TypeAttribute,
+            DenseI64ArrayAttribute, FlatSymbolRefAttribute, IntegerAttribute, StringAttribute,
+            TypeAttribute,
         },
         operation::OperationBuilder,
         r#type::{FunctionType, IntegerType, MemRefType},
@@ -40,7 +43,7 @@ struct CodeGen<'ctx, 'module> {
     context: &'ctx Context,
     module: &'module Module<'ctx>,
     annon_string_counter: RefCell<usize>,
-    type_store: HashMap<TSIdentifier, typed_ast::Type>,
+    type_store: BTreeMap<TSIdentifier, typed_ast::Type>,
     var_to_type: HashMap<TSIdentifier, typed_ast::Type>,
 }
 
@@ -48,7 +51,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     fn new(
         context: &'ctx Context,
         module: &'module Module<'ctx>,
-        types: HashMap<TSIdentifier, typed_ast::Type>,
+        types: BTreeMap<TSIdentifier, typed_ast::Type>,
         variable_types: HashMap<TSIdentifier, typed_ast::Type>,
     ) -> Self {
         Self {

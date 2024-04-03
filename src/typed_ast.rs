@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 
 use crate::parser::{self, Ast, FunctionKeyword, TSExpression, TSIdentifier, TSValue, Operator, TSType, AccessModes};
 
@@ -20,7 +20,7 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn as_mlir_type<'c>(&self, context: &'c Context, types: &HashMap<TSIdentifier, Type>) -> melior::ir::Type<'c> {
+    pub fn as_mlir_type<'c>(&self, context: &'c Context, types: &BTreeMap<TSIdentifier, Type>) -> melior::ir::Type<'c> {
         match self {
             Type::Pointer => llvm::r#type::opaque_pointer(context),
             Type::String => llvm::r#type::opaque_pointer(context),
@@ -122,7 +122,7 @@ pub struct Array {
 
 
 impl TypedExpression {
-    pub fn r#type(&self, types: &HashMap<TSIdentifier, Type>) -> Result<Type> {
+    pub fn r#type(&self, types: &BTreeMap<TSIdentifier, Type>) -> Result<Type> {
        match self {
             Self::Value(_, r#type ) => Ok(r#type.clone()),
             Self::Call(type_id, _  ) => types.get(type_id).map(|expression_type| match expression_type.clone() {
@@ -220,7 +220,7 @@ pub struct FunctionArg {
 
 #[derive(Debug, Clone)]
 pub struct TypedProgram {
-    pub types: HashMap<TSIdentifier, Type>,
+    pub types: BTreeMap<TSIdentifier, Type>,
     pub ast: Vec<TypedAst>,
     pub variable_types: HashMap<TSIdentifier, Type>,
 }
@@ -295,7 +295,7 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
         .map(ast_to_typed)
         .collect::<Result<Vec<TypedAst>>>()?;
 
-    let mut types: HashMap<TSIdentifier, Type> = HashMap::new();
+    let mut types: BTreeMap<TSIdentifier, Type> = BTreeMap::new();
     let mut variable_types: HashMap<TSIdentifier, Type> = HashMap::new();
     let mut nodes = typed_ast.clone();
 
@@ -420,7 +420,7 @@ fn type_array_lookup(array_lookup: parser::ArrayLookup) -> Result<ArrayLookup>{
 
 fn type_array(array: parser::Array) -> Result<Array> {
     let items = array.items.into_iter().map(type_expression).collect::<Result<Vec<TypedExpression>>>()?;
-    let item_type = items[0].r#type(&HashMap::new())?;
+    let item_type = items[0].r#type(&BTreeMap::new())?;
 
     Ok(Array { item_type: item_type, items })
 }
