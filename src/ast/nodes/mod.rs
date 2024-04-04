@@ -188,7 +188,7 @@ pub struct Assignment {
 #[derive(Debug, Clone)]
 pub struct While {
     pub condition: ExpressionID,
-    pub block: Block,
+    pub body: Block,
 }
 
 #[derive(Debug, Clone)]

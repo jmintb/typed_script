@@ -87,7 +87,7 @@ impl From<StructDeclarationID> for StatementID {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
 pub enum NodeID {
     Declaration(DeclarationID),
     Block(BlockID),

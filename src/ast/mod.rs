@@ -9,8 +9,11 @@ use crate::identifiers::{IDGenerator, ID};
 
 use self::{
     declarations::ModuleDeclaration,
-    identifiers::{BlockID, ExpressionID},
-    nodes::{Block, Expression, FunctionDeclaration, Identifier, StructDeclaration},
+    identifiers::{BlockID, ExpressionID, StatementID},
+    nodes::{
+        Block, Expression, FunctionDeclaration, Identifier, IfElseStatement, IfStatement,
+        StructDeclaration, While,
+    },
 };
 use super::ast::identifiers::{
     DeclarationID, FunctionDeclarationID, ModuleDeclarationID, NodeID, StructDeclarationID,
@@ -29,21 +32,65 @@ impl Ast {
             .map(|module_id| NodeID::Declaration(DeclarationID::ModuleDeclarationID(*module_id)))
             .collect();
 
+        let mut process_block = |block: &Block, queue: &mut VecDeque<NodeID>| {
+            for &statement in block.statements.iter() {
+                match statement {
+                    StatementID::Declaration(decl) => todo!(),
+                    StatementID::Expression(expression_id) => {
+                        queue.push_front(expression_id.into());
+                    }
+                }
+            }
+        };
+
+        // TODO: this is not parralellised
         while let Some(next) = queue.pop_front() {
             match next {
                 NodeID::Declaration(DeclarationID::ModuleDeclarationID(module_id)) => {
                     let module_declaration = db.module_declarations.get(&module_id).unwrap();
-                    for struct_declaration in module_declaration.struct_declarations.iter() {
-                        queue.push_front((*struct_declaration).into());
+                    for &struct_declaration in module_declaration.struct_declarations.iter() {
+                        queue.push_front(struct_declaration.into());
                     }
 
-                    for function_declaration in module_declaration.function_declarations.iter() {
-                        queue.push_front((*function_declaration).into());
+                    for &function_declaration in module_declaration.function_declarations.iter() {
+                        queue.push_front(function_declaration.into());
                     }
                 }
 
                 NodeID::Declaration(DeclarationID::FunctionDeclaration(function_id)) => {
+                    let function_declaration = db.function_declarations.get(&function_id).unwrap();
+
+                    if let Some(body) = function_declaration.body {
+                        queue.push_front(body.into())
+                    }
+
                     // NEXT: finish traversal to be able to create a propper snapshot
+                }
+                NodeID::Block(block_id) => {
+                    let block = db.blocks.get(&block_id).unwrap();
+                    process_block(block, &mut queue);
+                }
+                NodeID::Statement(StatementID::Expression(expression_id)) => {
+                    let expression = db.expressions.get(&expression_id).unwrap();
+
+                    match expression {
+                        Expression::If(IfStatement {
+                            condition,
+                            then_block,
+                        }) => process_block(then_block, &mut queue),
+                        Expression::Ifelse(IfElseStatement {
+                            condition,
+                            then_block,
+                            else_block,
+                        }) => {
+                            process_block(then_block, &mut queue);
+                            process_block(else_block, &mut queue);
+                        }
+                        Expression::While(While { condition, body }) => {
+                            process_block(body, &mut queue);
+                        }
+                        expression => todo!("{expression:?}"),
+                    }
                 }
                 decl => todo!("{decl:?}"),
             }
