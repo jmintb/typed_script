@@ -1,15 +1,6 @@
 ---
 source: src/ast/parser.rs
-assertion_line: 350
-expression: "format!(\"{:#?}\", ast)"
+assertion_line: 351
+expression: "format!(\"{:#?}\", ast.0.to_string(&ast.1))"
 ---
-(
-    Ast {
-        modules: [
-            ModuleDeclarationID(
-                33,
-            ),
-        ],
-    },
-    [],
-)
+"{\n    Declaration(\n        FunctionDeclaration(\n            FunctionDeclarationID(\n                23,\n            ),\n        ),\n    ): [\n        Block(\n            BlockID(\n                22,\n            ),\n        ),\n    ],\n    Declaration(\n        ModuleDeclarationID(\n            ModuleDeclarationID(\n                33,\n            ),\n        ),\n    ): [\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    32,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    23,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    17,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    5,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    4,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    3,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    2,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    1,\n                ),\n            ),\n        ),\n        Declaration(\n            FunctionDeclaration(\n                FunctionDeclarationID(\n                    0,\n                ),\n            ),\n        ),\n    ],\n    Declaration(\n        FunctionDeclaration(\n            FunctionDeclarationID(\n                32,\n            ),\n        ),\n    ): [\n        Block(\n            BlockID(\n                31,\n            ),\n        ),\n    ],\n    Declaration(\n        FunctionDeclaration(\n            FunctionDeclarationID(\n                17,\n            ),\n        ),\n    ): [\n        Block(\n            BlockID(\n                16,\n            ),\n        ),\n    ],\n}"

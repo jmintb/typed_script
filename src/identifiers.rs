@@ -1,6 +1,6 @@
 pub type ID = usize;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct IDGenerator {
     counter: usize,
 }

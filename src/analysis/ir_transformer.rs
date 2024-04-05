@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-
 use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::parser::AccessModes;
 

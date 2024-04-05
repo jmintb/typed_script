@@ -30,7 +30,7 @@ struct AstBuilder {
     ast: Ast,
 }
 
-pub fn parse(input: &str) -> Result<(Ast, Vec<String>)> {
+pub fn parse(input: &str) -> Result<(Ast, NodeDatabase, Vec<String>)> {
     let mut program = TSParser::parse(Rule::program, &input)?;
     let mut builder = AstBuilder::default();
 
@@ -40,7 +40,7 @@ pub fn parse(input: &str) -> Result<(Ast, Vec<String>)> {
 fn parse_program(
     program: Pairs<'_, Rule>,
     mut builder: &mut AstBuilder,
-) -> Result<(Ast, Vec<String>)> {
+) -> Result<(Ast, NodeDatabase, Vec<String>)> {
     let mut module = ModuleDeclaration::new(Identifier::new("main".to_string()));
 
     for rule in program.into_iter() {
@@ -63,7 +63,7 @@ fn parse_program(
     let module_id = builder.db.new_module_declaration(module);
     builder.ast.modules.push(module_id);
 
-    Ok((builder.ast.clone(), Vec::new()))
+    Ok((builder.ast.clone(), builder.db.clone(), Vec::new()))
 }
 
 fn parse_struct_decl(
@@ -347,12 +347,13 @@ mod test {
 
         let program = load_program(Some(path.to_str().unwrap().to_string()))?;
         let ast = parse(&program)?;
+        println!("{}", ast.0.to_string(&ast.1));
         insta::assert_snapshot!(
             format!(
                 "test_ast_snapshot_{}",
                 path.file_name().unwrap().to_str().unwrap()
             ),
-            format!("{:#?}", ast)
+            format!("{:#?}", ast.0.to_string(&ast.1))
         );
         Ok(())
     }
