@@ -1,5 +1,5 @@
 mod declarations;
-mod identifiers;
+pub mod identifiers;
 mod nodes;
 mod parser;
 
