@@ -3,7 +3,7 @@ use super::{
     nodes::Identifier,
 };
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ModuleDeclaration {
     pub struct_declarations: Vec<StructDeclarationID>,
     pub function_declarations: Vec<FunctionDeclarationID>,

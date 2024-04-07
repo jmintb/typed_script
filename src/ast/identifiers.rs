@@ -92,6 +92,7 @@ pub enum NodeID {
     Declaration(DeclarationID),
     Block(BlockID),
     Statement(StatementID),
+    Scope(ScopeID),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
@@ -167,5 +168,17 @@ impl Into<usize> for VariableID {
         self.0
     }
 }
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Hash)]
 pub struct ScopeID(usize);
+
+impl From<ID> for ScopeID {
+    fn from(value: ID) -> Self {
+        Self(value)
+    }
+}
+
+impl From<ScopeID> for NodeID {
+    fn from(value: ScopeID) -> Self {
+        Self::Scope(value)
+    }
+}

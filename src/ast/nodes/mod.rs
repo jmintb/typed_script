@@ -2,7 +2,11 @@ use std::fmt::Display;
 
 use anyhow::bail;
 
-use super::identifiers::{BlockID, ExpressionID, StatementID};
+use super::{
+    declarations::ModuleDeclaration,
+    identifiers::{BlockID, ExpressionID, StatementID},
+    Scope,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Identifier(String);
@@ -104,6 +108,12 @@ impl Block {
 }
 
 #[derive(Debug, Clone)]
+pub enum Node {
+    Statement(Statement),
+    Scope(Scope),
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Expression(Expression),
     Declaration(Declaration),
@@ -113,6 +123,7 @@ pub enum Statement {
 pub enum Declaration {
     Function(FunctionDeclaration),
     Struct(StructDeclaration),
+    Module(ModuleDeclaration),
 }
 
 #[derive(Debug, Clone)]

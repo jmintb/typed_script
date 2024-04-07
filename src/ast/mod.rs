@@ -9,10 +9,10 @@ use crate::identifiers::{IDGenerator, ID};
 
 use self::{
     declarations::ModuleDeclaration,
-    identifiers::{BlockID, ExpressionID, StatementID},
+    identifiers::{BlockID, ExpressionID, ScopeID, StatementID},
     nodes::{
-        Block, Expression, FunctionDeclaration, Identifier, IfElseStatement, IfStatement,
-        StructDeclaration, While,
+        Block, Declaration, Expression, FunctionDeclaration, Identifier, IfElseStatement,
+        IfStatement, Node, Statement, StructDeclaration, While,
     },
 };
 use super::ast::identifiers::{
@@ -22,12 +22,111 @@ use anyhow::Result;
 
 type WalkerFn<Ctx> = dyn FnMut(&NodeDatabase, NodeID, Option<NodeID>, &mut Ctx) -> Result<()>;
 
+#[derive(Debug, Clone)]
+pub struct Scope {
+    pub nodes: Vec<NodeID>,
+    pub parent_scope: Option<ScopeID>,
+    pub associated_node: Option<NodeID>,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Ast {
     modules: Vec<ModuleDeclarationID>,
 }
 
 impl Ast {
+    pub fn get_node_relationships(&self, db: &NodeDatabase) -> HashMap<NodeID, Vec<NodeID>> {
+        let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
+        let mut walker =
+            |db: &NodeDatabase,
+             node_id: NodeID,
+             parent_node_id: Option<NodeID>,
+             output: &mut (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>)| {
+                if let Some(parent_id) = parent_node_id {
+                    output
+                        .0
+                        .entry(parent_id)
+                        .and_modify(|children| children.push(node_id))
+                        .or_insert(vec![node_id]);
+                }
+
+                output.1 = parent_node_id;
+
+                Ok(())
+            };
+
+        self.traverse(db, &mut walker, &mut output);
+
+        output.0
+    }
+
+    pub fn build_scoped_programs(&self, db: &mut NodeDatabase) {
+        let mut scopes: HashMap<ScopeID, Scope> = HashMap::new();
+
+        let root_scope_id = db.new_id::<ScopeID>();
+        let root_scope = Scope {
+            nodes: Vec::new(),
+            parent_scope: None,
+            associated_node: None,
+        };
+
+        scopes.insert(root_scope_id, root_scope);
+        let mut current_scope_id = root_scope_id;
+
+        let mut que: Vec<NodeID> = self
+            .modules
+            .clone()
+            .into_iter()
+            .map(|module_id| module_id.into())
+            .collect();
+
+        let node_relationships = self.get_node_relationships(db);
+        let mut scope_stack = vec![current_scope_id];
+
+        while let Some(node_id) = que.pop() {
+            scopes
+                .get_mut(&current_scope_id)
+                .unwrap()
+                .nodes
+                .push(node_id);
+
+            match node_id {
+                NodeID::Declaration(DeclarationID::FunctionDeclaration(_))
+                | NodeID::Statement(StatementID::Declaration(
+                    DeclarationID::FunctionDeclaration(_),
+                ))
+                | NodeID::Block(_) => {
+                    let new_scope = Scope {
+                        nodes: Vec::new(),
+                        parent_scope: Some(current_scope_id),
+                        associated_node: Some(node_id),
+                    };
+
+                    let new_scope_id = db.new_id::<ScopeID>();
+                    scopes.insert(new_scope_id, new_scope);
+
+                    let current_scope = scopes.get(&current_scope_id).unwrap();
+                    while current_scope.associated_node.is_some()
+                        && !node_relationships
+                            .get(&current_scope.associated_node.unwrap())
+                            .unwrap_or(&Vec::new())
+                            .contains(&node_id)
+                    {
+                        scope_stack.pop();
+                    }
+
+                    current_scope_id = new_scope_id;
+                    scope_stack.push(current_scope_id);
+
+                    for &child in node_relationships.get(&node_id).unwrap_or(&Vec::new()) {
+                        que.push(child);
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+
     pub fn to_string(&self, db: &NodeDatabase) -> String {
         let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
         let mut walker =
@@ -215,5 +314,40 @@ impl NodeDatabase {
         let id = self.new_id();
         self.expressions.insert(id, expression);
         id
+    }
+
+    fn get_declaration(&self, declaration_id: DeclarationID) -> Option<Declaration> {
+        match declaration_id {
+            DeclarationID::ModuleDeclarationID(module_declaration_id) => self
+                .module_declarations
+                .get(&module_declaration_id)
+                .map(|module_declaration| Declaration::Module(module_declaration.clone())),
+            DeclarationID::StructDeclaration(struct_declaration_id) => self
+                .struct_declarations
+                .get(&struct_declaration_id)
+                .map(|struct_declaration| Declaration::Struct(struct_declaration.clone())),
+            DeclarationID::FunctionDeclaration(function_declaration_id) => self
+                .function_declarations
+                .get(&function_declaration_id)
+                .map(|function_declaration| Declaration::Function(function_declaration.clone())),
+        }
+    }
+
+    fn get_node(&self, node_id: NodeID) -> Option<Node> {
+        match node_id {
+            NodeID::Statement(StatementID::Declaration(declaration_id))
+            | NodeID::Declaration(declaration_id) => self
+                .get_declaration(declaration_id)
+                .map(|declaration| Node::Statement(Statement::Declaration(declaration))),
+
+            NodeID::Statement(StatementID::Expression(expression_id)) => self
+                .expressions
+                .get(&expression_id)
+                .map(|expression| Node::Statement(Statement::Expression(expression.clone()))),
+            NodeID::Block(block_id) => self.blocks.get(&block_id).map(|block| {
+                Node::Statement(Statement::Expression(Expression::Block(block.clone())))
+            }),
+            _ => todo!("not implemented {:?}", node_id),
+        }
     }
 }
