@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::identifiers::{ExpressionID, NodeID, ScopeID, TypeID};
+use crate::ast::identifiers::{ExpressionID, FunctionDeclarationID, NodeID, ScopeID, TypeID};
 use crate::ast::{Ast, NodeDatabase, Scope};
 
 pub struct TypedProgram {
@@ -21,12 +21,27 @@ pub fn resolve_types(
 
     // TODO; create a traverser which incldues the current scope.
 
-    let mut walker = |db: &NodeDatabase,
-                      node_id: NodeID,
-                      parent_node_id: Option<NodeID>,
-                      output: &mut WalkerContext| { Ok(()) };
+    let function_declarations: Vec<FunctionDeclarationID> = db
+        .module_declarations
+        .iter()
+        .map(|(_, module_declaration)| module_declaration.function_declarations.clone())
+        .flatten()
+        .collect();
 
-    ast.traverse(db, &mut walker, &mut walker_context);
+    for function_declaration_id in function_declarations {
+        let function_declaration = db
+            .function_declarations
+            .get(&function_declaration_id)
+            .unwrap();
+
+        // TODO: add function type
+
+        let Some(function_body) = function_declaration.body else {
+            break;
+        };
+
+        // TODO: add expression types
+    }
 
     walker_context.0
 }

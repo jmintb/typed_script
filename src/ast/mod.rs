@@ -245,13 +245,13 @@ impl Ast {
 
 #[derive(Default, Clone)]
 pub struct NodeDatabase {
-    module_declarations: HashMap<ModuleDeclarationID, ModuleDeclaration>,
-    struct_declarations: HashMap<StructDeclarationID, StructDeclaration>,
-    function_declarations: HashMap<FunctionDeclarationID, FunctionDeclaration>,
-    expressions: HashMap<ExpressionID, Expression>,
-    blocks: HashMap<BlockID, Block>,
-    ids: HashMap<NodeID, Identifier>,
-    id_generator: IDGenerator,
+    pub module_declarations: HashMap<ModuleDeclarationID, ModuleDeclaration>,
+    pub struct_declarations: HashMap<StructDeclarationID, StructDeclaration>,
+    pub function_declarations: HashMap<FunctionDeclarationID, FunctionDeclaration>,
+    pub expressions: HashMap<ExpressionID, Expression>,
+    pub blocks: HashMap<BlockID, Block>,
+    pub ids: HashMap<NodeID, Identifier>,
+    pub id_generator: IDGenerator,
 }
 
 impl NodeDatabase {
