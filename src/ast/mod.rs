@@ -149,7 +149,48 @@ impl Ast {
 
         self.traverse(db, &mut walker, &mut output);
 
-        format!("{:#?}", output.0)
+        let mut tree_rows = vec!["root".to_string()];
+
+        let mut que: VecDeque<Vec<Vec<NodeID>>> = vec![self
+            .modules
+            .clone()
+            .into_iter()
+            .map(|module_id| vec![NodeID::from(module_id)])
+            .collect()]
+        .into();
+
+        while let Some(parent_row) = que.pop_front() {
+            let parent_names: Vec<Vec<Identifier>> = parent_row
+                .iter()
+                .map(|parent| {
+                    parent
+                        .iter()
+                        .map(|parent| {
+                            db.ids
+                                .get(parent)
+                                .unwrap_or(&Identifier::new("unnamed".to_string()))
+                                .clone()
+                        })
+                        .collect::<Vec<Identifier>>()
+                })
+                .collect();
+
+            tree_rows.push(format!("{:#?}", parent_names));
+
+            let next_row: Vec<Vec<NodeID>> = parent_row
+                .iter()
+                .flatten()
+                .map(|parent| output.0.get(parent).unwrap_or(&Vec::new()).clone())
+                .collect();
+
+            if next_row.is_empty() {
+                break;
+            }
+
+            que.push_back(next_row);
+        }
+
+        format!("{:#?}", tree_rows)
     }
 
     pub fn traverse<Ctx>(
