@@ -1,7 +1,7 @@
-mod declarations;
+pub mod declarations;
 pub mod identifiers;
-mod nodes;
-mod parser;
+pub mod nodes;
+pub mod parser;
 
 use std::collections::{HashMap, VecDeque};
 

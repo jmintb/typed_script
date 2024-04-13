@@ -1,0 +1,6 @@
+---
+source: src/ast/parser.rs
+assertion_line: 351
+expression: "format!(\"{:#?}\", ast.0.to_string(&ast.1))"
+---
+"[\n    \"root\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"main\\\",\\n        ),\\n    ],\\n]\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"generate_message\\\",\\n        ),\\n        Identifier(\\n            \\\"main\\\",\\n        ),\\n        Identifier(\\n            \\\"print\\\",\\n        ),\\n        Identifier(\\n            \\\"sleep\\\",\\n        ),\\n        Identifier(\\n            \\\"fflush\\\",\\n        ),\\n        Identifier(\\n            \\\"sprintf\\\",\\n        ),\\n        Identifier(\\n            \\\"fwrite\\\",\\n        ),\\n        Identifier(\\n            \\\"fclose\\\",\\n        ),\\n        Identifier(\\n            \\\"fdopen\\\",\\n        ),\\n    ],\\n]\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"unnamed\\\",\\n        ),\\n    ],\\n    [\\n        Identifier(\\n            \\\"unnamed\\\",\\n        ),\\n    ],\\n    [\\n        Identifier(\\n            \\\"unnamed\\\",\\n        ),\\n    ],\\n    [],\\n    [],\\n    [],\\n    [],\\n    [],\\n    [],\\n]\",\n    \"[\\n    [],\\n    [],\\n    [],\\n]\",\n]"
