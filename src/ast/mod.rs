@@ -2,6 +2,7 @@ pub mod declarations;
 pub mod identifiers;
 pub mod nodes;
 pub mod parser;
+pub mod scopes;
 
 use std::collections::{HashMap, VecDeque};
 
@@ -32,6 +33,7 @@ pub struct Scope {
 #[derive(Default, Debug, Clone)]
 pub struct Ast {
     modules: Vec<ModuleDeclarationID>,
+    pub entry_function: FunctionDeclarationID, // TODO: this needs to be initialised properly
 }
 
 impl Ast {
@@ -58,73 +60,6 @@ impl Ast {
         self.traverse(db, &mut walker, &mut output);
 
         output.0
-    }
-
-    pub fn build_scoped_programs(&self, db: &mut NodeDatabase) {
-        let mut scopes: HashMap<ScopeID, Scope> = HashMap::new();
-
-        let root_scope_id = db.new_id::<ScopeID>();
-        let root_scope = Scope {
-            nodes: Vec::new(),
-            parent_scope: None,
-            associated_node: None,
-        };
-
-        scopes.insert(root_scope_id, root_scope);
-        let mut current_scope_id = root_scope_id;
-
-        let mut que: Vec<NodeID> = self
-            .modules
-            .clone()
-            .into_iter()
-            .map(|module_id| module_id.into())
-            .collect();
-
-        let node_relationships = self.get_node_relationships(db);
-        let mut scope_stack = vec![current_scope_id];
-
-        while let Some(node_id) = que.pop() {
-            scopes
-                .get_mut(&current_scope_id)
-                .unwrap()
-                .nodes
-                .push(node_id);
-
-            match node_id {
-                NodeID::Declaration(DeclarationID::FunctionDeclaration(_))
-                | NodeID::Statement(StatementID::Declaration(
-                    DeclarationID::FunctionDeclaration(_),
-                ))
-                | NodeID::Block(_) => {
-                    let new_scope = Scope {
-                        nodes: Vec::new(),
-                        parent_scope: Some(current_scope_id),
-                        associated_node: Some(node_id),
-                    };
-
-                    let new_scope_id = db.new_id::<ScopeID>();
-                    scopes.insert(new_scope_id, new_scope);
-
-                    let current_scope = scopes.get(&current_scope_id).unwrap();
-                    while current_scope.associated_node.is_some()
-                        && !node_relationships
-                            .get(&current_scope.associated_node.unwrap())
-                            .unwrap_or(&Vec::new())
-                            .contains(&node_id)
-                    {
-                        scope_stack.pop();
-                    }
-
-                    current_scope_id = new_scope_id;
-                    scope_stack.push(current_scope_id);
-
-                    for &child in node_relationships.get(&node_id).unwrap_or(&Vec::new()) {
-                        que.push(child);
-                    }
-                }
-                _ => (),
-            }
-        }
     }
 
     pub fn to_string(&self, db: &NodeDatabase) -> String {
@@ -284,7 +219,7 @@ impl Ast {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct NodeDatabase {
     pub module_declarations: HashMap<ModuleDeclarationID, ModuleDeclaration>,
     pub struct_declarations: HashMap<StructDeclarationID, StructDeclaration>,

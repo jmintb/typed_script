@@ -31,9 +31,8 @@ struct AstBuilder {
 }
 
 pub fn parse(input: &str) -> Result<(Ast, NodeDatabase, Vec<String>)> {
-    let mut program = TSParser::parse(Rule::program, &input)?;
+    let program = TSParser::parse(Rule::program, &input)?;
     let mut builder = AstBuilder::default();
-
     parse_program(program, &mut builder)
 }
 

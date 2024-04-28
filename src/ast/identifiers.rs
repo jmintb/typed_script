@@ -18,8 +18,8 @@ impl From<StructDeclarationID> for NodeID {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
-pub struct FunctionDeclarationID(ID);
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug, Default)]
+pub struct FunctionDeclarationID(pub ID);
 
 impl From<ID> for FunctionDeclarationID {
     fn from(value: ID) -> Self {
@@ -169,7 +169,7 @@ impl Into<usize> for VariableID {
     }
 }
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Hash)]
-pub struct ScopeID(usize);
+pub struct ScopeID(pub usize);
 
 impl From<ID> for ScopeID {
     fn from(value: ID) -> Self {

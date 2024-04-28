@@ -38,6 +38,8 @@
 
 #### Mutable value semantics
 
+#### Compile units down to function or perhaps even the block level
+
 ### Process
 
 How will we go about this? There are a lot of conflicting and unproven features. The first phase will be focused on proven the value of each feature as well as 

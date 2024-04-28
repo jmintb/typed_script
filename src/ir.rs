@@ -1,14 +1,20 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+};
 
+use anyhow::ensure;
 use tracing::debug;
 
 use crate::{
-    control_flow_graph::ControlFlowGraph,
-    parser::{AccessModes, TSIdentifier, TSValue},
-    typed_ast::{
-        self, Array, ArrayLookup, Assign, Assignment, Decl, Operation, Return, Type, TypedAst,
-        TypedExpression, TypedProgram, While,
+    ast::{
+        identifiers::{ExpressionID, ScopeID, FunctionDeclarationID, FunctionID, BlockID, StatementID},
+        nodes::{FunctionArg, Identifier, Type, Expression, Call, Value, StructInit, StructField, StructFieldPath, IfStatement, IfElseStatement, While, Return, Operation, Assign, Array, ArrayLookup, AccessModes, Assignment},
+        scopes::Scope,
+        Ast, NodeDatabase,
     },
+    control_flow_graph::ControlFlowGraph,
+    types::{TypeDB, FunctionType},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
@@ -16,7 +22,7 @@ pub struct SSAID(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
 pub struct BlockId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-pub struct FunctionId(pub TSIdentifier);
+pub struct FunctionId(pub FunctionDeclarationID);
 
 impl Display for FunctionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -29,6 +35,8 @@ impl Display for BlockId {
         f.write_str(&format!("block_{}", self.0))
     }
 }
+
+// TODO: next parallelize architecture based on control flow graphs and functions
 
 #[derive(Clone, Debug)]
 pub struct IrProgram {
@@ -172,7 +180,8 @@ impl Instruction {
 
 #[derive(Clone, Debug)]
 pub struct Variable {
-    pub original_variable: TSIdentifier,
+    // TODO: avoid storing a copy of the identifier here
+    pub original_variable: Identifier,
     id: SSAID,
 }
 
@@ -183,13 +192,17 @@ pub struct IrGenerator {
     id_count: usize,
     entry_block: BlockId,
     access_modes: BTreeMap<SSAID, AccessModes>,
-    types: BTreeMap<TSIdentifier, Type>,
-    control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph<BlockId>>,
-    current_function: FunctionId,
+    control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
+    current_function: FunctionDeclarationID,
+    node_db: NodeDatabase,
+    type_db: TypeDB,
+    scopes: HashMap<ScopeID, Scope>,
+    types: HashMap<ExpressionID, Type>,
 }
 
 impl IrGenerator {
-    pub fn new() -> Self {
+    pub fn new(ast: Ast, node_db: NodeDatabase, scopes: HashMap<ScopeID, Scope> , expression_types: HashMap<ExpressionID, Type>, type_db: TypeDB) -> Self {
+
         let entry_block = Block {
             instructions: Vec::new(),
         };
@@ -198,7 +211,6 @@ impl IrGenerator {
         let mut blocks = BTreeMap::new();
         blocks.insert(entry_block_id, entry_block);
         // Also starts from main.
-        let entry_function = FunctionId(TSIdentifier("main".to_string()));
 
         Self {
             ssa_variables: BTreeMap::new(),
@@ -206,9 +218,12 @@ impl IrGenerator {
             id_count: 1,
             entry_block: entry_block_id,
             access_modes: BTreeMap::new(),
-            types: BTreeMap::new(),
+            types: HashMap::new(),
             control_flow_graphs: BTreeMap::new(),
-            current_function: entry_function,
+            current_function: ast.entry_function,
+            type_db,
+            node_db,
+            scopes,
         }
     }
 
@@ -218,7 +233,7 @@ impl IrGenerator {
         SSAID(new_id)
     }
 
-    fn add_ssa_variable(&mut self, original_variable_id: TSIdentifier) -> SSAID {
+    fn add_ssa_variable(&mut self, original_variable_id: Identifier) -> SSAID {
         let id = self.new_ssa_id();
         let ssa_var = Variable {
             original_variable: original_variable_id,
@@ -246,7 +261,7 @@ impl IrGenerator {
         id
     }
 
-    fn latest_gen_variable(&self, var_id: TSIdentifier) -> Option<SSAID> {
+    fn latest_gen_variable(&self, var_id: Identifier) -> Option<SSAID> {
         self.ssa_variables
             .clone()
             .into_values()
@@ -261,12 +276,55 @@ impl IrGenerator {
             .map(|ssa_var| ssa_var.id)
     }
 
-    pub fn convert_to_ssa(mut self, program: TypedProgram) -> IrProgram {
-        for (key, val) in program.types {
-            self.types.insert(key, val);
+    pub fn generate_ir_program(
+        mut self,
+        ast: &Ast,
+        node_db: &NodeDatabase,
+        scopes: &HashMap<ScopeID, Scope>,
+        types: &HashMap<ExpressionID, Type>,
+        type_db: &TypeDB,
+    ) -> IrProgram {
+        // NEXT: move node_db and type_db into ir generator
+
+        todo!()
+    }
+
+    fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID, current_block: BlockId) {
+
+        
+       let function_declaration = self.node_db.function_declarations.get(&function_declaration_id).unwrap(); 
+
+        // TODO: At this point we should'nt have to check such things.
+        let Some(function_body_id) = function_declaration.body else {
+            return; 
+        };
+
+        self.current_function = function_declaration_id;
+        let entry_block = self.add_block();
+
+        for argument in function_declaration.arguments {
+            self.declare_function_argument(argument, entry_block);
         }
 
+        let cfg = ControlFlowGraph::new(entry_block);
+        self.control_flow_graphs.insert(self.current_function, cfg );
+
+        let _ = self.convert_block(function_body_id, current_block );
+
+    }
+
+    // TODO NEXT: make this parallel down to function level with CFG.
+    // TODO NEXT: We need to have types for each SSAID
+
+    pub fn convert_to_ssa(mut self) -> IrProgram {
         let mut current_block = self.entry_block;
+
+        for function_declaration in self.node_db.function_declarations {
+            for argument in function_declaration.1.arguments {
+               self.declare_function_argument(argument, current_block ) 
+            }
+        }
+
         for node in program.ast {
             current_block = self.convert_statement(node, current_block);
         }
@@ -292,13 +350,9 @@ impl IrGenerator {
             });
     }
 
-    fn convert_statement(&mut self, statement: TypedAst, current_block: BlockId) -> BlockId {
-        match statement {
-            TypedAst::Assignment(assignment) => self.convert_assignment(assignment, current_block),
-            TypedAst::Expression(expression) => {
-                self.convert_expression(expression, current_block).0
-            }
-            TypedAst::Decl(declaration) => self.convert_declaration(declaration, current_block),
+    fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> BlockId {match statement_id {
+            StatementID::Expression(expression_id) => self.convert_expression(expression_id, current_block)
+            _ => todo!()
         }
     }
 
@@ -310,13 +364,15 @@ impl IrGenerator {
         updated_block_id.0
     }
 
-    fn convert_block(&mut self, block: typed_ast::Block, current_block: BlockId) -> BlockId {
+    fn convert_block(&mut self, ast_block_id: BlockID, current_block: BlockId) -> BlockId {
         let mut current_block = current_block;
         let mut parent_block = current_block;
         current_block = self.add_block();
         self.record_cfg_connection(parent_block, current_block);
 
-        for statement in block.statements {
+        let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap();
+
+        for statement in ast_block.statements {
             current_block = self.convert_statement(statement, current_block);
             if current_block != parent_block {
                 // self.record_cfg_connection(parent_block, current_block);
@@ -342,31 +398,31 @@ impl IrGenerator {
 
     fn convert_expression(
         &mut self,
-        expression: TypedExpression,
+        expression_id: ExpressionID,
         current_block: BlockId,
     ) -> (BlockId, Option<SSAID>) {
         let mut current_block = current_block;
+        let expression = self.node_db.expressions.get(&expression_id).unwrap();
         match expression {
-            TypedExpression::Call(function_id, arguments) => {
-                let Type::Function(_, arg_types, _) =
-                    self.types.get(&function_id).cloned().unwrap()
-                else {
-                    todo!()
-                };
+            Expression::Call(Call { function_id, arguments }) => {
+                let function_type_id = self.type_db.function_declaration_types.get(function_id).unwrap();
+
+                let argument_types = self.type_db.function_types.get(function_type_id).unwrap().arguments;
 
                 let mut function_args = Vec::new();
                 let mut free_instructions = Vec::new();
                 let mut setup_instructions = Vec::new();
 
                 for (i, arg) in arguments.into_iter().enumerate() {
-                    let (new_current_block, ssa_var) = self.convert_expression(arg, current_block);
+                    let (new_current_block, ssa_var) = self.convert_expression(*arg, current_block);
+
                     current_block = new_current_block;
                     if let Some(ssa_var) = ssa_var {
-                        self.access_modes.insert(ssa_var, arg_types[i].access_mode);
+                        self.access_modes.insert(ssa_var, argument_types[i].access_mode);
                         let access_instruction = self.get_access_instruction(ssa_var);
                         setup_instructions.push(access_instruction.clone());
                         self.add_instruction(current_block, access_instruction);
-                        function_args.push((ssa_var, arg_types[i].access_mode));
+                        function_args.push((ssa_var, argument_types[i].access_mode));
 
                         if let Some(release_instruction) = self
                             .get_access_instruction(ssa_var)
@@ -376,9 +432,10 @@ impl IrGenerator {
                         }
                     }
                 }
+
                 self.add_instruction(
                     current_block,
-                    Instruction::Call(FunctionId(function_id), function_args),
+                    Instruction::Call(FunctionId(*function_id), function_args),
                 );
 
                 for instruction in free_instructions {
@@ -386,8 +443,8 @@ impl IrGenerator {
                 }
             }
 
-            TypedExpression::Value(val, _) => match val {
-                TSValue::Variable(id) => {
+            Expression::Value(val) => match val {
+                Value::Variable(id) => {
                     let ssa_var = self.latest_gen_variable(id.clone()).unwrap();
                     // self.add_instruction(current_block, self.get_access_instruction(ssa_var));
                     return (current_block, Some(ssa_var));
@@ -395,73 +452,83 @@ impl IrGenerator {
                 _ => (),
             },
 
-            TypedExpression::Struct(_, fields) => {
-                for field in fields {
-                    (current_block, _) = self.convert_expression(field, current_block);
+            Expression::Struct(StructInit { struct_id, field_values }) => {
+                for field in field_values {
+                    (current_block, _) = self.convert_expression(*field, current_block);
                 }
             }
 
-            TypedExpression::StructFieldRef(var_id, _) => {
-                let ssa_var = self.latest_gen_variable(var_id).unwrap();
+            Expression::StructFieldRef(StructFieldPath { struct_indentifier, field_identifier }) => {
+                let ssa_var = self.latest_gen_variable(*struct_indentifier).unwrap();
                 self.add_instruction(current_block, self.get_access_instruction(ssa_var));
             }
 
-            TypedExpression::If(if_statement) => {
+            Expression::If(IfStatement { condition, then_block }) => {
                 let parent_block = current_block;
                 (current_block, _) =
-                    self.convert_expression(*if_statement.condition, current_block);
-                current_block = self.convert_block(if_statement.then_block, current_block);
+                    self.convert_expression(*condition, current_block);
+                current_block = self.convert_block(*then_block, current_block);
                 let post_if_block = self.add_block();
                 self.record_cfg_connection(current_block, post_if_block);
-                if let Some(block) = if_statement.else_block {
-                    current_block = self.convert_block(block, parent_block);
-                    self.record_cfg_connection(current_block, post_if_block);
-                }
 
                 current_block = post_if_block;
             }
 
-            TypedExpression::While(While { condition, block }) => {
+            Expression::Ifelse(IfElseStatement { condition, then_block, else_block }) => {
+                
+                let parent_block = current_block;
+                (current_block, _) =
+                    self.convert_expression(*condition, current_block);
+                current_block = self.convert_block(*then_block, current_block);
+                let post_if_block = self.add_block();
+                self.record_cfg_connection(current_block, post_if_block);
+                    current_block = self.convert_block(*else_block, parent_block);
+                    self.record_cfg_connection(current_block, post_if_block);
+
+                current_block = post_if_block;
+            }
+
+            Expression::While(While { condition, body }) => {
                 let condition_block = self.add_block();
                 self.record_cfg_connection(current_block, condition_block);
                 current_block = condition_block;
                 (current_block, _) = self.convert_expression(*condition, current_block);
                 let body_block = self.add_block();
                 self.record_cfg_connection(condition_block, body_block);
-                let body_block = self.convert_block(block, body_block);
+                let body_block = self.convert_block(*body, body_block);
                 self.record_cfg_connection(body_block, condition_block);
                 let post_loop_block = self.add_block();
                 self.record_cfg_connection(condition_block, post_loop_block);
                 current_block = post_loop_block;
             }
 
-            TypedExpression::Return(Return { expression }) => {
+            Expression::Return(Return { expression }) => {
                 if let Some(expression) = expression {
                     (current_block, _) = self.convert_expression(*expression, current_block);
                 }
             }
 
-            TypedExpression::Operation(operation) => match *operation {
+            Expression::Operation(operation) => match *operation {
                 Operation::Binary(lhs, _, rhs) => {
                     (current_block, _) = self.convert_expression(lhs, current_block);
                     (current_block, _) = self.convert_expression(rhs, current_block);
                 }
             },
 
-            TypedExpression::Assign(Assign { id, expression }) => {
+            Expression::Assign(Assign { id, expression }) => {
                 (current_block, _) = self.convert_expression(*expression, current_block);
                 let ssa_id = self.add_ssa_variable(id);
                 let assign_instruction = Instruction::Assign(ssa_id);
                 self.add_instruction(current_block, assign_instruction);
             }
 
-            TypedExpression::Array(Array { items, .. }) => {
+            Expression::Array(Array { items }) => {
                 for item in items {
                     (current_block, _) = self.convert_expression(item, current_block);
                 }
             }
 
-            TypedExpression::ArrayLookup(ArrayLookup {
+            Expression::ArrayLookup(ArrayLookup {
                 array_identifier,
                 index_expression,
             }) => {
@@ -472,6 +539,13 @@ impl IrGenerator {
         }
 
         (current_block, None)
+    }
+
+    fn declare_function_argument(&mut self, argument: FunctionArg, current_block: BlockId) {
+        let ssa_id = self.add_ssa_variable(argument.name);
+        let assign_instruction = Instruction::Assign(ssa_id);
+        self.access_modes.insert(ssa_id, argument.access_mode);
+        self.add_instruction(current_block, assign_instruction);
     }
 
     fn convert_declaration(&mut self, declaration: Decl, current_block: BlockId) -> BlockId {

@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
-use crate::ast::identifiers::{ExpressionID, FunctionDeclarationID, NodeID, ScopeID};
-use crate::ast::nodes::Identifier;
-use crate::ast::{Ast, NodeDatabase, Scope};
-use crate::identifiers::ID;
-use crate::parser::FunctionKeyword;
-
-pub struct TypedProgram {
-    ast: Ast,
-    scopes: HashMap<ScopeID, Vec<ScopeID>>,
-    types: HashMap<ExpressionID, TypeID>,
-}
+use crate::ast::nodes::{
+    self, Expression, FunctionArg, FunctionKeyword, Identifier, StructDeclaration, Value,
+};
+use crate::ast::scopes::Scope;
+use crate::ast::{Ast, NodeDatabase};
+use crate::identifiers::{
+    DeclarationID, ExpressionID, FunctionDeclarationID, NodeID, ScopeID, StatementID,
+};
+use crate::identifiers::{IDGenerator, ID};
+use crate::parser::AccessModes;
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -33,12 +32,12 @@ pub struct SignedIntegerType(usize);
 #[derive(Debug, Clone)]
 pub struct UnsignedIntegerType(usize);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum TypeID {
     Struct(StructTypeID),
     Function(FunctionTypeID),
     Named(NamedTypeID),
-    Array(ArrayTypeID)
+    Array(ArrayTypeID),
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +50,20 @@ pub struct StructType {
 pub struct StructField {
     pub field_name: Identifier,
     pub field_type: TypeID,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionType {
+    pub key_words: Vec<FunctionKeyword>,
+    pub return_type: Option<Type>,
+    pub arguments: Vec<FunctionArgumentType>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionArgumentType {
+    pub name: Identifier,
+    pub r#type: Type,
+    pub access_mode: AccessModes,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
@@ -68,8 +81,6 @@ impl From<StructTypeID> for TypeID {
     }
 }
 
-
-
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
 pub struct FunctionTypeID(ID);
 
@@ -82,10 +93,8 @@ impl From<ID> for FunctionTypeID {
 impl From<FunctionTypeID> for TypeID {
     fn from(value: FunctionTypeID) -> Self {
         Self::Function(value)
-
     }
 }
-
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
 pub struct NamedTypeID(ID);
@@ -101,7 +110,6 @@ impl From<NamedTypeID> for TypeID {
         Self::Named(value)
     }
 }
-
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
 pub struct ArrayTypeID(ID);
@@ -120,32 +128,89 @@ impl From<ArrayTypeID> for TypeID {
 
 #[derive(Debug, Clone)]
 pub struct TypeDB {
-    struct_types: HashMap<StructTypeID, StructType>    
+    pub struct_types: HashMap<StructTypeID, StructDeclaration>,
+    pub function_types: HashMap<FunctionTypeID, FunctionType>,
+    pub function_declaration_types: HashMap<FunctionDeclarationID, FunctionTypeID>,
+    id_generator: IDGenerator,
+    pub ids: HashMap<TypeID, (Identifier, ScopeID)>,
 }
+
 impl TypeDB {
     fn new() -> Self {
         Self {
-            struct_types: HashMap::new()
+            struct_types: HashMap::new(),
+            id_generator: IDGenerator::default(),
+
+            ids: HashMap::new(),
         }
+    }
+
+    fn new_id<T: From<ID> + Into<TypeID> + Copy>(&mut self) -> T {
+        self.id_generator.new_id::<T>()
+    }
+
+    fn new_type_id_for_identifier<T: From<ID> + Into<TypeID> + Copy>(
+        &mut self,
+        name: Identifier,
+        scope_id: ScopeID,
+    ) -> T {
+        let id = self.new_id::<T>();
+        self.ids.insert(id.into(), (name.clone(), scope_id));
+        id
+    }
+
+    fn insert_struct_type(
+        &mut self,
+        struct_type: StructDeclaration,
+        scope_id: ScopeID,
+    ) -> StructTypeID {
+        let id = self.new_type_id_for_identifier(struct_type.identifier.clone(), scope_id);
+        self.struct_types.insert(id, struct_type);
+        id
     }
 }
 
 pub struct Function {
     key_words: Vec<FunctionKeyword>,
     arguments: Vec<TypeID>,
-    return_type: TypeID 
+    return_type: TypeID,
+}
+
+pub struct TypedProgram {
+    pub ast: Ast,
+    pub db: NodeDatabase,
+    pub types: TypeDB,
+    pub type_assignments: HashMap<ExpressionID, Type>,
 }
 
 pub fn resolve_types(
-    ast: Ast,
+    ast: &Ast,
     db: &NodeDatabase,
-    scopes: &HashMap<ScopeID, Vec<ScopeID>>,
+    scopes: &HashMap<ScopeID, Scope>,
     root_scope: ScopeID,
-) -> HashMap<ExpressionID, TypeID> {
+) -> (HashMap<ExpressionID, Type>, TypeDB) {
     let mut type_db = TypeDB::new();
     let mut types = HashMap::new();
-    type WalkerContext = (HashMap<ExpressionID, TypeID>, ScopeID);
-    let mut walker_context: WalkerContext = (types, root_scope);
+
+    let mut gather_types = |db: &NodeDatabase,
+                            node_id: NodeID,
+                            parent_node_id: Option<NodeID>,
+                            output: &mut TypeDB| {
+        match node_id {
+            NodeID::Declaration(DeclarationID::StructDeclaration(ref id)) => {
+                let struct_decl = db.struct_declarations.get(id).unwrap();
+
+                output.insert_struct_type(struct_decl.clone(), ScopeID(0));
+            }
+            _ => (),
+        }
+        Ok(())
+    };
+
+    ast.traverse(db, &mut gather_types, &mut type_db);
+
+    type WalkerContext = (HashMap<ExpressionID, Type>, ScopeID);
+    // let mut walker_context: WalkerContext = (types, root_scope);
 
     // TODO; create a traverser which incldues the current scope.
     let function_declarations: Vec<FunctionDeclarationID> = db
@@ -163,14 +228,46 @@ pub fn resolve_types(
 
         // TODO: add function type
 
-        let function_type = FunctionType
+        // let return_type = function_declaration
+        //     .return_type
+        //     .map(|return_type| match return_type {
+        //         nodes::Type::String => Type::String,
+        //         _ => todo!("Add type conversion"),
+        //     });
 
-        let Some(function_body) = function_declaration.body else {
+        // let function_type = FunctionType {
+        //     key_words: function_declaration.keywords,
+        //     return_type,
+        //     arguments: function_declaration.arguments,
+        // };
+
+        // let
+
+        let Some(function_body_id) = function_declaration.body else {
             break;
         };
+
+        let function_body = db.blocks.get(&function_body_id).unwrap();
+
+        for statement in function_body.statements.iter() {
+            match statement {
+                StatementID::Expression(id) => {
+                    let expression = db.expressions.get(&id).unwrap();
+                    let expression_type = match expression {
+                        Expression::Value(value) => match value {
+                            Value::String(..) => Type::String,
+                            _ => todo!(),
+                        },
+                        _ => todo!(),
+                    };
+                    types.insert(*id, expression_type);
+                }
+                _ => todo!(),
+            }
+        }
 
         // TODO: add expression types
     }
 
-    walker_context.0
+    (types, type_db)
 }

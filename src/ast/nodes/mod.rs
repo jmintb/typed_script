@@ -4,12 +4,12 @@ use anyhow::bail;
 
 use super::{
     declarations::ModuleDeclaration,
-    identifiers::{BlockID, ExpressionID, StatementID},
+    identifiers::{BlockID, ExpressionID, FunctionDeclarationID, StatementID},
     Scope,
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
-pub struct Identifier(String);
+pub struct Identifier(pub String);
 
 impl Identifier {
     pub fn new(name: String) -> Self {
@@ -131,7 +131,7 @@ pub enum Expression {
     Value(Value),
     Call(Call),
     Struct(StructInit),
-    StructFieldRef(Identifier, Identifier),
+    StructFieldRef(StructFieldPath),
     Operation(Operation),
     If(IfStatement),
     Ifelse(IfElseStatement),
@@ -144,6 +144,13 @@ pub enum Expression {
     Block(Block),
 }
 
+// TODO: support nested paths
+#[derive(Debug, Clone)]
+pub struct StructFieldPath {
+    pub struct_indentifier: Identifier,
+    pub field_identifier: Identifier,
+}
+
 #[derive(Debug, Clone)]
 pub struct StructInit {
     pub struct_id: Identifier,
@@ -152,7 +159,7 @@ pub struct StructInit {
 
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub function_id: Identifier,
+    pub function_id: FunctionDeclarationID,
     pub arguments: Vec<ExpressionID>,
 }
 
@@ -164,19 +171,19 @@ pub struct ArrayLookup {
 
 #[derive(Debug, Clone)]
 pub struct IfStatement {
-    pub condition: Box<Expression>,
-    pub then_block: Block,
+    pub condition: ExpressionID,
+    pub then_block: BlockID,
 }
 
 #[derive(Debug, Clone)]
 pub struct IfElseStatement {
-    pub condition: Box<Expression>,
-    pub then_block: Block,
-    pub else_block: Block,
+    pub condition: ExpressionID,
+    pub then_block: BlockID,
+    pub else_block: BlockID,
 }
 #[derive(Debug, Clone)]
 pub struct Array {
-    pub items: Vec<Expression>,
+    pub items: Vec<ExpressionID>,
 }
 
 #[derive(Debug, Clone)]
@@ -199,7 +206,7 @@ pub struct Assignment {
 #[derive(Debug, Clone)]
 pub struct While {
     pub condition: ExpressionID,
-    pub body: Block,
+    pub body: BlockID,
 }
 
 #[derive(Debug, Clone)]
@@ -210,7 +217,7 @@ pub struct StructType {
 
 #[derive(Debug, Clone)]
 pub enum Operation {
-    Binary(Box<Expression>, Operator, Box<Expression>),
+    Binary(ExpressionID, Operator, ExpressionID),
 }
 
 #[derive(Debug, Clone)]
