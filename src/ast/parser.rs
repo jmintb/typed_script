@@ -242,8 +242,8 @@ fn parse_fn_call(builder: &mut AstBuilder, call_expression: Pair<Rule>) -> Resul
         .map(|arg| parse_expression(builder, arg).unwrap())
         .collect();
 
-    let call = Call {
-        function_id: Identifier::new(id.as_str().to_string()),
+
+    let call = Call { function_id: builder.db.get_function_declaration_id_from_identifier(Identifier::new(id.as_str().to_string()))?,
         arguments: args,
     };
 

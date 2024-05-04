@@ -1,6 +1,6 @@
 let 
  pkgs = import <nixpkgs> {};
- llvm = (pkgs.callPackage "/home/jmintb/Sync/lab/typed_script/mlir.nix") {};
+ llvm = (pkgs.callPackage "/home/jmintb/oldhome/jmintb/Sync/lab/typed_script/mlir.nix") {};
 in pkgs.mkShell {
   nativeBuildInputs = with pkgs; [ rustup cargo gcc ];
   buildInputs = with pkgs; [ 
@@ -9,7 +9,7 @@ in pkgs.mkShell {
     clippy 
     just 
     openssl 
-    pkgconfig 
+    pkg-config 
     rust-analyzer
     llvm ];
 

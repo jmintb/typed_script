@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use crate::ast::nodes::{
-    self, Expression, FunctionArg, FunctionKeyword, Identifier, StructDeclaration, Value,
+     Expression,  FunctionKeyword, Identifier, StructDeclaration, Value,
 };
 use crate::ast::scopes::Scope;
 use crate::ast::{Ast, NodeDatabase};
-use crate::identifiers::{
+use crate::ast::identifiers::{
     DeclarationID, ExpressionID, FunctionDeclarationID, NodeID, ScopeID, StatementID,
 };
 use crate::identifiers::{IDGenerator, ID};
-use crate::parser::AccessModes;
+use crate::ast::nodes::AccessModes;
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -140,7 +140,8 @@ impl TypeDB {
         Self {
             struct_types: HashMap::new(),
             id_generator: IDGenerator::default(),
-
+            function_declaration_types: HashMap::new(),
+            function_types: HashMap::new(),
             ids: HashMap::new(),
         }
     }

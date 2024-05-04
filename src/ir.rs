@@ -3,7 +3,6 @@ use std::{
     fmt::Display,
 };
 
-use anyhow::ensure;
 use tracing::debug;
 
 use crate::{
@@ -43,7 +42,7 @@ pub struct IrProgram {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub blocks: BTreeMap<BlockId, Block>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
-    pub control_flow_graphs: BTreeMap<FunctionId, ControlFlowGraph<BlockId>>,
+    pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
 }
 
@@ -51,7 +50,7 @@ impl Display for IrProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("IR:\n")?;
         for (function_id, control_flow_graph) in self.control_flow_graphs.clone() {
-            f.write_fmt(format_args!("fn {}:\n", function_id.0 .0))?;
+            f.write_fmt(format_args!("fn {}:\n", function_id.0))?;
             for block_id in control_flow_graph.clone().into_ordered_iterator() {
                 let block = self.blocks.get(&block_id).unwrap();
                 f.write_fmt(format_args!("{}\n", block_id))?;
@@ -200,8 +199,10 @@ pub struct IrGenerator {
     types: HashMap<ExpressionID, Type>,
 }
 
+use crate::types;
+
 impl IrGenerator {
-    pub fn new(ast: Ast, node_db: NodeDatabase, scopes: HashMap<ScopeID, Scope> , expression_types: HashMap<ExpressionID, Type>, type_db: TypeDB) -> Self {
+    pub fn new(ast: Ast, node_db: NodeDatabase, scopes: HashMap<ScopeID, Scope> , expression_types: HashMap<ExpressionID, types::Type>, type_db: TypeDB) -> Self {
 
         let entry_block = Block {
             instructions: Vec::new(),
@@ -289,7 +290,7 @@ impl IrGenerator {
         todo!()
     }
 
-    fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID, current_block: BlockId) {
+    fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID ) {
 
         
        let function_declaration = self.node_db.function_declarations.get(&function_declaration_id).unwrap(); 
@@ -309,7 +310,7 @@ impl IrGenerator {
         let cfg = ControlFlowGraph::new(entry_block);
         self.control_flow_graphs.insert(self.current_function, cfg );
 
-        let _ = self.convert_block(function_body_id, current_block );
+        let _ = self.convert_block(function_body_id, entry_block );
 
     }
 
@@ -320,13 +321,7 @@ impl IrGenerator {
         let mut current_block = self.entry_block;
 
         for function_declaration in self.node_db.function_declarations {
-            for argument in function_declaration.1.arguments {
-               self.declare_function_argument(argument, current_block ) 
-            }
-        }
-
-        for node in program.ast {
-            current_block = self.convert_statement(node, current_block);
+            self.convert_function_declaration(function_declaration.0);
         }
 
         IrProgram {
@@ -351,7 +346,7 @@ impl IrGenerator {
     }
 
     fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> BlockId {match statement_id {
-            StatementID::Expression(expression_id) => self.convert_expression(expression_id, current_block)
+            StatementID::Expression(expression_id) => self.convert_expression(expression_id, current_block).0,
             _ => todo!()
         }
     }
@@ -404,6 +399,12 @@ impl IrGenerator {
         let mut current_block = current_block;
         let expression = self.node_db.expressions.get(&expression_id).unwrap();
         match expression {
+            Expression::Block(ast_block) => {
+current_block =                 self.convert_block(*ast_block, current_block)
+            }
+            Expression::Assignment(assignment_ment) => {
+                todo!()
+            }
             Expression::Call(Call { function_id, arguments }) => {
                 let function_type_id = self.type_db.function_declaration_types.get(function_id).unwrap();
 
@@ -517,14 +518,14 @@ impl IrGenerator {
 
             Expression::Assign(Assign { id, expression }) => {
                 (current_block, _) = self.convert_expression(*expression, current_block);
-                let ssa_id = self.add_ssa_variable(id);
+                let ssa_id = self.add_ssa_variable(*id);
                 let assign_instruction = Instruction::Assign(ssa_id);
                 self.add_instruction(current_block, assign_instruction);
             }
 
             Expression::Array(Array { items }) => {
                 for item in items {
-                    (current_block, _) = self.convert_expression(item, current_block);
+                    (current_block, _) = self.convert_expression(*item, current_block);
                 }
             }
 
@@ -533,7 +534,7 @@ impl IrGenerator {
                 index_expression,
             }) => {
                 (current_block, _) = self.convert_expression(*index_expression, current_block);
-                let ssa_var = self.latest_gen_variable(array_identifier).unwrap();
+                let ssa_var = self.latest_gen_variable(*array_identifier).unwrap();
                 self.add_instruction(current_block, Instruction::Move(ssa_var));
             }
         }
@@ -548,40 +549,7 @@ impl IrGenerator {
         self.add_instruction(current_block, assign_instruction);
     }
 
-    fn convert_declaration(&mut self, declaration: Decl, current_block: BlockId) -> BlockId {
-        match declaration {
-            Decl::Function {
-                keywords: _,
-                id,
-                arguments,
-                body,
-                return_type: _,
-            } => {
-                if let Some(body) = body {
-                    self.current_function = FunctionId(id);
-                    let entry_block = self.add_block();
-
-                    for arg in arguments {
-                        let ssa_id = self.add_ssa_variable(arg.name);
-                        let assign_instruction = Instruction::Assign(ssa_id);
-                        self.access_modes.insert(ssa_id, arg.access_mode);
-                        self.add_instruction(entry_block, assign_instruction);
-                    }
-
-                    let cfg = ControlFlowGraph::new(entry_block);
-                    self.control_flow_graphs
-                        .insert(self.current_function.clone(), cfg);
-
-                    let _new_block =
-                        self.convert_block(typed_ast::Block { statements: body }, entry_block);
-                }
-            }
-
-            _ => (),
-        }
-
-        return current_block;
-    }
+    
 
     fn add_instruction(&mut self, updated_block_id: BlockId, assign_instruction: Instruction) {
         self.blocks
@@ -594,23 +562,25 @@ impl IrGenerator {
 
 #[cfg(test)]
 mod test {
-    use crate::cli::load_program;
-
-    use super::*;
+   use super::*;
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;
+    use crate::ast::parser::parse;
+    use crate::ast::scopes::build_program_scopes;
+    use crate::types::resolve_types;
+
+
+    // NEXT actual: aligns types added outside of this file
 
     #[rstest]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast};
+        let (ast,node_db,_) = parse(&path.to_str().unwrap().to_string())?;
 
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
-
-        let ir_generator = IrGenerator::new();
-        let ir_progam = ir_generator.convert_to_ssa(typed_program);
+    let program_scopes = build_program_scopes(&ast, & node_db);
+    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
+        let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db );
+        let ir_progam = ir_generator.convert_to_ssa();
 
         insta::assert_snapshot!(
             format!(
@@ -626,19 +596,16 @@ mod test {
     fn test_control_flow_graph(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast};
+        let (ast,node_db,_) = parse(&path.to_str().unwrap().to_string())?;
 
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
-
-        let ir_generator = IrGenerator::new();
-        let ir_progam = ir_generator.convert_to_ssa(typed_program);
-
+    let program_scopes = build_program_scopes(&ast, & node_db);
+    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
+        let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db );
+        let ir_progam = ir_generator.convert_to_ssa();
         for (function_id, control_flow_graph) in ir_progam.control_flow_graphs {
             insta::assert_snapshot!(
                 format!(
-                    "test_well_formed_control_flow_graph_{}_function_{function_id}",
+                    "test_well_formed_control_flow_graph_{}_function_{function_id:?}",
                     path.file_name().unwrap().to_str().unwrap()
                 ),
                 format!("{}", control_flow_graph)

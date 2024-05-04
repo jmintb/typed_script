@@ -5,6 +5,7 @@ pub mod parser;
 pub mod scopes;
 
 use std::collections::{HashMap, VecDeque};
+use anyhow::{Result, bail};
 
 use crate::identifiers::{IDGenerator, ID};
 
@@ -19,7 +20,6 @@ use self::{
 use super::ast::identifiers::{
     DeclarationID, FunctionDeclarationID, ModuleDeclarationID, NodeID, StructDeclarationID,
 };
-use anyhow::Result;
 
 type WalkerFn<Ctx> = dyn FnMut(&NodeDatabase, NodeID, Option<NodeID>, &mut Ctx) -> Result<()>;
 
@@ -233,6 +233,17 @@ pub struct NodeDatabase {
 impl NodeDatabase {
     fn new() -> Self {
         Self::default()
+    }
+
+    pub fn get_function_declaration_id_from_identifier(&self, name: impl Into<Identifier>) -> Result<FunctionDeclarationID> {
+        let name: Identifier = name.into();
+        for (function_declaration_id, function_declaration) in self.function_declarations.iter() {
+            if function_declaration.identifier == name {
+                return Ok(*function_declaration_id);
+            }
+        }
+
+        bail!(format!("failed to find function declaration ID for identifier {name:?}"));
     }
 
     fn new_module_declaration(&mut self, declaration: ModuleDeclaration) -> ModuleDeclarationID {

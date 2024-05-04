@@ -141,7 +141,7 @@ pub enum Expression {
     Return(Return),
     Array(Array),
     ArrayLookup(ArrayLookup),
-    Block(Block),
+    Block(BlockID),
 }
 
 // TODO: support nested paths
@@ -166,7 +166,7 @@ pub struct Call {
 #[derive(Debug, Clone)]
 pub struct ArrayLookup {
     pub array_identifier: Identifier,
-    pub index_expression: Box<Expression>,
+    pub index_expression: ExpressionID,
 }
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::ir::{Block, IrProgram, Variable, SSAID};
-use crate::parser::AccessModes;
+use crate::ast::nodes::AccessModes;
 
 use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId};
 use anyhow::Result;
