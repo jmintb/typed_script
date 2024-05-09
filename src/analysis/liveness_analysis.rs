@@ -1,6 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Result};
 
@@ -8,7 +6,7 @@ use tracing::debug;
 
 use crate::{
     control_flow_graph::ControlFlowGraph,
-    ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID},
+    ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID}, ast::identifiers::FunctionDeclarationID,
 };
 
 use super::ir_transformer::IrInterpreter;
@@ -136,14 +134,14 @@ impl VariableLiveness {
     }
 }
 
-pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionId, VariableLiveness>> {
+pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDeclarationID, VariableLiveness>> {
     debug!("calculating livenss for program: {ir_program}");
 
     let mut liveness_for_fn = BTreeMap::new();
     for (function_id, control_flow_graph) in ir_program.control_flow_graphs.clone() {
         debug!(
             "control flow graph: {}: {}\n predecessors: {:#?}",
-            function_id.0 .0,
+            function_id.0,
             control_flow_graph,
             control_flow_graph
                 .cycle_aware_successors(&control_flow_graph.entry_point)
@@ -221,20 +219,23 @@ mod test {
     use crate::cli::load_program;
 
     use super::*;
-    use crate::{ir::IrGenerator, parser::parse, typed_ast::type_ast};
+    use crate::ir::IrGenerator;
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;
 
     #[rstest]
     fn test_liveness(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
+        use crate::{ast::{parser::parse, identifiers::ScopeID, scopes::build_program_scopes}, types::resolve_types};
 
-        let ir_generator = IrGenerator::new();
-        let ir_progam = ir_generator.convert_to_ssa(typed_program);
-        let analysis_result = calculate_livenss(&ir_progam);
+        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
+        let (ast, node_db, program_scopes) = parse(&program)?;        
+
+    let program_scopes = build_program_scopes(&ast, & node_db);
+    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
+    let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
+    let ir_program = ir_generator.convert_to_ssa();
+        let analysis_result = calculate_livenss(&ir_program);
 
         insta::assert_snapshot!(
             format!(

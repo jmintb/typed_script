@@ -332,7 +332,7 @@ impl NodeDatabase {
                 .get(&expression_id)
                 .map(|expression| Node::Statement(Statement::Expression(expression.clone()))),
             NodeID::Block(block_id) => self.blocks.get(&block_id).map(|block| {
-                Node::Statement(Statement::Expression(Expression::Block(block.clone())))
+                Node::Statement(Statement::Expression(Expression::Block(block_id)))
             }),
             _ => todo!("not implemented {:?}", node_id),
         }
