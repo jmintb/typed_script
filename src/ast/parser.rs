@@ -24,15 +24,23 @@ use super::{
 #[grammar = "typed_script.pest"]
 struct TSParser;
 
-#[derive(Default)]
 struct AstBuilder {
     db: NodeDatabase,
     ast: Ast,
 }
 
+impl AstBuilder {
+    fn new() -> Self {
+        Self {
+            db: NodeDatabase::default(),
+            ast: Ast::new()
+        }
+    }
+}
+
 pub fn parse(input: &str) -> Result<(Ast, NodeDatabase, Vec<String>)> {
     let program = TSParser::parse(Rule::program, &input)?;
-    let mut builder = AstBuilder::default();
+    let mut builder = AstBuilder::new();
     parse_program(program, &mut builder)
 }
 
@@ -243,7 +251,7 @@ fn parse_fn_call(builder: &mut AstBuilder, call_expression: Pair<Rule>) -> Resul
         .collect();
 
 
-    let call = Call { function_id: builder.db.get_function_declaration_id_from_identifier(Identifier::new(id.as_str().to_string()))?,
+    let call = Call { function_id: Identifier(id.as_str().trim().to_string()),
         arguments: args,
     };
 

@@ -168,8 +168,8 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDecl
                 };
 
                 match instruction {
-                    Instruction::Assign(id) => variable_livness.insert_variable_start(
-                        *id,
+                    Instruction::Assign(to, from) => variable_livness.insert_variable_start(
+                        *to,
                         AbstractAddress {
                             block_id: *block_id,
                             inststruction: instruction_counter,
@@ -226,15 +226,9 @@ mod test {
 
     #[rstest]
     fn test_liveness(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::{ast::{parser::parse, identifiers::ScopeID, scopes::build_program_scopes}, types::resolve_types};
+        use crate::{ast::{parser::parse, identifiers::ScopeID, scopes::build_program_scopes}, types::resolve_types, compiler::produce_ir};
 
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let (ast, node_db, program_scopes) = parse(&program)?;        
-
-    let program_scopes = build_program_scopes(&ast, & node_db);
-    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
-    let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
-    let ir_program = ir_generator.convert_to_ssa();
+        let ir_program = produce_ir(path.to_str().unwrap())?;
         let analysis_result = calculate_livenss(&ir_program);
 
         insta::assert_snapshot!(

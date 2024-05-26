@@ -5,13 +5,13 @@ use tracing::{debug};
 
 use crate::{
     analysis::liveness_analysis::AbstractAddress,
-    ir::{BlockId, FunctionId, Instruction, IrProgram},
+    ir::{BlockId, FunctionId, Instruction, IrProgram}, ast::identifiers::FunctionDeclarationID,
 };
 
 use super::liveness_analysis::VariableLiveness;
 
 pub fn insert_free(
-    variable_liveness: BTreeMap<FunctionId, VariableLiveness>,
+    variable_liveness: BTreeMap<FunctionDeclarationID, VariableLiveness>,
     mut ir_program: IrProgram,
 ) -> IrProgram {
     let mut block_offsets = BTreeMap::<BlockId, usize>::new();
@@ -47,10 +47,7 @@ pub fn insert_free(
                             "expected to find a successor to the cycle in {} \n {} \n {}",
                             target_block_id,
                             ir_program,
-                            ir_program
-                                .control_flow_graphs
-                                .get(&FunctionId(crate::parser::TSIdentifier("main".to_string())))
-                                .unwrap()
+                            ir_program.entry_point_cfg()
                         ));
                     offset = 0;
                     AbstractAddress {
@@ -104,14 +101,10 @@ mod test {
     fn test_ir_output_with_drops(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast};
+        use crate::{parser::parse, typed_ast::type_ast, compiler::produce_ir};
 
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
 
-        let ir_generator = IrGenerator::new();
-        let ir_program = ir_generator.convert_to_ssa(typed_program);
+        let ir_program = produce_ir(path.to_str().unwrap())?;
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;
         let ir_program = crate::analysis::free_dead_resources::insert_free(liveness, ir_program);
 
@@ -130,14 +123,9 @@ mod test {
     fn test_all_variables_are_dropped(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast};
+        use crate::{parser::parse, typed_ast::type_ast, compiler::produce_ir};
 
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
-
-        let ir_generator = IrGenerator::new();
-        let ir_program = ir_generator.convert_to_ssa(typed_program);
+        let ir_program = produce_ir(path.to_str().unwrap())?;
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;
         let ir_program = crate::analysis::free_dead_resources::insert_free(liveness, ir_program);
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;

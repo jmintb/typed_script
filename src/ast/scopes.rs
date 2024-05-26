@@ -14,7 +14,7 @@ pub struct Scope {
     pub associated_node: Option<NodeID>,
 }
 
-pub fn build_program_scopes(ast: &Ast, db: &NodeDatabase) -> HashMap<ScopeID, Scope> {
+pub fn build_program_scopes(ast: &Ast, db: &mut NodeDatabase) -> HashMap<ScopeID, Scope> {
     let mut scopes: HashMap<ScopeID, Scope> = HashMap::new();
 
     let root_scope_id = db.new_id::<ScopeID>();

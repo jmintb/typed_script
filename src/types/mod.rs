@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::nodes::{
-     Expression,  FunctionKeyword, Identifier, StructDeclaration, Value,
+     Expression,  FunctionKeyword, Identifier, StructDeclaration, Value, Assignment,
 };
 use crate::ast::scopes::Scope;
 use crate::ast::{Ast, NodeDatabase};
@@ -259,7 +259,12 @@ pub fn resolve_types(
                             Value::String(..) => Type::String,
                             _ => todo!(),
                         },
-                        _ => todo!(),
+                        Expression::Assignment(Assignment {
+                            id, expression
+                        }) =>  Type::Unit, 
+                        _ => Type::Unit,
+
+                        _ => todo!("typing not implemented for {:?}", expression),
                     };
                     types.insert(*id, expression_type);
                 }

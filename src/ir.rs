@@ -7,16 +7,20 @@ use tracing::debug;
 
 use crate::{
     ast::{
-        identifiers::{ExpressionID, ScopeID, FunctionDeclarationID, FunctionID, BlockID, StatementID},
-        nodes::{FunctionArg, Identifier, Type, Expression, Call, Value, StructInit, StructField, StructFieldPath, IfStatement, IfElseStatement, While, Return, Operation, Assign, Array, ArrayLookup, AccessModes, Assignment},
+        identifiers::{BlockID, ExpressionID, FunctionDeclarationID, ScopeID, StatementID},
+        nodes::{
+            AccessModes, Array, ArrayLookup, Assign, Assignment, Call, Expression, FunctionArg,
+            Identifier, IfElseStatement, IfStatement, Operation, Return, StructField,
+            StructFieldPath, StructInit, Type, Value, While,
+        },
         scopes::Scope,
         Ast, NodeDatabase,
     },
     control_flow_graph::ControlFlowGraph,
-    types::{TypeDB, FunctionType},
+    types::{FunctionType, TypeDB},
 };
 
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
 pub struct SSAID(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
 pub struct BlockId(pub usize);
@@ -44,6 +48,16 @@ pub struct IrProgram {
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
+    pub entry_function_id: FunctionDeclarationID,
+}
+
+impl IrProgram {
+    pub fn entry_point_cfg(&self) -> ControlFlowGraph<BlockId> {
+        self.control_flow_graphs
+            .get(&self.entry_function_id)
+            .unwrap()
+            .clone()
+    }
 }
 
 impl Display for IrProgram {
@@ -88,7 +102,7 @@ impl Block {
 
 #[derive(Clone, Debug)]
 pub enum Instruction {
-    Assign(SSAID),
+    Assign(SSAID, SSAID),
     Move(SSAID),
     Borrow(SSAID),
     BorrowEnd(SSAID),
@@ -96,6 +110,7 @@ pub enum Instruction {
     MutBorrowEnd(SSAID),
     Drop(SSAID),
     Call(FunctionId, Vec<(SSAID, AccessModes)>),
+    AssignFnArg(SSAID),
 }
 
 impl Instruction {
@@ -109,11 +124,20 @@ impl Instruction {
 
     fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
         match self {
-            Self::Assign(id) => {
+            Self::Assign(to, from) => {
                 format!(
-                    "= {}_{}",
-                    id.0,
-                    ssa_variables.get(id).unwrap().original_variable.0
+                    "{}_{} = {}_{}",
+                    to.0,
+                    ssa_variables.get(to).unwrap().original_variable.0,
+                    from.0,
+                    ssa_variables.get(from).unwrap().original_variable.0
+                )
+            }
+            Self::AssignFnArg(to) => {
+                format!(
+                    "{}_{} = fnarg",
+                    to.0,
+                    ssa_variables.get(to).unwrap().original_variable.0,
                 )
             }
             Self::Move(id) => {
@@ -197,13 +221,20 @@ pub struct IrGenerator {
     type_db: TypeDB,
     scopes: HashMap<ScopeID, Scope>,
     types: HashMap<ExpressionID, Type>,
+    entry_point_function: FunctionDeclarationID,
+    static_values: HashMap<SSAID, Value>,
 }
 
 use crate::types;
 
 impl IrGenerator {
-    pub fn new(ast: Ast, node_db: NodeDatabase, scopes: HashMap<ScopeID, Scope> , expression_types: HashMap<ExpressionID, types::Type>, type_db: TypeDB) -> Self {
-
+    pub fn new(
+        ast: Ast,
+        node_db: NodeDatabase,
+        scopes: HashMap<ScopeID, Scope>,
+        expression_types: HashMap<ExpressionID, types::Type>,
+        type_db: TypeDB,
+    ) -> Self {
         let entry_block = Block {
             instructions: Vec::new(),
         };
@@ -221,10 +252,12 @@ impl IrGenerator {
             access_modes: BTreeMap::new(),
             types: HashMap::new(),
             control_flow_graphs: BTreeMap::new(),
-            current_function: ast.entry_function,
+            current_function: ast.get_entry_function_id(&node_db).unwrap(),
+            entry_point_function: ast.get_entry_function_id(&node_db).unwrap(),
             type_db,
             node_db,
             scopes,
+            static_values: HashMap::new(),
         }
     }
 
@@ -290,14 +323,17 @@ impl IrGenerator {
         todo!()
     }
 
-    fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID ) {
-
-        
-       let function_declaration = self.node_db.function_declarations.get(&function_declaration_id).unwrap(); 
+    fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID) {
+        let function_declaration = self
+            .node_db
+            .function_declarations
+            .get(&function_declaration_id)
+            .unwrap()
+            .clone();
 
         // TODO: At this point we should'nt have to check such things.
         let Some(function_body_id) = function_declaration.body else {
-            return; 
+            return;
         };
 
         self.current_function = function_declaration_id;
@@ -308,19 +344,16 @@ impl IrGenerator {
         }
 
         let cfg = ControlFlowGraph::new(entry_block);
-        self.control_flow_graphs.insert(self.current_function, cfg );
+        self.control_flow_graphs.insert(self.current_function, cfg);
 
-        let _ = self.convert_block(function_body_id, entry_block );
-
+        let _ = self.convert_block(function_body_id, entry_block);
     }
 
     // TODO NEXT: make this parallel down to function level with CFG.
     // TODO NEXT: We need to have types for each SSAID
 
     pub fn convert_to_ssa(mut self) -> IrProgram {
-        let mut current_block = self.entry_block;
-
-        for function_declaration in self.node_db.function_declarations {
+        for function_declaration in self.node_db.function_declarations.clone().into_iter() {
             self.convert_function_declaration(function_declaration.0);
         }
 
@@ -330,6 +363,7 @@ impl IrGenerator {
             entry_block: self.entry_block,
             access_modes: self.access_modes,
             control_flow_graphs: self.control_flow_graphs,
+            entry_function_id: self.entry_point_function,
         }
     }
 
@@ -345,18 +379,29 @@ impl IrGenerator {
             });
     }
 
-    fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> BlockId {match statement_id {
-            StatementID::Expression(expression_id) => self.convert_expression(expression_id, current_block).0,
-            _ => todo!()
+    fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> BlockId {
+        match statement_id {
+            StatementID::Expression(expression_id) => {
+                self.convert_expression(expression_id, current_block).0
+            }
+            _ => todo!(),
         }
     }
 
     fn convert_assignment(&mut self, assignment: Assignment, current_block: BlockId) -> BlockId {
-        let updated_block_id = self.convert_expression(assignment.expression, current_block);
+        let (updated_block_id, Some(result_id)) =
+            self.convert_expression(assignment.expression, current_block)
+        else {
+            panic!(
+                "Expected a result from expression {:?}",
+                self.node_db.expressions.get(&assignment.expression)
+            );
+        };
+
         let ssa_id = self.add_ssa_variable(assignment.id);
-        let assign_instruction = Instruction::Assign(ssa_id);
-        self.add_instruction(updated_block_id.0, assign_instruction);
-        updated_block_id.0
+        let assign_instruction = Instruction::Assign(ssa_id, result_id);
+        self.add_instruction(updated_block_id, assign_instruction);
+        updated_block_id
     }
 
     fn convert_block(&mut self, ast_block_id: BlockID, current_block: BlockId) -> BlockId {
@@ -365,10 +410,10 @@ impl IrGenerator {
         current_block = self.add_block();
         self.record_cfg_connection(parent_block, current_block);
 
-        let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap();
+        let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap().clone();
 
-        for statement in ast_block.statements {
-            current_block = self.convert_statement(statement, current_block);
+        for statement in ast_block.statements.iter() {
+            current_block = self.convert_statement(*statement, current_block);
             if current_block != parent_block {
                 // self.record_cfg_connection(parent_block, current_block);
                 parent_block = current_block;
@@ -397,29 +442,46 @@ impl IrGenerator {
         current_block: BlockId,
     ) -> (BlockId, Option<SSAID>) {
         let mut current_block = current_block;
-        let expression = self.node_db.expressions.get(&expression_id).unwrap();
+        let expression = self
+            .node_db
+            .expressions
+            .get(&expression_id)
+            .unwrap()
+            .clone();
         match expression {
             Expression::Block(ast_block) => {
-current_block =                 self.convert_block(*ast_block, current_block)
+                current_block = self.convert_block(ast_block, current_block);
             }
             Expression::Assignment(assignment_ment) => {
-                todo!()
+                current_block = self.convert_assignment(assignment_ment, current_block);
             }
-            Expression::Call(Call { function_id, arguments }) => {
-                let function_type_id = self.type_db.function_declaration_types.get(function_id).unwrap();
+            Expression::Call(Call {
+                function_id,
+                arguments,
+            }) => {
+                // TODO: Use actual function type and not just circumvent using declarations.
+                let function_type_id = &self
+                    .node_db
+                    .get_function_declaration_id_from_identifier(function_id.clone())
+                    .unwrap();
 
-                let argument_types = self.type_db.function_types.get(function_type_id).unwrap().arguments;
+                let function_declaration = self.node_db.function_declarations.get(function_type_id).unwrap().clone();
+
+                let argument_types = function_declaration
+                    .arguments
+                    .clone();
 
                 let mut function_args = Vec::new();
                 let mut free_instructions = Vec::new();
                 let mut setup_instructions = Vec::new();
 
                 for (i, arg) in arguments.into_iter().enumerate() {
-                    let (new_current_block, ssa_var) = self.convert_expression(*arg, current_block);
+                    let (new_current_block, ssa_var) = self.convert_expression(arg, current_block);
 
                     current_block = new_current_block;
                     if let Some(ssa_var) = ssa_var {
-                        self.access_modes.insert(ssa_var, argument_types[i].access_mode);
+                        self.access_modes
+                            .insert(ssa_var, argument_types[i].access_mode);
                         let access_instruction = self.get_access_instruction(ssa_var);
                         setup_instructions.push(access_instruction.clone());
                         self.add_instruction(current_block, access_instruction);
@@ -436,12 +498,25 @@ current_block =                 self.convert_block(*ast_block, current_block)
 
                 self.add_instruction(
                     current_block,
-                    Instruction::Call(FunctionId(*function_id), function_args),
+                    Instruction::Call(
+                        FunctionId(
+                            self.node_db
+                                .get_function_declaration_id_from_identifier(function_id)
+                                .unwrap(),
+                        ),
+                        function_args,
+                    ),
                 );
 
                 for instruction in free_instructions {
                     self.add_instruction(current_block, instruction);
                 }
+
+                if let Some(ref return_type) = function_declaration.return_type  {
+                    // TODO: Once there is a minimal code running impl we need to expand the instruction set to support assignments from instructions to support using a return val from a call.
+                    panic!()
+                }
+
             }
 
             Expression::Value(val) => match val {
@@ -450,41 +525,54 @@ current_block =                 self.convert_block(*ast_block, current_block)
                     // self.add_instruction(current_block, self.get_access_instruction(ssa_var));
                     return (current_block, Some(ssa_var));
                 }
-                _ => (),
+                _ => {
+                    let ssa_var = self.declare_static_value(val, current_block);
+                    return (current_block, Some(ssa_var));
+                }
             },
 
-            Expression::Struct(StructInit { struct_id, field_values }) => {
+            Expression::Struct(StructInit {
+                struct_id,
+                field_values,
+            }) => {
                 for field in field_values {
-                    (current_block, _) = self.convert_expression(*field, current_block);
+                    (current_block, _) = self.convert_expression(field, current_block);
                 }
             }
 
-            Expression::StructFieldRef(StructFieldPath { struct_indentifier, field_identifier }) => {
-                let ssa_var = self.latest_gen_variable(*struct_indentifier).unwrap();
+            Expression::StructFieldRef(StructFieldPath {
+                struct_indentifier,
+                field_identifier,
+            }) => {
+                let ssa_var = self.latest_gen_variable(struct_indentifier).unwrap();
                 self.add_instruction(current_block, self.get_access_instruction(ssa_var));
             }
 
-            Expression::If(IfStatement { condition, then_block }) => {
+            Expression::If(IfStatement {
+                condition,
+                then_block,
+            }) => {
                 let parent_block = current_block;
-                (current_block, _) =
-                    self.convert_expression(*condition, current_block);
-                current_block = self.convert_block(*then_block, current_block);
+                (current_block, _) = self.convert_expression(condition, current_block);
+                current_block = self.convert_block(then_block, current_block);
                 let post_if_block = self.add_block();
                 self.record_cfg_connection(current_block, post_if_block);
 
                 current_block = post_if_block;
             }
 
-            Expression::Ifelse(IfElseStatement { condition, then_block, else_block }) => {
-                
+            Expression::Ifelse(IfElseStatement {
+                condition,
+                then_block,
+                else_block,
+            }) => {
                 let parent_block = current_block;
-                (current_block, _) =
-                    self.convert_expression(*condition, current_block);
-                current_block = self.convert_block(*then_block, current_block);
+                (current_block, _) = self.convert_expression(condition, current_block);
+                current_block = self.convert_block(then_block, current_block);
                 let post_if_block = self.add_block();
                 self.record_cfg_connection(current_block, post_if_block);
-                    current_block = self.convert_block(*else_block, parent_block);
-                    self.record_cfg_connection(current_block, post_if_block);
+                current_block = self.convert_block(else_block, parent_block);
+                self.record_cfg_connection(current_block, post_if_block);
 
                 current_block = post_if_block;
             }
@@ -493,10 +581,10 @@ current_block =                 self.convert_block(*ast_block, current_block)
                 let condition_block = self.add_block();
                 self.record_cfg_connection(current_block, condition_block);
                 current_block = condition_block;
-                (current_block, _) = self.convert_expression(*condition, current_block);
+                (current_block, _) = self.convert_expression(condition, current_block);
                 let body_block = self.add_block();
                 self.record_cfg_connection(condition_block, body_block);
-                let body_block = self.convert_block(*body, body_block);
+                let body_block = self.convert_block(body, body_block);
                 self.record_cfg_connection(body_block, condition_block);
                 let post_loop_block = self.add_block();
                 self.record_cfg_connection(condition_block, post_loop_block);
@@ -505,11 +593,11 @@ current_block =                 self.convert_block(*ast_block, current_block)
 
             Expression::Return(Return { expression }) => {
                 if let Some(expression) = expression {
-                    (current_block, _) = self.convert_expression(*expression, current_block);
+                    (current_block, _) = self.convert_expression(expression, current_block);
                 }
             }
 
-            Expression::Operation(operation) => match *operation {
+            Expression::Operation(operation) => match operation {
                 Operation::Binary(lhs, _, rhs) => {
                     (current_block, _) = self.convert_expression(lhs, current_block);
                     (current_block, _) = self.convert_expression(rhs, current_block);
@@ -517,15 +605,13 @@ current_block =                 self.convert_block(*ast_block, current_block)
             },
 
             Expression::Assign(Assign { id, expression }) => {
-                (current_block, _) = self.convert_expression(*expression, current_block);
-                let ssa_id = self.add_ssa_variable(*id);
-                let assign_instruction = Instruction::Assign(ssa_id);
-                self.add_instruction(current_block, assign_instruction);
+                current_block =
+                    self.convert_assignment(Assignment { id, expression }, current_block);
             }
 
             Expression::Array(Array { items }) => {
                 for item in items {
-                    (current_block, _) = self.convert_expression(*item, current_block);
+                    (current_block, _) = self.convert_expression(item, current_block);
                 }
             }
 
@@ -533,8 +619,8 @@ current_block =                 self.convert_block(*ast_block, current_block)
                 array_identifier,
                 index_expression,
             }) => {
-                (current_block, _) = self.convert_expression(*index_expression, current_block);
-                let ssa_var = self.latest_gen_variable(*array_identifier).unwrap();
+                (current_block, _) = self.convert_expression(index_expression, current_block);
+                let ssa_var = self.latest_gen_variable(array_identifier).unwrap();
                 self.add_instruction(current_block, Instruction::Move(ssa_var));
             }
         }
@@ -544,12 +630,10 @@ current_block =                 self.convert_block(*ast_block, current_block)
 
     fn declare_function_argument(&mut self, argument: FunctionArg, current_block: BlockId) {
         let ssa_id = self.add_ssa_variable(argument.name);
-        let assign_instruction = Instruction::Assign(ssa_id);
+        let assign_instruction = Instruction::AssignFnArg(ssa_id);
         self.access_modes.insert(ssa_id, argument.access_mode);
         self.add_instruction(current_block, assign_instruction);
     }
-
-    
 
     fn add_instruction(&mut self, updated_block_id: BlockId, assign_instruction: Instruction) {
         self.blocks
@@ -558,29 +642,36 @@ current_block =                 self.convert_block(*ast_block, current_block)
             .instructions
             .push(assign_instruction)
     }
+
+    fn declare_static_value(&mut self, val: Value, current_block: BlockId) -> SSAID {
+        let static_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
+        self.static_values.insert(static_ssa_id, val);
+        let expression_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
+        self.add_instruction(
+            current_block,
+            Instruction::Assign(expression_ssa_id, static_ssa_id),
+        );
+        expression_ssa_id
+    }
 }
 
 #[cfg(test)]
 mod test {
-   use super::*;
-    use anyhow::Result;
-    use rstest::rstest;
-    use std::path::PathBuf;
+    use super::*;
     use crate::ast::parser::parse;
     use crate::ast::scopes::build_program_scopes;
     use crate::types::resolve_types;
-
+    use anyhow::Result;
+    use rstest::rstest;
+    use std::path::PathBuf;
 
     // NEXT actual: aligns types added outside of this file
 
     #[rstest]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        let (ast,node_db,_) = parse(&path.to_str().unwrap().to_string())?;
+        use crate::compiler::produce_ir;
 
-    let program_scopes = build_program_scopes(&ast, & node_db);
-    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
-        let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db );
-        let ir_progam = ir_generator.convert_to_ssa();
+        let ir_progam = produce_ir(path.to_str().unwrap())?;
 
         insta::assert_snapshot!(
             format!(
@@ -596,12 +687,9 @@ mod test {
     fn test_control_flow_graph(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        let (ast,node_db,_) = parse(&path.to_str().unwrap().to_string())?;
+        use crate::compiler::produce_ir;
 
-    let program_scopes = build_program_scopes(&ast, & node_db);
-    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
-        let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db );
-        let ir_progam = ir_generator.convert_to_ssa();
+        let ir_progam = produce_ir(path.to_str().unwrap())?;
         for (function_id, control_flow_graph) in ir_progam.control_flow_graphs {
             insta::assert_snapshot!(
                 format!(

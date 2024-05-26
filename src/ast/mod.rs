@@ -7,7 +7,7 @@ pub mod scopes;
 use std::collections::{HashMap, VecDeque};
 use anyhow::{Result, bail};
 
-use crate::identifiers::{IDGenerator, ID};
+use crate::{identifiers::{IDGenerator, ID}, parser::TSIdentifier};
 
 use self::{
     declarations::ModuleDeclaration,
@@ -30,13 +30,23 @@ pub struct Scope {
     pub associated_node: Option<NodeID>,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Ast {
     modules: Vec<ModuleDeclarationID>,
-    pub entry_function: FunctionDeclarationID, // TODO: this needs to be initialised properly
 }
 
 impl Ast {
+
+    pub fn new() -> Self {
+        Self {
+            modules: Vec::new(),
+        }
+    }
+
+    pub fn get_entry_function_id(&self, db: &NodeDatabase) -> Result<FunctionDeclarationID> {
+        db.get_function_declaration_id_from_identifier(Identifier("main".to_string()))
+    }
+
     pub fn get_node_relationships(&self, db: &NodeDatabase) -> HashMap<NodeID, Vec<NodeID>> {
         let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
         let mut walker =
@@ -146,9 +156,10 @@ impl Ast {
             .collect();
 
         let mut process_block =
-            |block: &Block,
+            |block_id: &BlockID,
              parent_id: Option<NodeID>,
              queue: &mut VecDeque<(NodeID, Option<NodeID>)>| {
+                 let block = db.blocks.get(block_id).unwrap();
                 for &statement in block.statements.iter() {
                     match statement {
                         StatementID::Declaration(decl) => todo!(),
@@ -188,8 +199,7 @@ impl Ast {
                 }
                 NodeID::Block(block_id) => {
                     walker(db, block_id.into(), parent, walker_context).unwrap();
-                    let block = db.blocks.get(&block_id).unwrap();
-                    process_block(block, Some(block_id.into()), &mut queue);
+                    process_block(&block_id, Some(block_id.into()), &mut queue);
                 }
                 NodeID::Statement(StatementID::Expression(expression_id)) => {
                     let expression = db.expressions.get(&expression_id).unwrap();

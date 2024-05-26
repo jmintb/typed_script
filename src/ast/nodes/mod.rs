@@ -159,7 +159,7 @@ pub struct StructInit {
 
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub function_id: FunctionDeclarationID,
+    pub function_id: Identifier,
     pub arguments: Vec<ExpressionID>,
 }
 

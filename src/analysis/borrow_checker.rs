@@ -139,8 +139,8 @@ impl BorrowChecker {
                     Instruction::Call(_function_id, _args ) => {
                         ()
                     }
-                    Instruction::Assign(id) => {
-                        variable_states.insert(*id, VariableState::Ready);
+                    Instruction::Assign(to, from) => {
+                        variable_states.insert(*to, VariableState::Ready);
                     }
                     Instruction::Borrow(id) => match variable_states.get(&id) {
                         Some(VariableState::Ready) => {
@@ -254,16 +254,12 @@ mod test {
     use rstest::rstest;
     use std::path::PathBuf;
     use tracing::debug;
+    use crate::compiler::produce_ir;
 
     #[rstest]
     #[test_log::test]
     fn test_borrow_checker(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        let typed_program = type_ast(ast)?;
-
-        let ir_generator = IrGenerator::new();
-        let ir_program = ir_generator.convert_to_ssa(typed_program);
+        let ir_program = produce_ir(path.to_str().unwrap())?;
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;
         let ir_program = crate::analysis::free_dead_resources::insert_free(liveness.clone(), ir_program);
 
@@ -271,7 +267,7 @@ mod test {
         let mut borrow_checker = BorrowChecker::new();
         let analysis_result = borrow_checker.check(&ir_program);
         debug!("transformed IR program: {} \n liveness {:#?}", ir_program, liveness);
-        debug!("cfg: {} ", ir_program.control_flow_graphs.get(&FunctionId(crate::parser::TSIdentifier("main".to_string()))).unwrap());
+        debug!("cfg: {} ", ir_program.entry_point_cfg());
 
         insta::assert_snapshot!(
             format!(
