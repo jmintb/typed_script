@@ -33,7 +33,7 @@ use crate::{
     typed_ast::{
         self, Array, ArrayLookup, Assign, Assignment, Decl, IfStatement, Return, StructType,
         TypedAst, TypedExpression, TypedProgram, While,
-    },
+    }, ir::IrProgram,
 };
 
 // TODO: something inside the module is dropped when it is returned.
@@ -258,6 +258,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     }
 
     // TODO: Switch to btreemap
+
 
     fn gen_statements<'a>(
         &self,

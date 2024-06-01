@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
 pub struct SSAID(pub usize);
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
 pub struct BlockId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct FunctionId(pub FunctionDeclarationID);
@@ -49,6 +49,7 @@ pub struct IrProgram {
     pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
     pub entry_function_id: FunctionDeclarationID,
+    pub node_db: NodeDatabase
 }
 
 impl IrProgram {
@@ -364,6 +365,7 @@ impl IrGenerator {
             access_modes: self.access_modes,
             control_flow_graphs: self.control_flow_graphs,
             entry_function_id: self.entry_point_function,
+            node_db: self.node_db
         }
     }
 

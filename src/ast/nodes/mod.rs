@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use std::{collections::{BTreeMap, HashMap}, fmt::Display};
 
 use anyhow::bail;
+use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 
 use super::{
     declarations::ModuleDeclaration,
@@ -28,6 +29,20 @@ pub enum Type {
     Named(Identifier),
     Array(Box<Type>, usize), // TODO: get rid of this Box
     Pointer,
+    Unit,
+}
+
+// TODO: this should really happen in the types module.
+impl Type {
+    pub fn as_mlir_type<'c>(&self, context: &'c Context, types: &HashMap<Identifier, Type>) -> melior::ir::Type<'c> {
+        match self {
+            Type::Pointer => llvm::r#type::opaque_pointer(context),
+            Type::String => llvm::r#type::opaque_pointer(context),
+            Type::SignedInteger => IntegerType::new(context, 32).into(),
+            Type::Unit => llvm::r#type::void(context),
+            _ => todo!("unimplemented type to mlir type {:?}", self),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
