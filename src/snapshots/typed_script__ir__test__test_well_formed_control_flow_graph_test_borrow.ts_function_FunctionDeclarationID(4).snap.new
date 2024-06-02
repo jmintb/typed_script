@@ -1,0 +1,7 @@
+---
+source: src/ir.rs
+assertion_line: 696
+expression: "format!(\"{}\", control_flow_graph)"
+---
+entry point: block_3
+block_3 -> [block_4, ]

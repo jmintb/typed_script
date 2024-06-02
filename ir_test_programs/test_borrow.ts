@@ -1,11 +1,11 @@
 fn main() {
     let message = "hello world!";
-    borrow();
-    borrow();
+    borrow(message);
+    borrow(message);
     return;
 }
 
-fn borrow() {
-    
+fn borrow(let test: ptr) {
+   return; 
 }
 

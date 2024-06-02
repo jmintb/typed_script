@@ -60,7 +60,7 @@ pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEng
         &module,
         HashMap::new(),
         ast.node_db.clone(),
-        ast.clone()
+        ast.clone(),
     ));
     let code_gen = Box::leak(code_gen);
 
@@ -81,7 +81,7 @@ pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEng
     pass_manager.add_pass(pass::conversion::create_index_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
-    pass_manager.run(&mut module)?;
+    //pass_manager.run(&mut module);
 
     if !emit_mlir {
         assert!(module.as_operation().verify());
@@ -102,7 +102,7 @@ struct CodeGen<'ctx, 'module> {
     annon_string_counter: RefCell<usize>,
     node_db: NodeDatabase,
     type_store: HashMap<SSAID, nodes::Type>,
-    program: IrProgram
+    program: IrProgram,
 }
 
 impl<'ctx, 'module> CodeGen<'ctx, 'module> {
@@ -111,7 +111,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         module: &'module Module<'ctx>,
         types: HashMap<SSAID, nodes::Type>,
         node_db: NodeDatabase,
-        ir_program: IrProgram
+        ir_program: IrProgram,
     ) -> Self {
         Self {
             context,
@@ -119,7 +119,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             annon_string_counter: 0.into(),
             type_store: types,
             node_db,
-            program: ir_program
+            program: ir_program,
         }
     }
 
@@ -174,11 +174,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 let block = block_db.get(&block_id).unwrap();
 
                 for instruction in block.instructions.iter() {
-                    self.gen_instruction(instruction , &current_block, &mut function_variable_store)?;
-
-                    }
+                    self.gen_instruction(
+                        instruction,
+                        &current_block,
+                        &mut function_variable_store,
+                    )?;
                 }
             }
+        }
         current_block.append_operation(melior::dialect::func::r#return(&vec![], location));
 
         function_region.append_block(current_block);
@@ -241,16 +244,17 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 location,
             )
         } else {
+            let mlir_return_type = if let nodes::Type::Unit = return_type {
+                vec![return_type.as_mlir_type(&self.context, &HashMap::new())]
+            } else {
+                vec![]
+            };
             func::func(
                 &self.context,
                 StringAttribute::new(&self.context, &function_identifier),
                 TypeAttribute::new(
-                    FunctionType::new(
-                        &self.context,
-                        &function_argument_types,
-                        &[return_type.as_mlir_type(&self.context, &HashMap::new())],
-                    )
-                    .into(),
+                    FunctionType::new(&self.context, &function_argument_types, &mlir_return_type)
+                        .into(),
                 ),
                 function_region,
                 &[],
@@ -259,6 +263,20 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         };
 
         Ok(function_decl)
+    }
+
+    fn gen_variable_load<'a>(
+        &self,
+        id: SSAID,
+        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+        current_block: &'a Block<'ctx>,
+    ) -> Result<Value<'ctx, 'a>> {
+        let value = self.query_value(&id, variable_store, current_block)?;
+        let location = melior::ir::Location::unknown(self.context);
+        Ok(current_block
+            .append_operation(memref::load(value, &[], location))
+            .result(0)?
+            .into())
     }
 
     fn gen_function_call<'a>(
@@ -270,7 +288,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     ) -> Result<Option<Value<'ctx, 'a>>> {
         let argument_values = arguments
             .iter()
-            .map(|arg_id| variable_store.get(&arg_id.0).unwrap().clone())
+            .map(|arg_id| {
+                self.gen_variable_load(arg_id.0, variable_store, current_block)
+                    .unwrap()
+            })
             .collect::<Vec<Value>>();
 
         let function_declaration = self
@@ -328,54 +349,83 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         current_block: &'a Block<'ctx>,
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
     ) -> Result<Option<Value<'ctx, 'a>>> {
-      let result =  match instruction {
+        let result = match instruction {
             Instruction::Assign(ref lhs_id, ref rhs_id) => {
                 self.gen_assignment(lhs_id, rhs_id, &current_block, variable_store)?;
                 None
             }
-            Instruction::Call(function_id, arguments) => {
-                self.gen_function_call(
-                    function_id.clone(),
-                    arguments.clone(),
-                    variable_store,
-                    &current_block,
-                )?
-            }
-            Instruction::MutBorrow(id) | Instruction::MutBorrowEnd(id) | Instruction::BorrowEnd(id) | Instruction::Move(id) | Instruction::Borrow(id) | Instruction::Drop(id) => None,
+            Instruction::Call(function_id, arguments) => self.gen_function_call(
+                function_id.clone(),
+                arguments.clone(),
+                variable_store,
+                &current_block,
+            )?,
+            Instruction::MutBorrow(id)
+            | Instruction::MutBorrowEnd(id)
+            | Instruction::BorrowEnd(id)
+            | Instruction::Move(id)
+            | Instruction::Borrow(id)
+            | Instruction::Drop(id) => None,
             _ => panic!("instruction not implemented yet {:?}", instruction),
         };
 
         Ok(result)
     }
 
-    fn query_value<'a>(&self, id: &SSAID, variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>, current_block: &'a Block<'ctx>) -> Result<Value<'ctx, 'a>> {
+    fn query_value<'a>(
+        &self,
+        id: &SSAID,
+        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+        current_block: &'a Block<'ctx>,
+    ) -> Result<Value<'ctx, 'a>> {
         if let Some(value) = variable_store.get(id) {
+        println!("value type {:?}", value);
             return Ok(value.clone());
         }
 
-       if let Some(static_value) = self.program.static_values.get(id) {
+        if let Some(static_value) = self.program.static_values.get(id) {
             match static_value {
                 nodes::Value::String(val) => {
-                // TODO: \n is getting escaped, perhap we need a raw string?
-                let val = if val == "\\n" { "\n" } else { &val };
-                let val = val.replace("\\n", "\n");
+                    // TODO: \n is getting escaped, perhap we need a raw string?
+                    let val = if val == "\\n" { "\n" } else { &val };
+                    let val = val.replace("\\n", "\n");
 
-                    let value: Value = self.gen_pointer_to_annon_str(current_block, val.to_string())?
+                    let value: Value = self
+                        .gen_pointer_to_annon_str(current_block, val.to_string())?
                         .result(0)?
                         .into();
 
-                    variable_store.insert(*id, value.clone());
-                    return Ok(value);
+                    let ptr = melior::dialect::memref::alloca(
+                        self.context,
+                        MemRefType::new(value.r#type(), &[], None, None),
+                        &[],
+                        &[],
+                        None,
+                        Location::unknown(self.context),
+                    );
+
+                    let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                    let store_op = melior::dialect::memref::store(
+                        value,
+                        ptr_val.into(),
+                        &[],
+                        melior::ir::Location::unknown(self.context),
+                    );
+
+                    current_block.append_operation(store_op);
+
+                    variable_store.insert(*id, ptr_val.into());
+                    return Ok(ptr_val.into());
                 }
                 nodes::Value::Integer(_) => {
                     todo!("Need value instructions in IR")
                 }
 
-                _ => panic!()
+                _ => panic!(),
             }
-       }
+        }
 
-       panic!()
+        panic!()
     }
 
     pub fn gen_pointer_to_annon_str<'a>(
@@ -451,25 +501,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     ) -> Result<()> {
         let initial_value = self.query_value(rhs_id, variable_store, current_block)?;
 
-        let ptr = melior::dialect::memref::alloca(
-            self.context,
-            MemRefType::new(initial_value.r#type(), &[], None, None),
-            &[],
-            &[],
-            None,
-            Location::unknown(self.context),
-        );
-        let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
-        let store_op = melior::dialect::memref::store(
-            initial_value,
-            ptr_val.into(),
-            &[],
-            melior::ir::Location::unknown(self.context),
-        );
-
-        current_block.append_operation(store_op);
-
-        variable_store.insert(*lhs_id, ptr_val.into());
+        variable_store.insert(*lhs_id,initial_value);
 
         Ok(())
     }

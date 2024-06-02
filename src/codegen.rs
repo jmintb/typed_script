@@ -938,7 +938,7 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
     pass_manager.add_pass(pass::conversion::create_index_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
-    pass_manager.run(&mut module)?;
+    // pass_manager.run(&mut module)?;
 
     if !emit_mlir {
         assert!(module.as_operation().verify());

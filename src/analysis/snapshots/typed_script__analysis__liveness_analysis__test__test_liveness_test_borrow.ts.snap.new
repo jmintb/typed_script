@@ -1,0 +1,60 @@
+---
+source: src/analysis/liveness_analysis.rs
+assertion_line: 234
+expression: "format!(\"{:#?}\", analysis_result)"
+---
+Ok(
+    {
+        FunctionDeclarationID(
+            8,
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    7,
+                ): AbstractAddressRange {
+                    start_address: AbstractAddress {
+                        block_id: BlockId(
+                            5,
+                        ),
+                        inststruction: 0,
+                    },
+                    end_addresses: [
+                        AbstractAddress {
+                            block_id: BlockId(
+                                5,
+                            ),
+                            inststruction: 0,
+                        },
+                    ],
+                },
+                SSAID(
+                    8,
+                ): AbstractAddressRange {
+                    start_address: AbstractAddress {
+                        block_id: BlockId(
+                            5,
+                        ),
+                        inststruction: 1,
+                    },
+                    end_addresses: [
+                        AbstractAddress {
+                            block_id: BlockId(
+                                5,
+                            ),
+                            inststruction: 7,
+                        },
+                    ],
+                },
+            },
+            variable_moved: {},
+            loans: {},
+        },
+        FunctionDeclarationID(
+            10,
+        ): VariableLiveness {
+            variables: {},
+            variable_moved: {},
+            loans: {},
+        },
+    },
+)
