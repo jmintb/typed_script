@@ -49,7 +49,8 @@ pub struct IrProgram {
     pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
     pub entry_function_id: FunctionDeclarationID,
-    pub node_db: NodeDatabase
+    pub node_db: NodeDatabase,
+    pub static_values: HashMap<SSAID, Value>,
 }
 
 impl IrProgram {
@@ -365,7 +366,8 @@ impl IrGenerator {
             access_modes: self.access_modes,
             control_flow_graphs: self.control_flow_graphs,
             entry_function_id: self.entry_point_function,
-            node_db: self.node_db
+            node_db: self.node_db,
+            static_values: self.static_values
         }
     }
 
