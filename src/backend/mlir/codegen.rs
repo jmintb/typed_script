@@ -40,7 +40,7 @@ use crate::ast::NodeDatabase;
 use crate::ir::Instruction;
 use crate::ir::SSAID;
 
-pub fn generate_mlir<'c>(ast: IrProgram ,emit_mlir: bool) -> Result<ExecutionEngine> {
+pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEngine> {
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
 
@@ -59,7 +59,7 @@ pub fn generate_mlir<'c>(ast: IrProgram ,emit_mlir: bool) -> Result<ExecutionEng
         &context,
         &module,
         HashMap::new(),
-        ast.node_db.clone()
+        ast.node_db.clone(),
     ));
     let code_gen = Box::leak(code_gen);
 
@@ -104,7 +104,6 @@ struct CodeGen<'ctx, 'module> {
 }
 
 impl<'ctx, 'module> CodeGen<'ctx, 'module> {
-    
     fn new(
         context: &'ctx Context,
         module: &'module Module<'ctx>,
@@ -116,21 +115,18 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             module,
             annon_string_counter: 0.into(),
             type_store: types,
-            node_db
+            node_db,
         }
     }
 
-    fn gen_code(&self, program: IrProgram) ->  Result<()> {
-
+    fn gen_code(&self, program: IrProgram) -> Result<()> {
         for (function_decl_id, cfg) in program.control_flow_graphs {
-           let decl = self.gen_function(function_decl_id, cfg, &program.blocks)?;
-           self.module.body().append_operation(decl);
+            let decl = self.gen_function(function_decl_id, cfg, &program.blocks)?;
+            self.module.body().append_operation(decl);
         }
 
         Ok(())
-        
     }
-
 
     fn gen_function(
         &self,
@@ -150,7 +146,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .iter()
             .map(|arg_type| {
                 arg_type
-                    .r#type.as_ref()
+                    .r#type
+                    .as_ref()
                     .unwrap()
                     .as_mlir_type(self.context, &HashMap::new())
             })
@@ -168,7 +165,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
         let function_region = Region::new();
 
-
         for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
             for block_id in block_ids {
                 let block = block_db.get(&block_id).unwrap();
@@ -185,21 +181,27 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         }
                         // TODO: This will need to moved to a separate function when implementing return values;
                         Instruction::Call(function_id, arguments) => {
-                            let do_something_with_this = self.gen_function_call(function_id.clone(), arguments.clone(), &mut function_variable_store, &current_block)?;
+                            let do_something_with_this = self.gen_function_call(
+                                function_id.clone(),
+                                arguments.clone(),
+                                &mut function_variable_store,
+                                &current_block,
+                            )?;
                         }
                         _ => panic!("instruction not implemented yet"),
                     }
                 }
             }
         }
-                current_block
-                    .append_operation(melior::dialect::func::r#return(&vec![], location));
+        current_block.append_operation(melior::dialect::func::r#return(&vec![], location));
 
         function_region.append_block(current_block);
 
         let function_identifier = function_declaration.identifier.0.clone();
-        let return_type = function_declaration.return_type.as_ref().unwrap_or(&nodes::Type::Unit);
-
+        let return_type = function_declaration
+            .return_type
+            .as_ref()
+            .unwrap_or(&nodes::Type::Unit);
 
         let function_decl = if &function_identifier == "main" {
             func::func(
@@ -224,15 +226,17 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 )],
                 location,
             )
-        } else if function_declaration.keywords.contains(&FunctionKeyword::LlvmExtern) {
+        } else if function_declaration
+            .keywords
+            .contains(&FunctionKeyword::LlvmExtern)
+        {
             llvm::func(
                 &self.context,
                 StringAttribute::new(&self.context, &function_identifier),
                 TypeAttribute::new(
                     llvm::r#type::function(
                         return_type.as_mlir_type(&self.context, &HashMap::new()),
-                        function_argument_types
-                            .as_slice(),
+                        function_argument_types.as_slice(),
                         false,
                     )
                     .into(),
@@ -289,8 +293,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .get(&function_id.0)
             .unwrap();
 
-        let return_type = function_declaration.return_type.as_ref().unwrap_or(&nodes::Type::Unit);
-        
+        let return_type = function_declaration
+            .return_type
+            .as_ref()
+            .unwrap_or(&nodes::Type::Unit);
+
         let location = melior::ir::Location::unknown(self.context);
 
         let call_operation = if function_declaration
@@ -301,7 +308,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .add_operands(&argument_values)
                 .add_attributes(&[(
                     Identifier::new(&self.context, "callee"),
-                        FlatSymbolRefAttribute::new(&self.context, &function_declaration.identifier.0).into(),
+                    FlatSymbolRefAttribute::new(&self.context, &function_declaration.identifier.0)
+                        .into(),
                 )])
                 .add_results(&[return_type.as_mlir_type(self.context, &HashMap::new())])
                 .build()?
@@ -310,7 +318,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 Vec::new()
             } else {
                 vec![return_type.as_mlir_type(self.context, &HashMap::new())]
-                };
+            };
 
             func::call(
                 &self.context,
@@ -326,6 +334,31 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         } else {
             Ok(None)
         }
+    }
+
+    fn gen_instruction<'a>(
+        &self,
+        instruction: Instruction,
+        current_block: &'a Block<'ctx>,
+        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+    ) -> Result<()> {
+        match instruction {
+            Instruction::Assign(ref lhs_id, ref rhs_id) => {
+                self.gen_assignment(lhs_id, rhs_id, &current_block, &mut function_variable_store)?;
+            }
+            // TODO: This will need to moved to a separate function when implementing return values;
+            Instruction::Call(function_id, arguments) => {
+                let do_something_with_this = self.gen_function_call(
+                    function_id.clone(),
+                    arguments.clone(),
+                    &mut variable_store,
+                    &current_block,
+                )?;
+            }
+            _ => panic!("instruction not implemented yet"),
+        };
+
+        Ok(())
     }
 
     fn gen_assignment<'a>(
@@ -361,8 +394,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     }
 }
 
-
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -382,5 +413,4 @@ mod test {
 
         Ok(())
     }
-
 }
