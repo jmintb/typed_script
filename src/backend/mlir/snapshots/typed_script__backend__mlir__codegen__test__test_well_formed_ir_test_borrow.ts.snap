@@ -1,0 +1,30 @@
+---
+source: src/backend/mlir/codegen.rs
+expression: "format!(\"{}\", mlir_output)"
+---
+module attributes {llvm.data_layout = ""} {
+  llvm.mlir.global internal @annonstr0("hello world!") {addr_space = 0 : i32}
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.mlir.addressof @annonstr0 : !llvm.ptr
+    %1 = llvm.mlir.constant(1 : index) : i64
+    %2 = llvm.alloca %1 x !llvm.ptr : (i64) -> !llvm.ptr
+    %3 = llvm.mlir.undef : !llvm.struct<(ptr, ptr, i64)>
+    %4 = llvm.insertvalue %2, %3[0] : !llvm.struct<(ptr, ptr, i64)> 
+    %5 = llvm.insertvalue %2, %4[1] : !llvm.struct<(ptr, ptr, i64)> 
+    %6 = llvm.mlir.constant(0 : index) : i64
+    %7 = llvm.insertvalue %6, %5[2] : !llvm.struct<(ptr, ptr, i64)> 
+    llvm.store %0, %2 : !llvm.ptr, !llvm.ptr
+    %8 = llvm.load %2 : !llvm.ptr -> !llvm.ptr
+    llvm.call @borrow(%8) : (!llvm.ptr) -> ()
+    %9 = llvm.load %2 : !llvm.ptr -> !llvm.ptr
+    llvm.call @borrow(%9) : (!llvm.ptr) -> ()
+    llvm.return
+  }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+  llvm.func @borrow(%arg0: !llvm.ptr) {
+    llvm.return
+  }
+}

@@ -23,7 +23,7 @@ use melior::{
         Attribute, Block, Identifier, Location, Module, Operation, OperationRef, Region, Type,
         Value, ValueLike,
     },
-    pass,
+    pass::{self, PassManager},
     utility::{register_all_dialects, register_all_llvm_translations},
     Context, ExecutionEngine,
 };
@@ -40,7 +40,38 @@ use crate::ast::NodeDatabase;
 use crate::ir::Instruction;
 use crate::ir::SSAID;
 
-pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEngine> {
+struct MlirGenerationConfig {
+    program: IrProgram,
+    verify_mlir: bool,
+}
+
+// TODO: Figure out how we can share the module generation code without dropping references.
+
+pub fn generate_mlir<'c>(config: MlirGenerationConfig) -> Result<ExecutionEngine> {
+    let context = prepare_mlir_context();
+    let mut module = Module::new(melior::ir::Location::unknown(&context));
+    let code_gen = Box::new(CodeGen::new(
+        &context,
+        &module,
+        HashMap::new(),
+        config.program,
+    ));
+    let code_gen = Box::leak(code_gen);
+
+    code_gen.gen_code()?;
+
+    run_mlir_passes(&context, &mut module);
+
+    if config.verify_mlir {
+        assert!(module.as_operation().verify());
+    }
+
+    let engine = ExecutionEngine::new(&module, 0, &[], true);
+
+    Ok(engine)
+}
+
+fn prepare_mlir_context() -> Context {
     let registry = DialectRegistry::new();
     register_all_dialects(&registry);
 
@@ -54,19 +85,11 @@ pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEng
         true
     });
 
-    let mut module = Module::new(melior::ir::Location::unknown(&context));
-    let code_gen = Box::new(CodeGen::new(
-        &context,
-        &module,
-        HashMap::new(),
-        ast.node_db.clone(),
-        ast.clone(),
-    ));
-    let code_gen = Box::leak(code_gen);
+    context
+}
 
-    code_gen.gen_code(ast)?;
-
-    let pass_manager = pass::PassManager::new(&code_gen.context);
+fn run_mlir_passes(context: &Context, module: &mut Module) {
+    let pass_manager = pass::PassManager::new(context);
     pass_manager.add_pass(pass::conversion::create_func_to_llvm());
 
     pass_manager
@@ -81,26 +104,28 @@ pub fn generate_mlir<'c>(ast: IrProgram, emit_mlir: bool) -> Result<ExecutionEng
     pass_manager.add_pass(pass::conversion::create_index_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
-    //pass_manager.run(&mut module);
+    pass_manager.run(module);
+}
 
-    if !emit_mlir {
+pub fn generate_mlir_string(cfg: MlirGenerationConfig) -> Result<String> {
+    let context = prepare_mlir_context();
+    let mut module = Module::new(melior::ir::Location::unknown(&context));
+    let code_gen = Box::new(CodeGen::new(&context, &module, HashMap::new(), cfg.program));
+    code_gen.gen_code()?;
+    run_mlir_passes(&context, &mut module);
+
+    if cfg.verify_mlir {
         assert!(module.as_operation().verify());
     }
-
-    if emit_mlir {
-        println!("{}", module.as_operation());
-    }
-
-    let engine = ExecutionEngine::new(&module, 0, &[], true);
-
-    Ok(engine)
+    Ok(format!("{}", module.as_operation()))
 }
+
+// TODO: move this into a struct with context
 
 struct CodeGen<'ctx, 'module> {
     context: &'ctx Context,
     module: &'module Module<'ctx>,
     annon_string_counter: RefCell<usize>,
-    node_db: NodeDatabase,
     type_store: HashMap<SSAID, nodes::Type>,
     program: IrProgram,
 }
@@ -110,7 +135,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         context: &'ctx Context,
         module: &'module Module<'ctx>,
         types: HashMap<SSAID, nodes::Type>,
-        node_db: NodeDatabase,
         ir_program: IrProgram,
     ) -> Self {
         Self {
@@ -118,14 +142,13 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             module,
             annon_string_counter: 0.into(),
             type_store: types,
-            node_db,
             program: ir_program,
         }
     }
 
-    fn gen_code(&self, program: IrProgram) -> Result<()> {
-        for (function_decl_id, cfg) in program.control_flow_graphs {
-            let decl = self.gen_function(function_decl_id, cfg, &program.blocks)?;
+    fn gen_code(&self) -> Result<()> {
+        for (function_decl_id, cfg) in self.program.control_flow_graphs.iter() {
+            let decl = self.gen_function(function_decl_id, cfg, &self.program.blocks)?;
             self.module.body().append_operation(decl);
         }
 
@@ -134,12 +157,13 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
     fn gen_function(
         &self,
-        function_decl_id: FunctionDeclarationID,
-        cfg: ControlFlowGraph<BlockId>,
+        function_decl_id: &FunctionDeclarationID,
+        cfg: &ControlFlowGraph<BlockId>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<(Operation)> {
         let location = melior::ir::Location::unknown(self.context);
         let function_declaration = self
+            .program
             .node_db
             .function_declarations
             .get(&function_decl_id)
@@ -295,7 +319,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .collect::<Vec<Value>>();
 
         let function_declaration = self
-            .node_db
+            .program.node_db
             .function_declarations
             .get(&function_id.0)
             .unwrap();
@@ -379,7 +403,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         current_block: &'a Block<'ctx>,
     ) -> Result<Value<'ctx, 'a>> {
         if let Some(value) = variable_store.get(id) {
-        println!("value type {:?}", value);
+            println!("value type {:?}", value);
             return Ok(value.clone());
         }
 
@@ -472,7 +496,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 ),
                 (
                     Identifier::new(&self.context, "linkage"),
-                    // ArrayAttribute::new(&self.context, &[]).into(),
                     llvm::attributes::linkage(&self.context, Linkage::Internal),
                 ),
             ])
@@ -501,7 +524,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     ) -> Result<()> {
         let initial_value = self.query_value(rhs_id, variable_store, current_block)?;
 
-        variable_store.insert(*lhs_id,initial_value);
+        variable_store.insert(*lhs_id, initial_value);
 
         Ok(())
     }
@@ -514,15 +537,25 @@ mod test {
     use rstest::rstest;
     use std::path::PathBuf;
 
-    // NEXT actual: aligns types added outside of this file
-
     #[rstest]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
         use crate::compiler::produce_ir;
 
-        let ir_progam = produce_ir(path.to_str().unwrap())?;
-        generate_mlir(ir_progam, true)?;
-        panic!();
+        let ir_program = produce_ir(path.to_str().unwrap())?;
+        let mlir_generation_config = MlirGenerationConfig {
+            verify_mlir: true,
+            program: ir_program,
+        };
+
+        let mlir_output = generate_mlir_string(mlir_generation_config)?;
+        
+        insta::assert_snapshot!(
+            format!(
+                "test_well_formed_ir_{}",
+                path.file_name().unwrap().to_str().unwrap()
+            ),
+            format!("{}", mlir_output)
+        );
 
         Ok(())
     }
