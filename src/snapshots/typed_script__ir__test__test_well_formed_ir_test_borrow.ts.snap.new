@@ -1,6 +1,6 @@
 ---
 source: src/ir.rs
-assertion_line: 680
+assertion_line: 681
 expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
@@ -11,13 +11,13 @@ block_5
 0: 7_Anonymous = 6_Anonymous
 1: 8_message = 7_Anonymous
 2: borrow(8_message)
-3: @10( let 8_message,)
+3: @11( let 8_message,)
 4: borrow_end(8_message)
 5: borrow(8_message)
-6: @10( let 8_message,)
+6: @11( let 8_message,)
 7: borrow_end(8_message)
 
-fn 10:
+fn 11:
 block_1
 0: 2_test = fnarg
 

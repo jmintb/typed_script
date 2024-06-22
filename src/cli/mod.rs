@@ -48,7 +48,7 @@ fn print(val: str, len: integer) {
 pub fn load_program(path: Option<String>) -> Result<String> {
     let path = path.unwrap_or("./main.ts".to_string());
     let std_lib = load_std_lib();
-    Ok(format!("\n {}", std::fs::read_to_string(&path)?))
+    Ok(format!("{}\n {}",std_lib, std::fs::read_to_string(&path)?))
 }
 
 pub fn exec_cli() -> Result<()> {

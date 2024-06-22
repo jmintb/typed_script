@@ -5,22 +5,22 @@ expression: "format!(\"{}\", ir_program)"
 ---
 IR:
 fn 8:
+block_4
+
+block_5
+0: 7_Anonymous = 6_Anonymous
+1: drop(7_Anonymous)
+2: 8_message = 7_Anonymous
+3: borrow(8_message)
+4: @11( let 8_message,)
+5: borrow_end(8_message)
+6: borrow(8_message)
+7: @11( let 8_message,)
+8: borrow_end(8_message)
+9: drop(8_message)
+
+fn 11:
 block_1
+0: 2_test = fnarg
 
-block_2
-0: 4_Anonymous = 3_Anonymous
-1: drop(4_Anonymous)
-2: 5_message = 4_Anonymous
-3: borrow(5_message)
-4: @10( let 5_message,)
-5: borrow_end(5_message)
-6: borrow(5_message)
-7: @10( let 5_message,)
-8: borrow_end(5_message)
-9: drop(5_message)
-
-fn 10:
-block_6
-0: 7_test = fnarg
-
-block_8
+block_3

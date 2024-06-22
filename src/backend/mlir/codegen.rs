@@ -548,6 +548,8 @@ mod test {
         };
 
         let mlir_output = generate_mlir_string(mlir_generation_config)?;
+
+        println!("{}", mlir_output);
         
         insta::assert_snapshot!(
             format!(

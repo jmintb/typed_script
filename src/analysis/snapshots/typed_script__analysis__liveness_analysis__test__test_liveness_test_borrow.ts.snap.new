@@ -10,36 +10,36 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    7,
+                    4,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            5,
+                            2,
                         ),
                         inststruction: 0,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                5,
+                                2,
                             ),
                             inststruction: 0,
                         },
                     ],
                 },
                 SSAID(
-                    8,
+                    5,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            5,
+                            2,
                         ),
                         inststruction: 1,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                5,
+                                2,
                             ),
                             inststruction: 7,
                         },
@@ -50,7 +50,7 @@ Ok(
             loans: {},
         },
         FunctionDeclarationID(
-            10,
+            11,
         ): VariableLiveness {
             variables: {},
             variable_moved: {},

@@ -104,7 +104,7 @@ impl Block {
 
 #[derive(Clone, Debug)]
 pub enum Instruction {
-    Assign(SSAID, SSAID),
+    Assign(SSAID, SSAID), // TODO: RHS needs to support expressions
     Move(SSAID),
     Borrow(SSAID),
     BorrowEnd(SSAID),
@@ -518,7 +518,11 @@ impl IrGenerator {
 
                 if let Some(ref return_type) = function_declaration.return_type  {
                     // TODO: Once there is a minimal code running impl we need to expand the instruction set to support assignments from instructions to support using a return val from a call.
-                    panic!()
+                    // IDEA: treat this as a special case where we create a variable which will contain the return value. All other cases like binary operations should simply create a new variable. 
+                    // This keeps the IR simple and easy to implement.
+
+                    let return_value = self.add_ssa_variable 
+                    
                 }
 
             }
@@ -677,6 +681,7 @@ mod test {
 
         let ir_progam = produce_ir(path.to_str().unwrap())?;
 
+        println!("{}", ir_progam);
         insta::assert_snapshot!(
             format!(
                 "test_well_formed_ir_{}",
