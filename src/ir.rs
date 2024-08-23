@@ -111,8 +111,9 @@ pub enum Instruction {
     MutBorrow(SSAID),
     MutBorrowEnd(SSAID),
     Drop(SSAID),
-    Call(FunctionId, Vec<(SSAID, AccessModes)>),
+    Call(FunctionId, Vec<(SSAID, AccessModes)>, SSAID),
     AssignFnArg(SSAID),
+    Return(Option<SSAID>),
 }
 
 impl Instruction {
@@ -124,7 +125,7 @@ impl Instruction {
         }
     }
 
-    fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
+    pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
         match self {
             Self::Assign(to, from) => {
                 format!(
@@ -185,10 +186,11 @@ impl Instruction {
                     ssa_variables.get(id).unwrap().original_variable.0
                 )
             }
-            Self::Call(function_id, args) => {
+            Self::Call(function_id, args, result_id) => {
                 format!(
-                    "@{}({})",
-                    function_id.0 .0,
+                    "receiver_{:?} = @{}({})",
+                    result_id,
+                    function_id.0.0,
                     args.iter()
                         .map(|(variable_id, access_mode)| format!(
                             "{} {}_{},",
@@ -199,6 +201,8 @@ impl Instruction {
                         .fold(String::new(), |acc, next| format!("{} {}", acc, next))
                 )
             }
+            Self::Return(None) => "return".to_string(),
+            Self::Return(Some(val)) => format!("return {}", val.0),
         }
     }
 }
@@ -405,6 +409,7 @@ impl IrGenerator {
         let ssa_id = self.add_ssa_variable(assignment.id);
         let assign_instruction = Instruction::Assign(ssa_id, result_id);
         self.add_instruction(updated_block_id, assign_instruction);
+        self.add_instruction(updated_block_id, self.get_access_instruction(result_id));
         updated_block_id
     }
 
@@ -500,6 +505,9 @@ impl IrGenerator {
                     }
                 }
 
+                // TODO: it might not always mmake sense to produce a function result.
+                let function_call_result_reciever = self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
+
                 self.add_instruction(
                     current_block,
                     Instruction::Call(
@@ -509,6 +517,7 @@ impl IrGenerator {
                                 .unwrap(),
                         ),
                         function_args,
+                        function_call_result_reciever
                     ),
                 );
 
@@ -516,10 +525,7 @@ impl IrGenerator {
                     self.add_instruction(current_block, instruction);
                 }
 
-                if let Some(ref return_type) = function_declaration.return_type  {
-                    // TODO: Once there is a minimal code running impl we need to expand the instruction set to support assignments from instructions to support using a return val from a call.
-                    panic!()
-                }
+                return (current_block, Some(function_call_result_reciever));
 
             }
 
@@ -597,7 +603,11 @@ impl IrGenerator {
 
             Expression::Return(Return { expression }) => {
                 if let Some(expression) = expression {
-                    (current_block, _) = self.convert_expression(expression, current_block);
+                    let (result_block, result) = self.convert_expression(expression, current_block);
+                    self.add_instruction(result_block, Instruction::Return(result));
+                    current_block = result_block
+                } else {
+                    self.add_instruction(current_block, Instruction::Return(None));
                 }
             }
 

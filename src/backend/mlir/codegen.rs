@@ -104,7 +104,7 @@ fn run_mlir_passes(context: &Context, module: &mut Module) {
     pass_manager.add_pass(pass::conversion::create_index_to_llvm());
     pass_manager.add_pass(pass::conversion::create_reconcile_unrealized_casts());
 
-    pass_manager.run(module);
+    pass_manager.run(module).unwrap();
 }
 
 pub fn generate_mlir_string(cfg: MlirGenerationConfig) -> Result<String> {
@@ -206,7 +206,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 }
             }
         }
-        current_block.append_operation(melior::dialect::func::r#return(&vec![], location));
 
         function_region.append_block(current_block);
 
@@ -269,10 +268,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             )
         } else {
             let mlir_return_type = if let nodes::Type::Unit = return_type {
-                vec![return_type.as_mlir_type(&self.context, &HashMap::new())]
-            } else {
                 vec![]
+            } else {
+                vec![return_type.as_mlir_type(&self.context, &HashMap::new())]
             };
+
             func::func(
                 &self.context,
                 StringAttribute::new(&self.context, &function_identifier),
@@ -309,7 +309,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         arguments: Vec<(SSAID, AccessModes)>,
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
         current_block: &'a Block<'ctx>,
-    ) -> Result<Option<Value<'ctx, 'a>>> {
+        result_receiver: &SSAID
+    ) -> Result<()> {
         let argument_values = arguments
             .iter()
             .map(|arg_id| {
@@ -327,7 +328,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let return_type = function_declaration
             .return_type
             .as_ref()
-            .unwrap_or(&nodes::Type::Unit);
+            .unwrap();
 
         let location = melior::ir::Location::unknown(self.context);
 
@@ -361,9 +362,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         };
 
         if let Ok(val) = current_block.append_operation(call_operation).result(0) {
-            Ok(Some(val.into()))
+            // TODO: What is the call does not return a value?
+            variable_store.insert(*result_receiver, val.into());
+            Ok(())
         } else {
-            Ok(None)
+            panic!()
         }
     }
 
@@ -378,12 +381,32 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 self.gen_assignment(lhs_id, rhs_id, &current_block, variable_store)?;
                 None
             }
-            Instruction::Call(function_id, arguments) => self.gen_function_call(
+            Instruction::Call(function_id, arguments, result_reciever) => {
+                self.gen_function_call(
                 function_id.clone(),
                 arguments.clone(),
                 variable_store,
                 &current_block,
-            )?,
+                result_reciever
+            )?;
+
+             variable_store.get(result_reciever).cloned()
+
+            },
+            Instruction::Return(result) => {
+                
+                let return_values = if let Some(expression) = result {
+                    let return_value = self.query_value(expression, variable_store, current_block)?;
+                    vec![return_value]
+                } else {
+                    Vec::new()
+                };
+
+
+                current_block
+                    .append_operation(melior::dialect::func::r#return(&return_values, Location::unknown(self.context)));
+                None
+            }
             Instruction::MutBorrow(id)
             | Instruction::MutBorrowEnd(id)
             | Instruction::BorrowEnd(id)
@@ -406,6 +429,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             println!("value type {:?}", value);
             return Ok(value.clone());
         }
+
+        
 
         if let Some(static_value) = self.program.static_values.get(id) {
             match static_value {
@@ -441,15 +466,26 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     variable_store.insert(*id, ptr_val.into());
                     return Ok(ptr_val.into());
                 }
-                nodes::Value::Integer(_) => {
-                    todo!("Need value instructions in IR")
+                nodes::Value::Integer(value) => {
+                    return Ok(current_block
+                        .append_operation(melior::dialect::arith::constant(
+                            &self.context,
+                            IntegerAttribute::new(
+                                value.value as i64, // TODO why do we need 4 here?
+                                IntegerType::new(&self.context, 32).into(),
+                            )
+                            .into(),
+                            Location::unknown(self.context),
+                        ))
+                        .result(0)?.into()) ;
                 }
-
                 _ => panic!(),
+
             }
+        } else {
+        panic!("failed to find ssaid: {}", self.program.ssa_variables.get(id).unwrap().original_variable.0);
         }
 
-        panic!()
     }
 
     pub fn gen_pointer_to_annon_str<'a>(

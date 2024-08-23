@@ -253,7 +253,6 @@ pub enum Operator {
 pub enum Value {
     String(String),
     Variable(Identifier),
-    Number,
     Integer(Integer),
     Boolean(bool),
 }
