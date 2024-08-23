@@ -1,0 +1,18 @@
+---
+source: src/backend/mlir/codegen.rs
+expression: "format!(\"{}\", mlir_output)"
+---
+module attributes {llvm.data_layout = ""} {
+  llvm.func @main() attributes {llvm.emit_c_interface} {
+    %0 = llvm.call @generate_message() : () -> i32
+    llvm.return
+  }
+  llvm.func @_mlir_ciface_main() attributes {llvm.emit_c_interface} {
+    llvm.call @main() : () -> ()
+    llvm.return
+  }
+  llvm.func @generate_message() -> i32 {
+    %0 = llvm.mlir.constant(2 : i32) : i32
+    llvm.return %0 : i32
+  }
+}
