@@ -247,6 +247,16 @@ mod test {
             ),
             format!("{:#?}", analysis_result)
         );
+
+
+        insta::assert_snapshot!(
+            format!(
+                "test_liveness_{}",
+                path.file_name().unwrap().to_str().unwrap()
+            ),
+            format!("{:#?}", analysis_result)
+        );
+
         Ok(())
     }
 }
