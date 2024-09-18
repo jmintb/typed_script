@@ -1,5 +1,5 @@
 use anyhow::Result;
-use typed_script::cli::exec_cli;
+use fusion::cli::exec_cli;
 
 fn main() -> Result<()> {
     exec_cli()

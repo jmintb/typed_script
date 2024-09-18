@@ -15,7 +15,7 @@ use super::{
     identifiers::{ExpressionID, FunctionDeclarationID, StatementID, StructDeclarationID},
     nodes::{
         Assignment, Block, Call, Expression, FunctionArg, FunctionDeclaration, Integer, Return,
-        StructDeclaration, StructField, StructInit, Type, Value,
+        StructDeclaration, StructField, StructInit, Type, Value, Operation, Operator
     },
     Ast, NodeDatabase,
 };
@@ -188,7 +188,7 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
         // Rule::reference => {
         //     Expression::Value(parse_string(expression.into_inner().next().unwrap())?)
         // }
-        // Rule::operation => Expression::Operation(parse_operation(expression)?),
+        Rule::operation => Expression::Operation(parse_operation(builder, pair)?),
         // Rule::boolean => Expression::Value(parse_boolean(expression)?),
         // Rule::r#if_else => Expression::If(parse_if(expression)?),
         // Rule::while_loop => Expression::While(parse_while(expression)?),
@@ -202,6 +202,42 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
     let expression_id = builder.db.new_expression(expression);
 
     Ok(expression_id)
+}
+
+fn parse_operation(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Operation> {
+    let mut inner = if let Rule::operation = pair.as_rule() {
+        pair.into_inner()
+    } else {
+        bail!("expected operation rule got {:?}", pair);
+    };
+
+    let first_operand = parse_expression(builder, inner.next().unwrap())?;
+
+    let operator = parse_operator(inner.next().unwrap())?;
+
+    let second_operand = parse_expression(builder, inner.next().unwrap())?;
+
+    Ok(Operation::Binary(
+        first_operand,
+        operator,
+        second_operand,
+    ))
+}
+
+fn parse_operator(expression: Pair<Rule>) -> Result<Operator> {
+    Ok(match expression.as_rule() {
+        Rule::addition => Operator::Addition,
+        Rule::subtraction => Operator::Subtraction,
+        Rule::division => Operator::Division,
+        Rule::multiplication => Operator::Multiplication,
+        Rule::equal => Operator::Equality,
+        Rule::not_equal => Operator::Inequality,
+        Rule::greater_than => Operator::GreaterThan,
+        Rule::less_than => Operator::LessThan,
+        Rule::greater_than_or_equal => Operator::GreaterThanOrEqual,
+        Rule::less_than_or_equal => Operator::LessThanOrEqual,
+        _ => bail!("expected an infix operator but got: {:?}", expression),
+    })
 }
 
 fn parse_return(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Return> {

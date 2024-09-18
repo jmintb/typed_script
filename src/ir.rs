@@ -3,6 +3,7 @@ use std::{
     fmt::Display,
 };
 
+use anyhow::{bail, Result};
 use tracing::debug;
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
         nodes::{
             AccessModes, Array, ArrayLookup, Assign, Assignment, Call, Expression, FunctionArg,
             Identifier, IfElseStatement, IfStatement, Operation, Return, StructField,
-            StructFieldPath, StructInit, Type, Value, While,
+            StructFieldPath, StructInit, Type, Value, While, Operator
         },
         scopes::Scope,
         Ast, NodeDatabase,
@@ -104,6 +105,7 @@ impl Block {
 
 #[derive(Clone, Debug)]
 pub enum Instruction {
+    Addition(SSAID, SSAID, SSAID),
     Assign(SSAID, SSAID),
     Move(SSAID),
     Borrow(SSAID),
@@ -127,6 +129,17 @@ impl Instruction {
 
     pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
         match self {
+            Self::Addition(lhs, rhs, result) => {
+                format!(
+                    "{}_{} = {}_{} + {}_{}",
+                    result.0,
+                    ssa_variables.get(result).unwrap().original_variable.0,
+                    lhs.0,
+                    ssa_variables.get(lhs).unwrap().original_variable.0,
+                    rhs.0,
+                    ssa_variables.get(rhs).unwrap().original_variable.0
+                )
+            }
             Self::Assign(to, from) => {
                 format!(
                     "{}_{} = {}_{}",
@@ -190,7 +203,7 @@ impl Instruction {
                 format!(
                     "receiver_{:?} = @{}({})",
                     result_id,
-                    function_id.0.0,
+                    function_id.0 .0,
                     args.iter()
                         .map(|(variable_id, access_mode)| format!(
                             "{} {}_{},",
@@ -371,7 +384,7 @@ impl IrGenerator {
             control_flow_graphs: self.control_flow_graphs,
             entry_function_id: self.entry_point_function,
             node_db: self.node_db,
-            static_values: self.static_values
+            static_values: self.static_values,
         }
     }
 
@@ -474,11 +487,14 @@ impl IrGenerator {
                     .get_function_declaration_id_from_identifier(function_id.clone())
                     .unwrap();
 
-                let function_declaration = self.node_db.function_declarations.get(function_type_id).unwrap().clone();
-
-                let argument_types = function_declaration
-                    .arguments
+                let function_declaration = self
+                    .node_db
+                    .function_declarations
+                    .get(function_type_id)
+                    .unwrap()
                     .clone();
+
+                let argument_types = function_declaration.arguments.clone();
 
                 let mut function_args = Vec::new();
                 let mut free_instructions = Vec::new();
@@ -506,7 +522,8 @@ impl IrGenerator {
                 }
 
                 // TODO: it might not always mmake sense to produce a function result.
-                let function_call_result_reciever = self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
+                let function_call_result_reciever =
+                    self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
 
                 self.add_instruction(
                     current_block,
@@ -517,7 +534,7 @@ impl IrGenerator {
                                 .unwrap(),
                         ),
                         function_args,
-                        function_call_result_reciever
+                        function_call_result_reciever,
                     ),
                 );
 
@@ -526,7 +543,6 @@ impl IrGenerator {
                 }
 
                 return (current_block, Some(function_call_result_reciever));
-
             }
 
             Expression::Value(val) => match val {
@@ -612,9 +628,37 @@ impl IrGenerator {
             }
 
             Expression::Operation(operation) => match operation {
-                Operation::Binary(lhs, _, rhs) => {
-                    (current_block, _) = self.convert_expression(lhs, current_block);
-                    (current_block, _) = self.convert_expression(rhs, current_block);
+                Operation::Binary(lhs, ref operator, rhs) => {
+                    let (lhs_block, lhs_id) = self.convert_expression(lhs, current_block);
+                    let (rhs_block, rhs_id) = self.convert_expression(rhs, lhs_block);
+                    current_block = rhs_block;
+
+                    let Some(lhs_id) = lhs_id else {
+                       panic!("left hand side expression did not produce an id, from operation: {:?}", operation.clone()) 
+                    };
+                    
+                    let Some(rhs_id) = rhs_id else {
+                       panic!("right hand side expression did not produce an id, from operation: {:?}", operation.clone()) 
+                    };
+
+                    match operator {
+                        Operator::Addition => {
+                            let ssa_id = self.add_ssa_variable(Identifier::new("@addition_result".to_string()));
+                            let assign_instruction = Instruction::Addition(lhs_id, rhs_id, ssa_id);
+                            self.add_instruction(current_block, assign_instruction);
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(lhs_id)
+                            );
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(rhs_id)
+                            );
+
+                            return (current_block, Some(ssa_id));
+                        }
+                        _ => panic!("operator {:?} not support", operator),
+                    }
                 }
             },
 
