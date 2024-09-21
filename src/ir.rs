@@ -103,7 +103,7 @@ impl Block {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Addition(SSAID, SSAID, SSAID),
     Assign(SSAID, SSAID),
@@ -516,8 +516,16 @@ impl IrGenerator {
                             .get_access_instruction(ssa_var)
                             .get_inverse_instruction()
                         {
-                            free_instructions.push(release_instruction);
-                        }
+                            match release_instruction {
+                                Instruction::BorrowEnd(borrowd_var) => {
+                                    if !free_instructions.contains(&release_instruction) {
+                                      free_instructions.push(release_instruction);
+                                    }
+                                }
+                                _ => free_instructions.push(release_instruction)
+
+                            }
+                                                    }
                     }
                 }
 

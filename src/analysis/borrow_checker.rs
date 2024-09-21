@@ -126,7 +126,7 @@ impl BorrowChecker {
         }; 
 
         
-            
+
         
         debug!("checking instruction {} in block {} with variable states {:#?}", instruction_counter, block_id, variable_states);
                 let block = ctx.scope.blocks.get_mut(block_id).unwrap();
@@ -137,6 +137,12 @@ impl BorrowChecker {
 
                 match instruction {
                     // TODO: Investigate if the reuslt SSA variable is released and borrow checked properly.
+                    Instruction::Addition(_, _, result) => {
+                       variable_states.insert(*result, VariableState::Ready);
+                    }
+                    Instruction::AssignFnArg(id) => {
+                        variable_states.insert(*id, VariableState::Ready);
+                    }
                     Instruction::Call(_function_id, _args, result) => {
                         variable_states.insert(*result, VariableState::Ready);
                     }
@@ -196,7 +202,7 @@ impl BorrowChecker {
                     Instruction::BorrowEnd(id) => {
                         let old_state =  variable_states.insert(*id, VariableState::Ready );          match old_state {
                             Some(VariableState::Borrowed) => (),
-                            e => bail!("can not unborrow a variabled which is in state: {e:?}")
+                            e => bail!("can not unborrow variabled {id:?} which is in state: {e:?}")
                         }       
                         
                            }
