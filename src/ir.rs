@@ -372,8 +372,11 @@ impl IrGenerator {
     // TODO NEXT: We need to have types for each SSAID
 
     pub fn convert_to_ssa(mut self) -> IrProgram {
-        for function_declaration in self.node_db.function_declarations.clone().into_iter() {
-            self.convert_function_declaration(function_declaration.0);
+        // TODO: Switch from HashMa to Vec to avoid having to perform this conversion.
+        let mut function_names: Vec<FunctionDeclarationID> = self.node_db.function_declarations.clone().into_keys().collect();
+        function_names.sort();
+        for function_declaration in function_names {
+            self.convert_function_declaration(function_declaration);
         }
 
         IrProgram {
@@ -750,12 +753,14 @@ mod test {
     }
 
     #[rstest]
+    #[test_log::test]
     fn test_control_flow_graph(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
         use crate::compiler::produce_ir;
 
         let ir_progam = produce_ir(path.to_str().unwrap())?;
+        debug!("IR: {}", ir_progam);
         for (function_id, control_flow_graph) in ir_progam.control_flow_graphs {
             insta::assert_snapshot!(
                 format!(

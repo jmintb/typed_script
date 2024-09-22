@@ -234,6 +234,7 @@ mod test {
     use std::path::PathBuf;
 
     #[rstest]
+    #[test_log::test]
     fn test_liveness(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
         use crate::{ast::{parser::parse, identifiers::ScopeID, scopes::build_program_scopes}, types::resolve_types, compiler::produce_ir};
 
