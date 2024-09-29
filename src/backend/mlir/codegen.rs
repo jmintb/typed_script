@@ -3,6 +3,8 @@ use std::{
     collections::{BTreeMap, HashMap},
 };
 
+use tracing::debug;
+
 use anyhow::{bail, Result};
 
 use melior::{
@@ -147,6 +149,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     }
 
     fn gen_code(&self) -> Result<()> {
+        debug!("generating code");
         for (function_decl_id, cfg) in self.program.control_flow_graphs.iter() {
             let decl = self.gen_function(function_decl_id, cfg, &self.program.blocks)?;
             self.module.body().append_operation(decl);
@@ -161,6 +164,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         cfg: &ControlFlowGraph<BlockId>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<(Operation)> {
+        debug!("generating function: {function_decl_id:?}");
         let location = melior::ir::Location::unknown(self.context);
         let function_declaration = self
             .program
@@ -191,16 +195,22 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .as_slice(),
         );
 
+        
+
         let function_region = Region::new();
 
         for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
-            for block_id in block_ids {
+            let mut block_ids_with_entry: Vec<BlockId> = vec![cfg.entry_point];
+                block_ids_with_entry.append(&mut block_ids.clone());
+            for block_id in block_ids_with_entry.iter() {
                 let block = block_db.get(&block_id).unwrap();
+                debug!("generating code for block {}", block_id);
 
                 for instruction in block.instructions.iter() {
                     self.gen_instruction(
                         instruction,
                         &current_block,
+                        &current_block, // TODO: is this always the correct entry block?
                         &mut function_variable_store,
                     )?;
                 }
@@ -295,12 +305,18 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
         current_block: &'a Block<'ctx>,
     ) -> Result<Value<'ctx, 'a>> {
+        debug!("generating variabe load for {:?}", id);
         let value = self.query_value(&id, variable_store, current_block)?;
+        debug!("found value {:?}", value);
         let location = melior::ir::Location::unknown(self.context);
-        Ok(current_block
+        let result = current_block
             .append_operation(memref::load(value, &[], location))
             .result(0)?
-            .into())
+            .into();
+
+        debug!("found result {:?}", result);
+
+        Ok(result)
     }
 
     fn gen_function_call<'a>(
@@ -319,6 +335,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             })
             .collect::<Vec<Value>>();
 
+
+            debug!("found function arguments: {:?}", argument_values);
+
+
         let function_declaration = self
             .program.node_db
             .function_declarations
@@ -332,10 +352,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
         let location = melior::ir::Location::unknown(self.context);
 
+        
+
         let call_operation = if function_declaration
             .keywords
             .contains(&FunctionKeyword::LlvmExtern)
         {
+
+        debug!("generating call operation for extern function {} with return type {:?}", function_declaration.identifier.0, return_type);
             OperationBuilder::new("func.call", location)
                 .add_operands(&argument_values)
                 .add_attributes(&[(
@@ -346,6 +370,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .add_results(&[return_type.as_mlir_type(self.context, &HashMap::new())])
                 .build()?
         } else {
+        debug!("generating call operation for internal function {} with return type {:?}", function_declaration.identifier.0, return_type);
             let return_types = if let nodes::Type::Unit = return_type {
                 Vec::new()
             } else {
@@ -361,9 +386,30 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             )
         };
 
+        // NEXT: arguments for val seems to be the ones missing
         if let Ok(val) = current_block.append_operation(call_operation).result(0) {
             // TODO: What is the call does not return a value?
-            variable_store.insert(*result_receiver, val.into());
+            debug!("storing result {:?} for function {:?} into receiver {:?}", val, function_id, result_receiver);
+                    let ptr = melior::dialect::memref::alloca(
+                        self.context,
+                        MemRefType::new(val.r#type(), &[], None, None),
+                        &[],
+                        &[],
+                        None,
+                        Location::unknown(self.context),
+                    );
+
+                    let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                    let store_op = melior::dialect::memref::store(
+                        val.into(),
+                        ptr_val.into(),
+                        &[],
+                        melior::ir::Location::unknown(self.context),
+                    );
+
+                    current_block.append_operation(store_op);
+
+            variable_store.insert(*result_receiver, ptr_val.into());
             Ok(())
         } else {
             panic!()
@@ -374,9 +420,41 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         &self,
         instruction: &Instruction,
         current_block: &'a Block<'ctx>,
+        entry_block: &'a Block<'ctx>,
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
     ) -> Result<Option<Value<'ctx, 'a>>> {
+        debug!("generating instruction {:?}", instruction);
         let result = match instruction {
+            Instruction::AssignFnArg(id, position) => {
+                debug!("declaring function argument {}", position);
+            let value_ref = entry_block.argument(*position).expect(&format!(
+                "expected at least {} function arguments for fn",
+                position,
+            ));
+
+        let location = melior::ir::Location::unknown(self.context);
+            let ptr = current_block
+                .append_operation(memref::alloca(
+                    self.context,
+                    MemRefType::new(value_ref.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    location,
+                ))
+                .result(0)
+                .unwrap();
+
+            current_block.append_operation(memref::store(
+                value_ref.into(),
+                ptr.into(),
+                &[],
+                location,
+            ));
+
+            variable_store.insert(*id, ptr.into());
+            None
+            }
             Instruction::Assign(ref lhs_id, ref rhs_id) => {
                 self.gen_assignment(lhs_id, rhs_id, &current_block, variable_store)?;
                 None
@@ -425,13 +503,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
         current_block: &'a Block<'ctx>,
     ) -> Result<Value<'ctx, 'a>> {
+        debug!("querying value {:?}", id);
         if let Some(value) = variable_store.get(id) {
-            println!("value type {:?}", value);
+            debug!("value type {:?}", value);
             return Ok(value.clone());
         }
-
         
 
+        debug!("found static value");
         if let Some(static_value) = self.program.static_values.get(id) {
             match static_value {
                 nodes::Value::String(val) => {
@@ -467,7 +546,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     return Ok(ptr_val.into());
                 }
                 nodes::Value::Integer(value) => {
-                    return Ok(current_block
+                    let integer_val: Value = current_block
                         .append_operation(melior::dialect::arith::constant(
                             &self.context,
                             IntegerAttribute::new(
@@ -477,7 +556,30 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                             .into(),
                             Location::unknown(self.context),
                         ))
-                        .result(0)?.into()) ;
+                        .result(0)?.into();
+                    
+                    let ptr = melior::dialect::memref::alloca(
+                        self.context,
+                        MemRefType::new(integer_val.r#type(), &[], None, None),
+                        &[],
+                        &[],
+                        None,
+                        Location::unknown(self.context),
+                    );
+
+                    let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                    
+                    let store_op = melior::dialect::memref::store(
+                        integer_val.into(),
+                        ptr_val.into(),
+                        &[],
+                        melior::ir::Location::unknown(self.context),
+                    );
+                    current_block.append_operation(store_op);
+
+                    variable_store.insert(*id, ptr_val.into());
+
+                    return Ok(ptr_val.into()) ;
                 }
                 _ => panic!(),
 
@@ -558,7 +660,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         current_block: &'a Block<'ctx>,
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
     ) -> Result<()> {
+        debug!("generating assignment");
         let initial_value = self.query_value(rhs_id, variable_store, current_block)?;
+        debug!("found initial value");
 
         variable_store.insert(*lhs_id, initial_value);
 
@@ -574,15 +678,17 @@ mod test {
     use std::path::PathBuf;
 
     #[rstest]
+    #[test_log::test]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
         use crate::compiler::produce_ir;
 
         let ir_program = produce_ir(path.to_str().unwrap())?;
         let mlir_generation_config = MlirGenerationConfig {
             verify_mlir: true,
-            program: ir_program,
+            program: ir_program.clone(),
         };
 
+        debug!("testing codegen for IR: {ir_program}");
         let mlir_output = generate_mlir_string(mlir_generation_config)?;
         
         insta::assert_snapshot!(

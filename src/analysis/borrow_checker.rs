@@ -140,7 +140,7 @@ impl BorrowChecker {
                     Instruction::Addition(_, _, result) => {
                        variable_states.insert(*result, VariableState::Ready);
                     }
-                    Instruction::AssignFnArg(id) => {
+                    Instruction::AssignFnArg(id, position) => {
                         variable_states.insert(*id, VariableState::Ready);
                     }
                     Instruction::Call(_function_id, _args, result) => {

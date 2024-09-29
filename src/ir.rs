@@ -114,7 +114,7 @@ pub enum Instruction {
     MutBorrowEnd(SSAID),
     Drop(SSAID),
     Call(FunctionId, Vec<(SSAID, AccessModes)>, SSAID),
-    AssignFnArg(SSAID),
+    AssignFnArg(SSAID, usize),
     Return(Option<SSAID>),
 }
 
@@ -149,7 +149,7 @@ impl Instruction {
                     ssa_variables.get(from).unwrap().original_variable.0
                 )
             }
-            Self::AssignFnArg(to) => {
+            Self::AssignFnArg(to, position) => {
                 format!(
                     "{}_{} = fnarg",
                     to.0,
@@ -358,8 +358,8 @@ impl IrGenerator {
         self.current_function = function_declaration_id;
         let entry_block = self.add_block();
 
-        for argument in function_declaration.arguments {
-            self.declare_function_argument(argument, entry_block);
+        for (position, argument) in function_declaration.arguments.iter().enumerate() {
+            self.declare_function_argument(argument.clone(), position, entry_block );
         }
 
         let cfg = ControlFlowGraph::new(entry_block);
@@ -697,9 +697,9 @@ impl IrGenerator {
         (current_block, None)
     }
 
-    fn declare_function_argument(&mut self, argument: FunctionArg, current_block: BlockId) {
+    fn declare_function_argument(&mut self, argument: FunctionArg, position: usize, current_block: BlockId) {
         let ssa_id = self.add_ssa_variable(argument.name);
-        let assign_instruction = Instruction::AssignFnArg(ssa_id);
+        let assign_instruction = Instruction::AssignFnArg(ssa_id, position);
         self.access_modes.insert(ssa_id, argument.access_mode);
         self.add_instruction(current_block, assign_instruction);
     }

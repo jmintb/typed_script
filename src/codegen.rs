@@ -91,8 +91,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             return_type,
         } = decl
         else {
-            panic!("recived a non function declaration");
+            panic!("recieved a non function declaration");
         };
+
 
         let argument_types = arguments
             .iter()

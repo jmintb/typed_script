@@ -40,6 +40,7 @@ impl Type {
             Type::String => llvm::r#type::opaque_pointer(context),
             Type::SignedInteger => IntegerType::new(context, 32).into(),
             Type::Unit => llvm::r#type::void(context),
+            Type::StringLiteral => llvm::r#type::opaque_pointer(context),
             _ => todo!("unimplemented type to mlir type {:?}", self),
         }
     }
