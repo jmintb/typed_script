@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{command, Parser, Subcommand};
 
-use crate::{codegen::generate_mlir, parser::parse, typed_ast::type_ast};
+use crate::{codegen::generate_mlir, parser::parse, typed_ast::type_ast, compiler};
 
 #[derive(Parser)]
 struct Cli {
@@ -56,11 +56,7 @@ pub fn exec_cli() -> Result<()> {
 
     match cli.command {
         SubCommands::Run { path } => {
-            let contents = load_program(path)?;
-            let ast = parse(&contents)?;
-            let typed_program = type_ast(ast)?;
-            let engine = generate_mlir(typed_program, false)?;
-            unsafe { engine.invoke_packed("main", &mut [])? };
+            compiler::jit(&path.unwrap())?
         }
         SubCommands::Build {
             emit_mlir,

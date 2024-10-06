@@ -67,6 +67,20 @@ pub struct FunctionDeclaration {
     pub return_type: Option<Type>,
 }
 
+impl FunctionDeclaration {
+    pub fn is_external(&self) -> bool {
+        self.keywords.contains(&FunctionKeyword::LlvmExtern)
+    }
+
+    pub fn get_return_type(&self) -> Type {
+        self.return_type.clone().unwrap_or(Type::Unit)
+    }
+
+    pub fn argument_types(&self) -> impl Iterator<Item = &Type> {
+        self.arguments.iter().map(|argument| argument.r#type.as_ref().unwrap_or(&Type::Unit))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub enum FunctionKeyword {
     LlvmExtern,

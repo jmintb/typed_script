@@ -4,6 +4,7 @@ use crate::{
     ast::{identifiers::ScopeID, parser::parse, scopes::build_program_scopes},
     ir::{IrGenerator, IrProgram},
     types::resolve_types, cli::load_program,
+    backend::mlir::codegen::{generate_mlir, MlirGenerationConfig},
 };
 
 pub fn produce_ir(src: &str) -> Result<IrProgram> {
@@ -16,14 +17,19 @@ pub fn produce_ir(src: &str) -> Result<IrProgram> {
 }
 
 pub fn jit(input: &str) -> Result<()> {
-    let ir = produce_ir(input);
+    let ir = produce_ir(input)?;
 
     // TODO: missing statement id to scope mapping
 
-    let engine = todo!();
+    let mlir_generation_config = MlirGenerationConfig {
+        program: ir,
+        verify_mlir: true,
+    };
+
+
+    let engine =  generate_mlir(mlir_generation_config)?;
     // Overall goal introduce scopes and an ID based approach NOT a whole type system.
     // TODO: be able to output IR -> stay focus on e2e pipeline
     // 2. IR -> MLIR
-    // let engine = generate_mlir(typed_program, false)?;
-    // Ok(unsafe { engine.invoke_packed("main", &mut []) }?)
+    Ok(unsafe { engine.invoke_packed("main", &mut []) }?)
 }

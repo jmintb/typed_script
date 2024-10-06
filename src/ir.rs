@@ -52,6 +52,7 @@ pub struct IrProgram {
     pub entry_function_id: FunctionDeclarationID,
     pub node_db: NodeDatabase,
     pub static_values: HashMap<SSAID, Value>,
+    pub external_function_declaraitons: Vec<FunctionDeclarationID>
 }
 
 impl IrProgram {
@@ -242,6 +243,7 @@ pub struct IrGenerator {
     types: HashMap<ExpressionID, Type>,
     entry_point_function: FunctionDeclarationID,
     static_values: HashMap<SSAID, Value>,
+    external_function_declaraitons: Vec<FunctionDeclarationID>
 }
 
 use crate::types;
@@ -277,6 +279,7 @@ impl IrGenerator {
             node_db,
             scopes,
             static_values: HashMap::new(),
+            external_function_declaraitons: Vec::new()
         }
     }
 
@@ -352,6 +355,12 @@ impl IrGenerator {
 
         // TODO: At this point we should'nt have to check such things.
         let Some(function_body_id) = function_declaration.body else {
+                
+            if function_declaration.is_external() {
+                self.external_function_declaraitons.push(function_declaration_id)
+            }
+
+
             return;
         };
 
@@ -388,6 +397,7 @@ impl IrGenerator {
             entry_function_id: self.entry_point_function,
             node_db: self.node_db,
             static_values: self.static_values,
+            external_function_declaraitons: self.external_function_declaraitons
         }
     }
 
