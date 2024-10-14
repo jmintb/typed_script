@@ -19,6 +19,7 @@ use super::{
     },
     Ast, NodeDatabase,
 };
+use tracing::debug;
 
 #[derive(Parser)]
 #[grammar = "typed_script.pest"]
@@ -383,20 +384,20 @@ mod test {
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;
+    use tracing::debug;
 
     #[rstest]
+    #[test_log::test]
     fn snapshop_ast_output(#[files("./test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::cli::load_program;
-
-        let program = load_program(Some(path.to_str().unwrap().to_string()))?;
-        let ast = parse(&program)?;
-        println!("{}", ast.0.to_string(&ast.1));
+        let input = std::fs::read_to_string(&path)?;
+        let ast = parse(&input)?;
+        debug!("input for parser:\n {input}");
         insta::assert_snapshot!(
             format!(
                 "test_ast_snapshot_{}",
                 path.file_name().unwrap().to_str().unwrap()
             ),
-            format!("{:#?}", ast.0.to_string(&ast.1))
+            format!("{}", ast.0.to_string(&ast.1))
         );
         Ok(())
     }

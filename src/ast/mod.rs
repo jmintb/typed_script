@@ -6,6 +6,7 @@ pub mod scopes;
 
 use std::collections::{HashMap, VecDeque};
 use anyhow::{Result, bail};
+use tracing::debug;
 
 use crate::{identifiers::{IDGenerator, ID}, parser::TSIdentifier};
 
@@ -72,6 +73,7 @@ impl Ast {
         output.0
     }
 
+    // TODO: this kind of has too much detail now. Ideally we only want the structure of the tree.
     pub fn to_string(&self, db: &NodeDatabase) -> String {
         let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
         let mut walker =
@@ -104,23 +106,43 @@ impl Ast {
             .collect()]
         .into();
 
+        // NEXT: finish fixing to string traversel for betterparsing snapshot tests. Current goal
+        // is to get tests parsing again.
         while let Some(parent_row) = que.pop_front() {
-            let parent_names: Vec<Vec<Identifier>> = parent_row
+            let parent_names: Vec<Vec<String>> = parent_row
                 .iter()
+                .filter(|parent| !parent.is_empty())
                 .map(|parent| {
                     parent
-                        .iter()
+                        .iter().rev()
                         .map(|parent| {
-                            db.ids
-                                .get(parent)
-                                .unwrap_or(&Identifier::new("unnamed".to_string()))
+                            match parent{
+                                &NodeID::Declaration(DeclarationID::ModuleDeclarationID(id)) => format!("module_{}", id.0),
+                                &NodeID::Block(BlockID(id)) => format!("block_{id}"),
+                                &NodeID::Statement(StatementID::Expression(id)) => {
+                                  db.expressions.get(&id).unwrap().to_debug_string(db).unwrap()
+                                },
+                                    &NodeID::Statement(StatementID::Declaration(_)) => {db.ids
+                                .get(parent).map(|id| id.0.clone())
+                                .unwrap_or("unnamed".to_string())
                                 .clone()
+                                    }
+                                    &NodeID::Declaration(_) => {db.ids
+                                .get(parent).map(|id| id.0.clone())
+                                .unwrap_or("unnamed".to_string())
+                                .clone()
+                                    }
+                                _ => todo!("format!({parent:?})")
+                            }
                         })
-                        .collect::<Vec<Identifier>>()
+                        .collect::<Vec<String>>()
                 })
                 .collect();
 
-            tree_rows.push(format!("{:#?}", parent_names));
+            debug!("parent names {:?}", parent_names);
+            if !parent_names.is_empty() {
+                tree_rows.push(format!("{:#?}", parent_names));
+            }
 
             let next_row: Vec<Vec<NodeID>> = parent_row
                 .iter()
@@ -129,13 +151,14 @@ impl Ast {
                 .collect();
 
             if next_row.is_empty() {
+
                 break;
             }
 
             que.push_back(next_row);
         }
 
-        format!("{:#?}", tree_rows)
+        format!("{}", tree_rows.join(", "))
     }
 
     pub fn traverse<Ctx>(
@@ -170,8 +193,6 @@ impl Ast {
                 }
             };
 
-        let mut child_to_parent: HashMap<NodeID, NodeID> = HashMap::new();
-
         // TODO: this is not parralellised
         while let Some((next, parent)) = queue.pop_front() {
             match next {
@@ -195,18 +216,21 @@ impl Ast {
                         queue.push_front((body.into(), Some(function_id.into())));
                     }
 
-                    // NEXT: finish traversal to be able to create a propper snapshot
+                    // NEXT: finish traversal to be able to create a propper snapshot, this
                 }
                 NodeID::Block(block_id) => {
                     walker(db, block_id.into(), parent, walker_context).unwrap();
                     process_block(&block_id, Some(block_id.into()), &mut queue);
                 }
+
+                // TODO: All expressions need to be "unpacked" and processed as they can contain blocks.
+
                 NodeID::Statement(StatementID::Expression(expression_id)) => {
                     let expression = db.expressions.get(&expression_id).unwrap();
 
                     match expression {
                         Expression::If(IfStatement {
-                            condition,
+                            condition, // TODO:conditions need  to be pressed by walker.
                             then_block,
                         }) => process_block(then_block, parent, &mut queue),
                         Expression::Ifelse(IfElseStatement {
@@ -220,7 +244,9 @@ impl Ast {
                         Expression::While(While { condition, body }) => {
                             process_block(body, parent, &mut queue);
                         }
-                        expression => (),
+                        expression => {
+                            walker(db, expression_id.into(), parent, walker_context).unwrap();
+                        },
                     }
                 }
                 decl => todo!("{decl:?}"),

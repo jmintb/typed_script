@@ -1,7 +1,7 @@
 use crate::identifiers::ID;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
-pub struct ModuleDeclarationID(ID);
+pub struct ModuleDeclarationID(pub ID);
 
 impl From<ModuleDeclarationID> for NodeID {
     fn from(value: ModuleDeclarationID) -> Self {
@@ -34,7 +34,7 @@ impl From<FunctionDeclarationID> for NodeID {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
-pub struct ExpressionID(ID);
+pub struct ExpressionID(pub ID);
 
 impl From<ID> for ExpressionID {
     fn from(value: ID) -> Self {
@@ -55,7 +55,7 @@ impl From<ExpressionID> for StatementID {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Hash)]
-pub struct BlockID(ID);
+pub struct BlockID(pub ID);
 
 impl From<usize> for BlockID {
     fn from(value: usize) -> Self {

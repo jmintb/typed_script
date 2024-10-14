@@ -1,12 +1,13 @@
-use std::{collections::{BTreeMap, HashMap}, fmt::Display};
+use std::{collections::HashMap, fmt::Display};
 
-use anyhow::bail;
+use anyhow::{bail, Result};
 use melior::{dialect::llvm, ir::r#type::IntegerType, Context};
 
 use super::{
     declarations::ModuleDeclaration,
-    identifiers::{BlockID, ExpressionID, FunctionDeclarationID, StatementID},
+    identifiers::{BlockID, ExpressionID, StatementID},
     Scope,
+    NodeDatabase
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
@@ -174,6 +175,40 @@ pub enum Expression {
     Block(BlockID),
 }
 
+impl Expression {
+    // TODO: Ownership indicators are not present here
+    pub fn to_debug_string(&self, db: &NodeDatabase) -> Result<String> {
+        Ok(match self {
+            Expression::Value(value) => {
+                value.to_debug_string()
+            }
+            Expression::Assignment(assignment) => {
+               format!("{} = {} ",  assignment.id.0, db.expressions.get(&assignment.expression).unwrap().to_debug_string(db)?) 
+            }
+            Expression::Return(ret) => {
+                if let Some(return_expression) = ret.expression {
+                    format!("return {} ",  db.expressions.get(&return_expression).unwrap().to_debug_string(db)?) 
+                } else {
+                    "return".to_string()
+                }
+            }
+            Expression::Call(call) => {
+                let arguments: Vec<String> = call.arguments.iter().map(|id|  db.expressions.get(id).unwrap().to_debug_string(db).unwrap()).collect();
+                format!("call {}({:?})", call.function_id.0, arguments)
+            }
+            Expression::Operation(operation) => {
+               operation.to_debug_string(db)? 
+            }
+            Expression::Array(array) => {
+                let arguments: Vec<String> = array.items.iter().map(|id|  db.expressions.get(id).unwrap().to_debug_string(db).unwrap()).collect();
+                format!("array[{:?}]", arguments)
+
+            }
+            e => todo!("implement debug string for expression {e:?}")
+        })
+    }
+}
+
 // TODO: support nested paths
 #[derive(Debug, Clone)]
 pub struct StructFieldPath {
@@ -250,6 +285,19 @@ pub enum Operation {
     Binary(ExpressionID, Operator, ExpressionID),
 }
 
+impl Operation {
+    pub fn to_debug_string(&self, db: &NodeDatabase) -> Result<String> {
+        match self {
+            Self::Binary(lhs, operator, rhs) => {
+                let lhs_debug_string = db.expressions.get(lhs).unwrap().to_debug_string(db)?;
+                let rhs_debug_string = db.expressions.get(rhs).unwrap().to_debug_string(db)?;
+                let operator_debug_string = operator.to_debug_string();
+                Ok(format!("Operation({lhs_debug_string} {operator_debug_string} {rhs_debug_string})"))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Operator {
     Addition,
@@ -264,12 +312,35 @@ pub enum Operator {
     LessThan,
 }
 
+impl Operator {
+    pub fn to_debug_string(&self) -> String {
+        match self {
+            Self::Addition => String::from("+"),
+            Self::Subtraction => String::from("-"),
+            Self::Multiplication => String::from("*"),
+            Self::Division => String::from("/"),
+            _ => todo!("implement debug string for operation {:?}", self)
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     String(String),
     Variable(Identifier),
     Integer(Integer),
     Boolean(bool),
+}
+
+impl Value {
+    pub fn to_debug_string(&self) -> String {
+        match self {
+            Value::String(text) => format!("\"{text}\""),
+            Value::Variable(id) => format!("Variable({})", id.0),
+            Value::Integer(value) => format!("Int({})", value.value),
+            value =>  todo!("implement debug string for value type {:?}", value)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
