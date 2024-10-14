@@ -11,8 +11,8 @@ use crate::{
         identifiers::{BlockID, ExpressionID, FunctionDeclarationID, ScopeID, StatementID},
         nodes::{
             AccessModes, Array, ArrayLookup, Assign, Assignment, Call, Expression, FunctionArg,
-            Identifier, IfElseStatement, IfStatement, Operation, Return, StructField,
-            StructFieldPath, StructInit, Type, Value, While, Operator
+            Identifier, IfElseStatement, IfStatement, Operation, Operator, Return, StructField,
+            StructFieldPath, StructInit, Type, Value, While,
         },
         scopes::Scope,
         Ast, NodeDatabase,
@@ -52,7 +52,7 @@ pub struct IrProgram {
     pub entry_function_id: FunctionDeclarationID,
     pub node_db: NodeDatabase,
     pub static_values: HashMap<SSAID, Value>,
-    pub external_function_declaraitons: Vec<FunctionDeclarationID>
+    pub external_function_declaraitons: Vec<FunctionDeclarationID>,
 }
 
 impl IrProgram {
@@ -107,6 +107,8 @@ impl Block {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Addition(SSAID, SSAID, SSAID),
+    InitArray(Vec<SSAID>, SSAID), // TODO: Could this be something more general like calling a function?, do we need access modes here, in in function calls?
+    ArrayLookup {array: SSAID, index: SSAID, result: SSAID},
     Assign(SSAID, SSAID),
     Move(SSAID),
     Borrow(SSAID),
@@ -130,6 +132,33 @@ impl Instruction {
 
     pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
         match self {
+            Self::ArrayLookup{ array, index, result } => {
+                format!(
+                    "array_lookup_result_{:?} = ArrayLookup({})",
+                    result,
+                    vec![array, index, result].iter()
+                        .map(|(variable_id)| format!(
+                            "{}_{},",
+                            variable_id.0,
+                            ssa_variables.get(variable_id).unwrap().original_variable.0
+                        ))
+                        .fold(String::new(), |acc, next| format!("{} {}", acc, next))
+                )
+            }
+            Self::InitArray(items, result) => {
+                format!(
+                    "array_init_result_{:?} = InitArray[{}]",
+                    result,
+                    items.iter()
+                        .map(|(variable_id)| format!(
+                            "{}_{},",
+                            variable_id.0,
+                            ssa_variables.get(variable_id).unwrap().original_variable.0
+                        ))
+                        .fold(String::new(), |acc, next| format!("{} {}", acc, next))
+                )
+            }
+
             Self::Addition(lhs, rhs, result) => {
                 format!(
                     "{}_{} = {}_{} + {}_{}",
@@ -243,7 +272,7 @@ pub struct IrGenerator {
     types: HashMap<ExpressionID, Type>,
     entry_point_function: FunctionDeclarationID,
     static_values: HashMap<SSAID, Value>,
-    external_function_declaraitons: Vec<FunctionDeclarationID>
+    external_function_declaraitons: Vec<FunctionDeclarationID>,
 }
 
 use crate::types;
@@ -279,7 +308,7 @@ impl IrGenerator {
             node_db,
             scopes,
             static_values: HashMap::new(),
-            external_function_declaraitons: Vec::new()
+            external_function_declaraitons: Vec::new(),
         }
     }
 
@@ -355,11 +384,10 @@ impl IrGenerator {
 
         // TODO: At this point we should'nt have to check such things.
         let Some(function_body_id) = function_declaration.body else {
-                
             if function_declaration.is_external() {
-                self.external_function_declaraitons.push(function_declaration_id)
+                self.external_function_declaraitons
+                    .push(function_declaration_id)
             }
-
 
             return;
         };
@@ -368,7 +396,7 @@ impl IrGenerator {
         let entry_block = self.add_block();
 
         for (position, argument) in function_declaration.arguments.iter().enumerate() {
-            self.declare_function_argument(argument.clone(), position, entry_block );
+            self.declare_function_argument(argument.clone(), position, entry_block);
         }
 
         let cfg = ControlFlowGraph::new(entry_block);
@@ -382,7 +410,12 @@ impl IrGenerator {
 
     pub fn convert_to_ssa(mut self) -> IrProgram {
         // TODO: Switch from HashMa to Vec to avoid having to perform this conversion.
-        let mut function_names: Vec<FunctionDeclarationID> = self.node_db.function_declarations.clone().into_keys().collect();
+        let mut function_names: Vec<FunctionDeclarationID> = self
+            .node_db
+            .function_declarations
+            .clone()
+            .into_keys()
+            .collect();
         function_names.sort();
         for function_declaration in function_names {
             self.convert_function_declaration(function_declaration);
@@ -397,7 +430,7 @@ impl IrGenerator {
             entry_function_id: self.entry_point_function,
             node_db: self.node_db,
             static_values: self.static_values,
-            external_function_declaraitons: self.external_function_declaraitons
+            external_function_declaraitons: self.external_function_declaraitons,
         }
     }
 
@@ -532,13 +565,14 @@ impl IrGenerator {
                             match release_instruction {
                                 Instruction::BorrowEnd(borrowd_var) => {
                                     if !free_instructions.contains(&release_instruction) {
-                                      free_instructions.push(release_instruction);
+                                        free_instructions.push(release_instruction);
                                     }
                                 }
-                                _ => free_instructions.push(release_instruction)
-
+                                _ => free_instructions.push(release_instruction),
                             }
-                                                    }
+                        }
+                    } else {
+                       panic!("expected function argument expression to produce a value"); 
                     }
                 }
 
@@ -655,25 +689,29 @@ impl IrGenerator {
                     current_block = rhs_block;
 
                     let Some(lhs_id) = lhs_id else {
-                       panic!("left hand side expression did not produce an id, from operation: {:?}", operation.clone()) 
+                        panic!(
+                            "left hand side expression did not produce an id, from operation: {:?}",
+                            operation.clone()
+                        )
                     };
-                    
+
                     let Some(rhs_id) = rhs_id else {
-                       panic!("right hand side expression did not produce an id, from operation: {:?}", operation.clone()) 
+                        panic!("right hand side expression did not produce an id, from operation: {:?}", operation.clone())
                     };
 
                     match operator {
                         Operator::Addition => {
-                            let ssa_id = self.add_ssa_variable(Identifier::new("@addition_result".to_string()));
+                            let ssa_id = self
+                                .add_ssa_variable(Identifier::new("@addition_result".to_string()));
                             let assign_instruction = Instruction::Addition(lhs_id, rhs_id, ssa_id);
                             self.add_instruction(current_block, assign_instruction);
                             self.add_instruction(
                                 current_block,
-                                self.get_access_instruction(lhs_id)
+                                self.get_access_instruction(lhs_id),
                             );
                             self.add_instruction(
                                 current_block,
-                                self.get_access_instruction(rhs_id)
+                                self.get_access_instruction(rhs_id),
                             );
 
                             return (current_block, Some(ssa_id));
@@ -689,25 +727,65 @@ impl IrGenerator {
             }
 
             Expression::Array(Array { items }) => {
+                let result_ssa_id =
+                    self.add_ssa_variable(Identifier::new("@array_init_result".to_string()));
+                let mut item_ssaids: Vec<SSAID> = Vec::new();
                 for item in items {
-                    (current_block, _) = self.convert_expression(item, current_block);
+                    let (next_block, result) = self.convert_expression(item, current_block);
+                    let item_ssaid = result.unwrap();
+                    item_ssaids.push(item_ssaid);
+
+                    current_block = next_block;
                 }
+
+                for ssaid in item_ssaids.iter() {
+                    self.add_instruction(current_block, self.get_access_instruction(*ssaid));
+                }
+
+                self.add_instruction(
+                    current_block,
+                    Instruction::InitArray(item_ssaids, result_ssa_id),
+                );
+                return (current_block, Some(result_ssa_id));
             }
 
             Expression::ArrayLookup(ArrayLookup {
-                array_identifier,
+                array_identifier, // TODO(TASK): Reusing names might break this approach with using the latest generation of a variable for an identifier.
                 index_expression,
             }) => {
-                (current_block, _) = self.convert_expression(index_expression, current_block);
+                // TODO(TASK): It is unclear index_epression_block should always become the current block.
+                let (index_expression_block, index_ssaid) = self.convert_expression(index_expression, current_block);
+
+                let Some(index_ssaid) = index_ssaid else {
+                    panic!("array lookup index expression should produce a result");
+                };
+
+                current_block = index_expression_block;
+
+                let result_ssa_id = self.add_ssa_variable(Identifier::new("@array_lookup_result".to_string()));
+
+                self.add_instruction(current_block, self.get_access_instruction(index_ssaid));
+
                 let ssa_var = self.latest_gen_variable(array_identifier).unwrap();
-                self.add_instruction(current_block, Instruction::Move(ssa_var));
+
+                // TODO(TASK): Need to test access instructions for nested structures like arrays.
+                self.add_instruction(current_block, self.get_access_instruction(ssa_var));
+
+                self.add_instruction(current_block, Instruction::ArrayLookup{array: ssa_var, index: index_ssaid, result: result_ssa_id});
+
+                return (current_block, Some(result_ssa_id));
             }
         }
 
         (current_block, None)
     }
 
-    fn declare_function_argument(&mut self, argument: FunctionArg, position: usize, current_block: BlockId) {
+    fn declare_function_argument(
+        &mut self,
+        argument: FunctionArg,
+        position: usize,
+        current_block: BlockId,
+    ) {
         let ssa_id = self.add_ssa_variable(argument.name);
         let assign_instruction = Instruction::AssignFnArg(ssa_id, position);
         self.access_modes.insert(ssa_id, argument.access_mode);

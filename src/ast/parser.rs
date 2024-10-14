@@ -15,11 +15,10 @@ use super::{
     identifiers::{ExpressionID, FunctionDeclarationID, StatementID, StructDeclarationID},
     nodes::{
         Assignment, Block, Call, Expression, FunctionArg, FunctionDeclaration, Integer, Return,
-        StructDeclaration, StructField, StructInit, Type, Value, Operation, Operator
+        StructDeclaration, StructField, StructInit, Type, Value, Operation, Operator, Array, ArrayLookup
     },
     Ast, NodeDatabase,
 };
-use tracing::debug;
 
 #[derive(Parser)]
 #[grammar = "typed_script.pest"]
@@ -195,8 +194,8 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
         // Rule::while_loop => Expression::While(parse_while(expression)?),
         // Rule::assign => Expression::Assign(parse_assign(expression)?),
         Rule::r#return => Expression::Return(parse_return(builder, pair)?),
-        // Rule::array => Expression::Array(parse_array(expression)?),
-        // Rule::array_lookup => Expression::ArrayLookup(parse_array_lookup(expression)?),
+        Rule::array => Expression::Array(parse_array(builder, pair)?),
+        Rule::array_lookup => Expression::ArrayLookup(parse_array_lookup(builder, pair)?),
         _ => panic!("Got unexpected expression: {:?}", pair.as_rule()),
     };
 
@@ -204,6 +203,50 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
 
     Ok(expression_id)
 }
+
+fn parse_array(builder: &mut AstBuilder, expression: Pair<Rule>) -> Result<Array> {
+    let inner = if let Rule::array = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected array rule found {}", expression.as_str())
+    };
+    
+    let items = inner
+        .into_iter()
+        .map(|rule| parse_expression(builder, rule))
+        .collect::<Result<Vec<ExpressionID>>>()?;
+
+    Ok(Array {
+        items: items.into(),
+    })
+}
+
+fn parse_array_lookup(builder: &mut AstBuilder, expression: Pair<'_, Rule>) -> Result<ArrayLookup> {
+    let mut inner = if let Rule::array_lookup = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!("expected array lookup rule found {}", expression.as_str())
+    };
+
+    let Some(array_identifier) = inner
+        .next()
+        .map(|identifer| Identifier(identifer.as_str().to_string()))
+    else {
+        bail!("missing array identifier")
+    };
+
+    let index = if let Some(index) = inner.next() {
+        parse_expression(builder,index)?
+    } else {
+        bail!("missing array index")
+    };
+
+    Ok(ArrayLookup {
+        array_identifier: array_identifier,
+        index_expression: index.into(),
+    })
+}
+
 
 fn parse_operation(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Operation> {
     let mut inner = if let Rule::operation = pair.as_rule() {

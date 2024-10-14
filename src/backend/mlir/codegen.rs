@@ -165,7 +165,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(())
     }
 
-    fn declare_function(&self, function_decl_id: &FunctionDeclarationID) -> Result<Operation>  {
+    fn declare_function(&self, function_decl_id: &FunctionDeclarationID) -> Result<Operation> {
         let function_declaration = self
             .program
             .node_db
@@ -173,19 +173,23 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .get(&function_decl_id)
             .unwrap();
 
-        let argument_types = function_declaration.argument_types().map(|r#type| r#type.as_mlir_type(self.context, &HashMap::new())).collect::<Vec<Type<'ctx>>>();
+        let argument_types = function_declaration
+            .argument_types()
+            .map(|r#type| r#type.as_mlir_type(self.context, &HashMap::new()))
+            .collect::<Vec<Type<'ctx>>>();
         let function_region = Region::new();
         let location = melior::ir::Location::unknown(self.context);
 
-         if function_declaration.is_external() {
+        if function_declaration.is_external() {
             Ok(llvm::func(
                 &self.context,
                 StringAttribute::new(&self.context, &function_declaration.identifier.0),
                 TypeAttribute::new(
                     llvm::r#type::function(
-                        function_declaration.get_return_type().as_mlir_type(&self.context, &HashMap::new()),
-                        argument_types.as_slice()
-                        ,
+                        function_declaration
+                            .get_return_type()
+                            .as_mlir_type(&self.context, &HashMap::new()),
+                        argument_types.as_slice(),
                         false,
                     )
                     .into(),
@@ -203,7 +207,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 ],
                 location,
             ))
-        } else { 
+        } else {
             bail!("Function declaration is not external")
         }
     }
@@ -245,13 +249,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .as_slice(),
         );
 
-        
-
         let function_region = Region::new();
 
         for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
             let mut block_ids_with_entry: Vec<BlockId> = vec![cfg.entry_point];
-                block_ids_with_entry.append(&mut block_ids.clone());
+            block_ids_with_entry.append(&mut block_ids.clone());
             for block_id in block_ids_with_entry.iter() {
                 let block = block_db.get(&block_id).unwrap();
                 debug!("generating code for block {}", block_id);
@@ -263,9 +265,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         &current_block, // TODO: is this always the correct entry block?
                         &mut function_variable_store,
                     )?;
-
-
-                  
                 }
             }
         }
@@ -378,7 +377,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         arguments: Vec<(SSAID, AccessModes)>,
         variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
         current_block: &'a Block<'ctx>,
-        result_receiver: &SSAID
+        result_receiver: &SSAID,
     ) -> Result<()> {
         let argument_values = arguments
             .iter()
@@ -388,12 +387,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             })
             .collect::<Vec<Value>>();
 
-
-            debug!("found function arguments: {:?}", argument_values);
-
+        debug!("found function arguments: {:?}", argument_values);
 
         let function_declaration = self
-            .program.node_db
+            .program
+            .node_db
             .function_declarations
             .get(&function_id.0)
             .unwrap();
@@ -404,14 +402,15 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             .unwrap_or(&nodes::Type::Unit);
 
         let location = melior::ir::Location::unknown(self.context);
-        
 
         let call_operation = if function_declaration
             .keywords
             .contains(&FunctionKeyword::LlvmExtern)
         {
-
-        debug!("generating call operation for extern function {} with return type {:?}", function_declaration.identifier.0, return_type);
+            debug!(
+                "generating call operation for extern function {} with return type {:?}",
+                function_declaration.identifier.0, return_type
+            );
             OperationBuilder::new("func.call", location)
                 .add_operands(&argument_values)
                 .add_attributes(&[(
@@ -422,7 +421,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .add_results(&[return_type.as_mlir_type(self.context, &HashMap::new())])
                 .build()?
         } else {
-        debug!("generating call operation for internal function {} with return type {:?}", function_declaration.identifier.0, return_type);
+            debug!(
+                "generating call operation for internal function {} with return type {:?}",
+                function_declaration.identifier.0, return_type
+            );
             let return_types = if let nodes::Type::Unit = return_type {
                 Vec::new()
             } else {
@@ -439,25 +441,28 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         };
 
         if let Ok(val) = current_block.append_operation(call_operation).result(0) {
-            debug!("storing result {:?} for function {:?} into receiver {:?}", val, function_id, result_receiver);
-                    let ptr = melior::dialect::memref::alloca(
-                        self.context,
-                        MemRefType::new(val.r#type(), &[], None, None),
-                        &[],
-                        &[],
-                        None,
-                        Location::unknown(self.context),
-                    );
+            debug!(
+                "storing result {:?} for function {:?} into receiver {:?}",
+                val, function_id, result_receiver
+            );
+            let ptr = melior::dialect::memref::alloca(
+                self.context,
+                MemRefType::new(val.r#type(), &[], None, None),
+                &[],
+                &[],
+                None,
+                Location::unknown(self.context),
+            );
 
-                    let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
-                    let store_op = melior::dialect::memref::store(
-                        val.into(),
-                        ptr_val.into(),
-                        &[],
-                        melior::ir::Location::unknown(self.context),
-                    );
+            let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+            let store_op = melior::dialect::memref::store(
+                val.into(),
+                ptr_val.into(),
+                &[],
+                melior::ir::Location::unknown(self.context),
+            );
 
-                    current_block.append_operation(store_op);
+            current_block.append_operation(store_op);
 
             variable_store.insert(*result_receiver, ptr_val.into());
             Ok(())
@@ -478,32 +483,32 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let result = match instruction {
             Instruction::AssignFnArg(id, position) => {
                 debug!("declaring function argument {}", position);
-            let value_ref = entry_block.argument(*position).expect(&format!(
-                "expected at least {} function arguments for fn",
-                position,
-            ));
+                let value_ref = entry_block.argument(*position).expect(&format!(
+                    "expected at least {} function arguments for fn",
+                    position,
+                ));
 
-            let ptr = current_block
-                .append_operation(memref::alloca(
-                    self.context,
-                    MemRefType::new(value_ref.r#type(), &[], None, None),
+                let ptr = current_block
+                    .append_operation(memref::alloca(
+                        self.context,
+                        MemRefType::new(value_ref.r#type(), &[], None, None),
+                        &[],
+                        &[],
+                        None,
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap();
+
+                current_block.append_operation(memref::store(
+                    value_ref.into(),
+                    ptr.into(),
                     &[],
-                    &[],
-                    None,
                     location,
-                ))
-                .result(0)
-                .unwrap();
+                ));
 
-            current_block.append_operation(memref::store(
-                value_ref.into(),
-                ptr.into(),
-                &[],
-                location,
-            ));
-
-            variable_store.insert(*id, ptr.into());
-            None
+                variable_store.insert(*id, ptr.into());
+                None
             }
             Instruction::Assign(ref lhs_id, ref rhs_id) => {
                 self.gen_assignment(lhs_id, rhs_id, &current_block, variable_store)?;
@@ -511,63 +516,197 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             }
             Instruction::Call(function_id, arguments, result_reciever) => {
                 self.gen_function_call(
-                function_id.clone(),
-                arguments.clone(),
-                variable_store,
-                &current_block,
-                result_reciever
-            )?;
+                    function_id.clone(),
+                    arguments.clone(),
+                    variable_store,
+                    &current_block,
+                    result_reciever,
+                )?;
 
-             variable_store.get(result_reciever).cloned()
-
-            },
+                variable_store.get(result_reciever).cloned()
+            }
             Instruction::Return(result) => {
-                
                 let return_values = if let Some(expression) = result {
-                    let return_value = self.query_value(expression, variable_store, current_block)?;
+                    let return_value =
+                        self.query_value(expression, variable_store, current_block)?;
                     vec![return_value]
                 } else {
                     Vec::new()
                 };
 
-
-                current_block
-                    .append_operation(melior::dialect::func::r#return(&return_values, Location::unknown(self.context)));
+                current_block.append_operation(melior::dialect::func::r#return(
+                    &return_values,
+                    Location::unknown(self.context),
+                ));
                 None
             }
             Instruction::Addition(lhs, rhs, result_reciever) => {
-                let first_operand_value = self.gen_variable_load(*lhs, variable_store, current_block)?;
-                let second_operand_value = self.gen_variable_load(*rhs, variable_store, current_block)?;
-                    let operation =  melior::dialect::arith::addi(
-                        first_operand_value,
-                        second_operand_value,
-                        location,
-                    );
+                let first_operand_value =
+                    self.gen_variable_load(*lhs, variable_store, current_block)?;
+                let second_operand_value =
+                    self.gen_variable_load(*rhs, variable_store, current_block)?;
+                let operation = melior::dialect::arith::addi(
+                    first_operand_value,
+                    second_operand_value,
+                    location,
+                );
+
                 let value = current_block.append_operation(operation).result(0)?;
 
-                    let ptr = melior::dialect::memref::alloca(
+                let ptr = melior::dialect::memref::alloca(
+                    self.context,
+                    MemRefType::new(value.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    Location::unknown(self.context),
+                );
+
+                let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                let store_op = melior::dialect::memref::store(
+                    value.into(),
+                    ptr_val.into(),
+                    &[],
+                    melior::ir::Location::unknown(self.context),
+                );
+
+                current_block.append_operation(store_op);
+
+                variable_store.insert(*result_reciever, ptr_val.into());
+
+                Some(ptr_val.into())
+            }
+            Instruction::InitArray(items, result_receiver) => {
+                let array_len = items.len();
+                let item_values = items
+                    .into_iter()
+                    .map(|item| self.gen_variable_load(*item, variable_store, current_block))
+                    .collect::<Result<Vec<Value>>>()?;
+
+                let array_ptr = current_block
+                    .append_operation(memref::alloca(
                         self.context,
-                        MemRefType::new(value.r#type(), &[], None, None),
+                        MemRefType::new(
+                            item_values[0].r#type().into(),
+                            &[array_len as i64],
+                            None,
+                            None,
+                        ),
                         &[],
                         &[],
                         None,
-                        Location::unknown(self.context),
-                    );
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap()
+                    .into();
 
-                    let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
-                    let store_op = melior::dialect::memref::store(
-                        value.into(),
-                        ptr_val.into(),
-                        &[],
-                        melior::ir::Location::unknown(self.context),
-                    );
+                for (index, item) in item_values.into_iter().enumerate() {
+                    let index = current_block
+                        .append_operation(melior::dialect::index::constant(
+                            self.context,
+                            IntegerAttribute::new(
+                                index as i64,
+                                melior::ir::Type::index(self.context),
+                            )
+                            .into(),
+                            location,
+                        ))
+                        .result(0)
+                        .unwrap();
 
-                    current_block.append_operation(store_op);
+                    current_block.append_operation(memref::store(
+                        item,
+                        array_ptr,
+                        &[index.into()],
+                        location,
+                    ));
+                }
 
-                    variable_store.insert(*result_reciever, ptr_val.into());
-                
-                         
-                Some(ptr_val.into())
+                let result_ptr = melior::dialect::memref::alloca(
+                    self.context,
+                    MemRefType::new(array_ptr.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    Location::unknown(self.context),
+                );
+
+                let ptr_val: Value = current_block
+                    .append_operation(result_ptr)
+                    .result(0)
+                    .unwrap()
+                    .into();
+
+                let store_op = melior::dialect::memref::store(
+                    array_ptr,
+                    ptr_val,
+                    &[],
+                    melior::ir::Location::unknown(self.context),
+                );
+                current_block.append_operation(store_op);
+                debug!("init array {:?}", array_ptr);
+
+                variable_store.insert(*result_receiver, ptr_val);
+
+                Some(ptr_val)
+            }
+            Instruction::ArrayLookup {
+                array,
+                index,
+                result,
+            } => {
+                let Ok(index_ptr) = self.gen_variable_load(*index, variable_store, current_block)
+                else {
+                    bail!("failed to find index {}", index.0);
+                };
+
+                let Ok(array_ptr) = self.gen_variable_load(*array, variable_store, current_block)
+                else {
+                    bail!("failed to find array {}", array.0);
+                };
+
+                let casted_index = current_block
+                    .append_operation(melior::dialect::index::casts(
+                        index_ptr,
+                        melior::ir::Type::index(self.context),
+                        location,
+                    ))
+                    .result(0)
+                    .unwrap();
+
+                let gep_op_2: Value = current_block
+                    .append_operation(memref::load(array_ptr, &[casted_index.into()], location))
+                    .result(0)
+                    .unwrap()
+                    .into();
+
+                let result_ptr = melior::dialect::memref::alloca(
+                    self.context,
+                    MemRefType::new(gep_op_2.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    Location::unknown(self.context),
+                );
+
+                let ptr_val: Value = current_block
+                    .append_operation(result_ptr)
+                    .result(0)
+                    .unwrap()
+                    .into();
+
+                let store_op = melior::dialect::memref::store(
+                    gep_op_2,
+                    ptr_val,
+                    &[],
+                    melior::ir::Location::unknown(self.context),
+                );
+                current_block.append_operation(store_op);
+
+                variable_store.insert(*result, ptr_val);
+
+                Some(ptr_val)
             }
             Instruction::MutBorrow(id)
             | Instruction::MutBorrowEnd(id)
@@ -592,7 +731,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             debug!("value type {:?}", value);
             return Ok(value.clone());
         }
-        
 
         debug!("found static value");
         if let Some(static_value) = self.program.static_values.get(id) {
@@ -640,8 +778,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                             .into(),
                             Location::unknown(self.context),
                         ))
-                        .result(0)?.into();
-                    
+                        .result(0)?
+                        .into();
+
                     let ptr = melior::dialect::memref::alloca(
                         self.context,
                         MemRefType::new(integer_val.r#type(), &[], None, None),
@@ -652,7 +791,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     );
 
                     let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
-                    
+
                     let store_op = melior::dialect::memref::store(
                         integer_val.into(),
                         ptr_val.into(),
@@ -663,15 +802,21 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
                     variable_store.insert(*id, ptr_val.into());
 
-                    return Ok(ptr_val.into()) ;
+                    return Ok(ptr_val.into());
                 }
                 _ => panic!(),
-
             }
         } else {
-        panic!("failed to find ssaid: {}", self.program.ssa_variables.get(id).unwrap().original_variable.0);
+            panic!(
+                "failed to find ssaid: {}",
+                self.program
+                    .ssa_variables
+                    .get(id)
+                    .unwrap()
+                    .original_variable
+                    .0
+            );
         }
-
     }
 
     pub fn gen_pointer_to_annon_str<'a>(
@@ -774,7 +919,7 @@ mod test {
 
         debug!("testing codegen for IR: {ir_program}");
         let mlir_output = generate_mlir_string(mlir_generation_config)?;
-        
+
         insta::assert_snapshot!(
             format!(
                 "test_well_formed_ir_{}",

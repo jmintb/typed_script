@@ -204,11 +204,16 @@ impl Expression {
                 format!("array[{:?}]", arguments)
 
             }
+            Expression::ArrayLookup(array_lookup) => {
+                let index_debug_string = db.expressions.get(&array_lookup.index_expression).unwrap().to_debug_string(db)?;
+                format!("arraylookup({}, {})", array_lookup.array_identifier.0, index_debug_string) 
+            }
             e => todo!("implement debug string for expression {e:?}")
         })
     }
 }
 
+// TODO: Replace string identifiers with something int based.
 // TODO: support nested paths
 #[derive(Debug, Clone)]
 pub struct StructFieldPath {

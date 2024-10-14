@@ -1,0 +1,26 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_22",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_20",
+    ],
+], [
+    [
+        "val = \"test\" ",
+        "vals = array[[\"\\\"first \\\\n\\\"\", \"\\\"second \\\\n\\\"\", \"\\\"third \\\\n\\\"\"]] ",
+        "call print([\"arraylookup(vals, Int(0))\", \"Int(7)\"])",
+        "call print([\"arraylookup(vals, Int(1))\", \"Int(8)\"])",
+        "call print([\"arraylookup(vals, Int(2))\", \"Int(7)\"])",
+        "return",
+    ],
+]

@@ -1,0 +1,59 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", ir_progam)"
+---
+IR:
+fn 17:
+block_1
+0: 2_val = fnarg
+1: 3_len = fnarg
+
+block_4
+0: 6_Anonymous = 5_Anonymous
+1: borrow(6_Anonymous)
+2: 8_Anonymous = 7_Anonymous
+3: borrow(8_Anonymous)
+4: receiver_SSAID(9) = @0( let 6_Anonymous, let 8_Anonymous,)
+5: borrow_end(6_Anonymous)
+6: borrow_end(8_Anonymous)
+7: 10_stdoutptr = 9_fdopen_result
+8: move(9_fdopen_result)
+9: borrow(2_val)
+10: borrow(3_len)
+11: 12_Anonymous = 11_Anonymous
+12: borrow(12_Anonymous)
+13: borrow(10_stdoutptr)
+14: receiver_SSAID(13) = @2( let 2_val, let 3_len, let 12_Anonymous, let 10_stdoutptr,)
+15: borrow_end(2_val)
+16: borrow_end(3_len)
+17: borrow_end(12_Anonymous)
+18: borrow_end(10_stdoutptr)
+19: return
+
+fn 31:
+block_14
+
+block_15
+0: 17_Anonymous = 16_Anonymous
+1: 18_val = 17_Anonymous
+2: move(17_Anonymous)
+3: 21_Anonymous = 20_Anonymous
+4: 23_Anonymous = 22_Anonymous
+5: 25_Anonymous = 24_Anonymous
+6: move(21_Anonymous)
+7: move(23_Anonymous)
+8: move(25_Anonymous)
+9: array_init_result_SSAID(19) = InitArray[ 21_Anonymous, 23_Anonymous, 25_Anonymous,]
+10: 26_vals = 19_@array_init_result
+11: move(19_@array_init_result)
+12: 28_Anonymous = 27_Anonymous
+13: move(28_Anonymous)
+14: move(26_vals)
+15: array_lookup_result_SSAID(29) = ArrayLookup( 26_vals, 28_Anonymous, 29_@array_lookup_result,)
+16: borrow(29_@array_lookup_result)
+17: 31_Anonymous = 30_Anonymous
+18: borrow(31_Anonymous)
+19: receiver_SSAID(32) = @17( let 29_@array_lookup_result, let 31_Anonymous,)
+20: borrow_end(29_@array_lookup_result)
+21: borrow_end(31_Anonymous)
+22: return

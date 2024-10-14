@@ -140,6 +140,12 @@ impl BorrowChecker {
                     Instruction::Addition(_, _, result) => {
                        variable_states.insert(*result, VariableState::Ready);
                     }
+                    Instruction::InitArray(_, result) => {
+                        variable_states.insert(*result, VariableState::Ready);
+                    }
+                    Instruction::ArrayLookup {result, .. } => {
+                        variable_states.insert(*result, VariableState::Ready);
+                    }
                     Instruction::AssignFnArg(id, position) => {
                         variable_states.insert(*id, VariableState::Ready);
                     }
