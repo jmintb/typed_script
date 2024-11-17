@@ -576,6 +576,44 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
                 Some(ptr_val.into())
             }
+            Instruction::GreaterThan(lhs, rhs, result_reciever) => {
+                let first_operand_value =
+                    self.gen_variable_load(*lhs, variable_store, current_block)?;
+                let second_operand_value =
+                    self.gen_variable_load(*rhs, variable_store, current_block)?;
+                let operation = melior::dialect::arith::cmpi(
+                    self.context,
+                    arith::CmpiPredicate::Sgt,
+                    first_operand_value,
+                    second_operand_value,
+                    location,
+                );
+
+                let value = current_block.append_operation(operation).result(0)?;
+
+                let ptr = melior::dialect::memref::alloca(
+                    self.context,
+                    MemRefType::new(value.r#type(), &[], None, None),
+                    &[],
+                    &[],
+                    None,
+                    Location::unknown(self.context),
+                );
+
+                let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                let store_op = melior::dialect::memref::store(
+                    value.into(),
+                    ptr_val.into(),
+                    &[],
+                    melior::ir::Location::unknown(self.context),
+                );
+
+                current_block.append_operation(store_op);
+
+                variable_store.insert(*result_reciever, ptr_val.into());
+
+                Some(ptr_val.into())
+            }
             Instruction::InitArray(items, result_receiver) => {
                 let array_len = items.len();
                 let item_values = items

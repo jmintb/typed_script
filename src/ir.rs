@@ -107,6 +107,7 @@ impl Block {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Addition(SSAID, SSAID, SSAID),
+    GreaterThan(SSAID, SSAID, SSAID),
     InitArray(Vec<SSAID>, SSAID), // TODO: Could this be something more general like calling a function?, do we need access modes here, in in function calls?
     ArrayLookup {array: SSAID, index: SSAID, result: SSAID},
     Assign(SSAID, SSAID),
@@ -162,6 +163,18 @@ impl Instruction {
             Self::Addition(lhs, rhs, result) => {
                 format!(
                     "{}_{} = {}_{} + {}_{}",
+                    result.0,
+                    ssa_variables.get(result).unwrap().original_variable.0,
+                    lhs.0,
+                    ssa_variables.get(lhs).unwrap().original_variable.0,
+                    rhs.0,
+                    ssa_variables.get(rhs).unwrap().original_variable.0
+                )
+            }
+
+            Self::GreaterThan(lhs, rhs, result) => {
+                format!(
+                    "{}_{} = {}_{} > {}_{}",
                     result.0,
                     ssa_variables.get(result).unwrap().original_variable.0,
                     lhs.0,
@@ -704,6 +717,22 @@ impl IrGenerator {
                             let ssa_id = self
                                 .add_ssa_variable(Identifier::new("@addition_result".to_string()));
                             let assign_instruction = Instruction::Addition(lhs_id, rhs_id, ssa_id);
+                            self.add_instruction(current_block, assign_instruction);
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(lhs_id),
+                            );
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(rhs_id),
+                            );
+
+                            return (current_block, Some(ssa_id));
+                        }
+                        Operator::GreaterThan => {
+                            let ssa_id = self
+                                .add_ssa_variable(Identifier::new("@greater_than_result".to_string()));
+                            let assign_instruction = Instruction::GreaterThan(lhs_id, rhs_id, ssa_id);
                             self.add_instruction(current_block, assign_instruction);
                             self.add_instruction(
                                 current_block,

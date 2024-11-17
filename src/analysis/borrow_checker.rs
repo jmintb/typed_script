@@ -136,8 +136,11 @@ impl BorrowChecker {
                 debug!("checking instruction {:?} {:?} {}", instruction, variable_states, block_id);
 
                 match instruction {
-                    // TODO: Investigate if the reuslt SSA variable is released and borrow checked properly.
+                    // TODO: Investigate if the result SSA variable is released and borrow checked properly.
                     Instruction::Addition(_, _, result) => {
+                       variable_states.insert(*result, VariableState::Ready);
+                    }
+                    Instruction::GreaterThan(_, _, result) => {
                        variable_states.insert(*result, VariableState::Ready);
                     }
                     Instruction::InitArray(_, result) => {
