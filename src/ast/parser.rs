@@ -12,10 +12,11 @@ use crate::ast::{
 
 use super::{
     declarations::ModuleDeclaration,
-    identifiers::{ExpressionID, FunctionDeclarationID, StatementID, StructDeclarationID},
+    identifiers::{BlockID, ExpressionID, FunctionDeclarationID, StatementID, StructDeclarationID},
     nodes::{
-        Assignment, Block, Call, Expression, FunctionArg, FunctionDeclaration, Integer, Return,
-        StructDeclaration, StructField, StructInit, Type, Value, Operation, Operator, Array, ArrayLookup
+        Array, ArrayLookup, Assignment, Block, Call, Expression, FunctionArg, FunctionDeclaration,
+        IfElseStatement, Integer, Operation, Operator, Return, StructDeclaration, StructField,
+        StructInit, Type, Value
     },
     Ast, NodeDatabase,
 };
@@ -33,7 +34,7 @@ impl AstBuilder {
     fn new() -> Self {
         Self {
             db: NodeDatabase::default(),
-            ast: Ast::new()
+            ast: Ast::new(),
         }
     }
 }
@@ -100,6 +101,20 @@ fn parse_struct_field_declaration(decl: Pair<Rule>) -> Result<StructField> {
     Ok(StructField { identifier, r#type })
 }
 
+fn parse_block(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<BlockID> {
+    let statements = rule
+        .into_inner()
+        .into_iter()
+        .map(|rule| parse_statement(builder, rule))
+        .collect::<Result<Vec<StatementID>>>()?;
+
+    let block = Block::new(statements);
+
+    let block_id = builder.db.new_block(block);
+
+    Ok(block_id)
+}
+
 fn parse_function_decl(
     builder: &mut AstBuilder,
     rule: Pair<Rule>,
@@ -136,12 +151,7 @@ fn parse_function_decl(
     };
 
     let body = if let Some(Rule::functionBody) = next.clone().map(|next| next.as_rule()) {
-        let body = next
-            .map(|next| next.into_inner())
-            .unwrap()
-            .map(|statement| parse_statement(builder, statement))
-            .collect::<Result<Vec<StatementID>>>()?;
-        Some(builder.db.new_block(Block::new(body)))
+        Some(parse_block(builder, next.unwrap())?)
     } else {
         None
     };
@@ -189,8 +199,8 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
         //     Expression::Value(parse_string(expression.into_inner().next().unwrap())?)
         // }
         Rule::operation => Expression::Operation(parse_operation(builder, pair)?),
-        // Rule::boolean => Expression::Value(parse_boolean(expression)?),
-        // Rule::r#if_else => Expression::If(parse_if(expression)?),
+        Rule::boolean => Expression::Value(Value::Boolean(parse_boolean(pair)?)),
+        Rule::r#if_else => Expression::Ifelse(parse_if_else(builder, pair)?),
         // Rule::while_loop => Expression::While(parse_while(expression)?),
         // Rule::assign => Expression::Assign(parse_assign(expression)?),
         Rule::r#return => Expression::Return(parse_return(builder, pair)?),
@@ -204,13 +214,49 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
     Ok(expression_id)
 }
 
+fn parse_boolean(expression: Pair<Rule>) -> Result<bool> {
+    Ok(match expression.into_inner().next().unwrap().as_rule() {
+        Rule::r#true => true,
+        Rule::r#false => false,
+        r => bail!("expected either false or true but got rule: {r:#?}"),
+    })
+}
+
+fn parse_if_else(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<IfElseStatement> {
+    let mut if_else_pairs = if let Rule::r#if_else = rule.as_rule() {
+        rule.into_inner()
+    } else {
+        bail!("expected an if rule got {rule:#?}");
+    };
+
+    let condition = parse_expression(builder, if_else_pairs.next().unwrap())?;
+
+    let Some(then_pair) = if_else_pairs.next() else {
+        bail!("if else expression missing then block");
+    };
+    let then_block = parse_block(builder, then_pair)?;
+
+
+    let Some(else_pair) = if_else_pairs.next() else {
+        bail!("if else expression missing else block");
+    };
+    let else_block = parse_block(builder, else_pair)?;
+
+
+    Ok(IfElseStatement {
+        condition,
+        then_block,
+        else_block,
+    })
+}
+
 fn parse_array(builder: &mut AstBuilder, expression: Pair<Rule>) -> Result<Array> {
     let inner = if let Rule::array = expression.as_rule() {
         expression.into_inner()
     } else {
         bail!("expected array rule found {}", expression.as_str())
     };
-    
+
     let items = inner
         .into_iter()
         .map(|rule| parse_expression(builder, rule))
@@ -236,7 +282,7 @@ fn parse_array_lookup(builder: &mut AstBuilder, expression: Pair<'_, Rule>) -> R
     };
 
     let index = if let Some(index) = inner.next() {
-        parse_expression(builder,index)?
+        parse_expression(builder, index)?
     } else {
         bail!("missing array index")
     };
@@ -246,7 +292,6 @@ fn parse_array_lookup(builder: &mut AstBuilder, expression: Pair<'_, Rule>) -> R
         index_expression: index.into(),
     })
 }
-
 
 fn parse_operation(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Operation> {
     let mut inner = if let Rule::operation = pair.as_rule() {
@@ -261,11 +306,7 @@ fn parse_operation(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Operati
 
     let second_operand = parse_expression(builder, inner.next().unwrap())?;
 
-    Ok(Operation::Binary(
-        first_operand,
-        operator,
-        second_operand,
-    ))
+    Ok(Operation::Binary(first_operand, operator, second_operand))
 }
 
 fn parse_operator(expression: Pair<Rule>) -> Result<Operator> {
@@ -330,8 +371,8 @@ fn parse_fn_call(builder: &mut AstBuilder, call_expression: Pair<Rule>) -> Resul
         .map(|arg| parse_expression(builder, arg).unwrap())
         .collect();
 
-
-    let call = Call { function_id: Identifier(id.as_str().trim().to_string()),
+    let call = Call {
+        function_id: Identifier(id.as_str().trim().to_string()),
         arguments: args,
     };
 

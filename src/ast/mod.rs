@@ -238,10 +238,14 @@ impl Ast {
                             then_block,
                             else_block,
                         }) => {
-                            process_block(then_block, parent, &mut queue);
-                            process_block(else_block, parent, &mut queue);
+                            debug!("process ifelse statement, with parent {:?}", parent);
+                            walker(db, expression_id.into(), parent, walker_context).unwrap();
+                            queue.push_front(((*condition).into(), parent));
+                            queue.push_front(((*then_block).into(), Some(expression_id.into())));
+                            queue.push_front(((*else_block).into(), Some(expression_id.into())));
                         }
                         Expression::While(While { condition, body }) => {
+                            queue.push_front(((*condition).into(), parent));
                             process_block(body, parent, &mut queue);
                         }
                         expression => {

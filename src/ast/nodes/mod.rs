@@ -208,6 +208,10 @@ impl Expression {
                 let index_debug_string = db.expressions.get(&array_lookup.index_expression).unwrap().to_debug_string(db)?;
                 format!("arraylookup({}, {})", array_lookup.array_identifier.0, index_debug_string) 
             }
+            Expression::Ifelse(if_else_statement) => {
+                let debug_string = "if_else_start";
+                debug_string.to_string()
+            }
             e => todo!("implement debug string for expression {e:?}")
         })
     }
@@ -343,7 +347,7 @@ impl Value {
             Value::String(text) => format!("\"{text}\""),
             Value::Variable(id) => format!("Variable({})", id.0),
             Value::Integer(value) => format!("Int({})", value.value),
-            value =>  todo!("implement debug string for value type {:?}", value)
+            Value::Boolean(value) => format!("Boolean({})", value),
         }
     }
 }
