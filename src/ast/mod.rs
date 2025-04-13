@@ -106,8 +106,6 @@ impl Ast {
             .collect()]
         .into();
 
-        // NEXT: finish fixing to string traversel for betterparsing snapshot tests. Current goal
-        // is to get tests parsing again.
         while let Some(parent_row) = que.pop_front() {
             let parent_names: Vec<Vec<String>> = parent_row
                 .iter()
@@ -215,8 +213,6 @@ impl Ast {
                     if let Some(body) = function_declaration.body {
                         queue.push_front((body.into(), Some(function_id.into())));
                     }
-
-                    // NEXT: finish traversal to be able to create a propper snapshot, this
                 }
                 NodeID::Block(block_id) => {
                     walker(db, block_id.into(), parent, walker_context).unwrap();
@@ -225,6 +221,7 @@ impl Ast {
 
                 // TODO: All expressions need to be "unpacked" and processed as they can contain blocks.
 
+                // NEXT: Get If Ellse statement snapshots to include if/else blocks
                 NodeID::Statement(StatementID::Expression(expression_id)) => {
                     let expression = db.expressions.get(&expression_id).unwrap();
 
