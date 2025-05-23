@@ -1,6 +1,7 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, RefCell, Ref},
     collections::{BTreeMap, HashMap},
+    rc::Rc
 };
 
 use tracing::debug;
@@ -60,7 +61,6 @@ pub fn generate_mlir<'c>(config: MlirGenerationConfig) -> Result<ExecutionEngine
         HashMap::new(),
         config.program,
     ));
-    let code_gen = Box::leak(code_gen);
 
     code_gen.gen_code()?;
 
@@ -125,22 +125,46 @@ pub fn generate_mlir_string(cfg: MlirGenerationConfig) -> Result<String> {
     Ok(format!("{}", module.as_operation()))
 }
 
+struct MlirFunctionStructure<'c, 'a> {
+    regions: HashMap<BlockId, Region<'c>>,
+    block_references: HashMap<usize, BlockRef<'c,'a>>,
+    function_region: Region<'c>
+}
+
+
+    
+    struct EntityMap<Entity> {
+         entities: Vec<Entity>
+    }
+
+impl<Entity> EntityMap<Entity>
+{
+    fn new() -> Self {
+        Self {
+            entities: Vec::new()
+        }
+    }
+
+    fn append(&mut self, entity: Entity) {
+        self.entities.push(entity);
+    }
+}
+
+
 // TODO: move this into a struct with context
 
-struct CodeGen<'ctx, 'module> {
+struct CodeGen<'ctx> {
     context: &'ctx Context,
-    module: &'module Module<'ctx>,
+    module: &'ctx Module<'ctx>,
     annon_string_counter: RefCell<usize>,
     type_store: HashMap<SSAID, nodes::Type>,
     program: IrProgram,
-    block_references: HashMap<usize, BlockRef<'ctx, 'ctx>>,
-    region_references: HashMap<usize, Cell<Region<'ctx>>>,
 }
 
-impl<'ctx, 'module> CodeGen<'ctx, 'module> {
+impl<'ctx> CodeGen<'ctx> {
     fn new(
         context: &'ctx Context,
-        module: &'module Module<'ctx>,
+        module: &'ctx Module<'ctx>,
         types: HashMap<SSAID, nodes::Type>,
         ir_program: IrProgram,
     ) -> Self {
@@ -150,12 +174,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             annon_string_counter: 0.into(),
             type_store: types,
             program: ir_program,
-            block_references: HashMap::new(),
-            region_references: HashMap::new(),
         }
     }
 
-    fn gen_code(&self) -> Result<()> {
+    fn gen_code<'a> (&'a self) -> Result<()> {
         debug!("generating code");
 
         for function_decl_id in self.program.external_function_declaraitons.iter() {
@@ -218,13 +240,20 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         }
     }
 
-    fn gen_function<'a>(
-        &'a self,
+    fn gen_function(
+        &self,
         function_decl_id: &FunctionDeclarationID,
         cfg: &ControlFlowGraph<BlockId>,
         block_db: &BTreeMap<BlockId, ir::Block>,
-    ) -> Result<Operation> where 'a: 'ctx {
+    ) -> Result<Operation<'_>> {
         debug!("generating function: {function_decl_id:?}");
+
+        let structure = MlirFunctionStructure { regions: HashMap::new(), block_references: HashMap::new(), function_region: Region::new()};
+
+        let operations: HashMap<BlockId, Operation<'_>> = HashMap::new();
+
+        let mut regions = Rc::new(RefCell::new(self.pre_gen_regions(cfg)?));
+
         let location = melior::ir::Location::unknown(self.context);
         let function_declaration = self
             .program
@@ -243,10 +272,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     .unwrap()
                     .as_mlir_type(self.context, &HashMap::new())
             })
-            .collect::<Vec<Type<'ctx>>>();
+            .collect::<Vec<Type<'_>>>();
 
-        let mut function_variable_store: HashMap<SSAID, Value<'ctx, 'a>> = HashMap::new();
-        let mut current_block = Block::new(
+        let mut function_variable_store: HashMap<SSAID, Value<'_, '_>> = HashMap::new();
+        let current_block = Block::new(
             function_argument_types
                 .clone()
                 .into_iter()
@@ -255,17 +284,19 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 .as_slice(),
         );
 
+        let borrow_regions = regions.borrow();
+
+        let result = self.pre_gen_blocks(&cfg, &structure.function_region, &borrow_regions, current_block)?;
         let function_region = Region::new();
-        let _ = function_region.append_block(current_block);
         // TODO: sort out how to handle entry block and fn args. use first block in region maybe?
+
 
         for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
             let mut block_ids_with_entry: Vec<BlockId> = vec![cfg.entry_point];
             block_ids_with_entry.append(&mut block_ids.clone());
             for block_id in block_ids_with_entry.iter() {
                 debug!("generating code for block {}", block_id);
-
-                self.gen_block(*block_id, &function_region, &mut function_variable_store, block_db, cfg)?;
+                self.gen_block(*block_id, &result, &mut function_variable_store, block_db, cfg)?;
 
                 }
             }
@@ -348,20 +379,23 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             )
         };
 
+
         Ok(function_decl)
     }
+    
 
-    fn gen_variable_load<'a, 'f>(
-        &'a self,
+    fn gen_variable_load<'a, 'c>(
+        &self,
         id: SSAID,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+        block_references: &'a HashMap<usize, BlockRef<'c, 'a>>,
+        variable_store: &mut HashMap<SSAID, Value<'c, 'a>>,
         current_block: usize,
-    ) -> Result<Value<'ctx, 'a>> where 'a: 'ctx {
+    ) -> Result<Value<'c, 'a>> where 'a: 'c, 'ctx: 'a  {
         debug!("generating variabe load for {:?}", id);
-         self.query_value(&id, variable_store, 0)?;
+         self.query_value(&id, block_references, variable_store, 0)?;
          let value = variable_store.get(&id).unwrap().to_owned();
         debug!("found value {:?}", value);
-        let current_block = self.block_references.get(&current_block).unwrap();
+        let current_block = block_references.get(&current_block).unwrap();
         let location = melior::ir::Location::unknown(self.context);
         let result: Value = current_block
             .append_operation(memref::load(value, &[], location))
@@ -373,19 +407,20 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(result)
     }
 
-    fn gen_function_call<'a>(
-        &'a self,
+    fn gen_function_call<'a, 'c>(
+        &self,
         function_id: FunctionId,
         arguments: Vec<(SSAID, AccessModes)>,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+        block_references: &'a HashMap<usize, BlockRef<'c, 'a>>,
+        variable_store: &mut HashMap<SSAID, Value<'c, 'a>>,
         current_block_id: usize,
         result_receiver: &SSAID,
-    ) -> Result<()> where 'a: 'ctx {
-        let current_block = self.block_references.get(&current_block_id).unwrap();
+    ) -> Result<()>  where 'a: 'c, 'ctx: 'a {
+        let current_block = block_references.get(&current_block_id).unwrap();
         let argument_values = arguments
             .iter()
             .map(|arg_id| {
-                self.gen_variable_load(arg_id.0, variable_store, current_block_id)
+                self.gen_variable_load(arg_id.0, block_references, variable_store, current_block_id)
                     .unwrap()
             })
             .collect::<Vec<Value>>();
@@ -474,19 +509,69 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         }
     }
 
+    fn pre_gen_regions(&self, cfg: &ControlFlowGraph<BlockId>) -> Result<HashMap<BlockId, Region<'_>>> {
+
+        let mut regions = HashMap::<BlockId, Region<'_>>::new();
+        
+        for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
+            for block_id in block_ids {
+                let ir_block = self.program.blocks.get(&block_id).unwrap();
+
+                // TODO: Not sure if this holds if we have multiple blocks in a conditional region.
+                // Maybe we can default to parents region if the block is not a direct child of control flow?
+                if ir_block.produced_directly_by_control_flow {
+                    let region_for_block = Region::new();
+                    regions.insert(block_id, region_for_block);
+                } 
+
+                }
+        }
+
+        Ok(regions)
+    }
+
+    // TODO: Next check that we can provide block refs and regions as funtion params when generating functions and compile with lifetimes.
+    fn pre_gen_blocks<'a, 'c> (& self, cfg: &ControlFlowGraph<BlockId>, function_region: &'a Region<'c>, regions: &'a Ref<'a, HashMap<BlockId, Region<'c>>>, entry_block: Block<'c>) -> Result<HashMap<usize, BlockRef<'c, 'a>>>
+        
+    {
+        let entry_block_reference = function_region.append_block(entry_block);
+        let mut result: HashMap<usize, BlockRef<'c, 'a>> = HashMap::new();
+        result.insert(0, entry_block_reference);
+        
+        for block_ids in cfg.cycle_aware_successors(&cfg.entry_point)? {
+            for block_id in block_ids {
+                let block = Block::new(&[]);
+                let ir_block = self.program.blocks.get(&block_id).unwrap();
+
+                if ir_block.produced_directly_by_control_flow {
+                    let block_ref = regions.get(&block_id).unwrap().append_block(block);
+                    result.insert(0, block_ref);
+                } else {
+                 let block_ref = function_region.append_block(block);
+                 result.insert( 0, block_ref);
+                }
+
+
+
+                }
+        }
+
+        Ok(result)
+    }
+
     
     // NEXT: Make block generation pull based, using similar method to ir.rs. Where we return the next/current block allowing the generation code to decide what the next block should be.
     // This will allow generating blocks as needed for example in if/else cases.
-    fn gen_block<'a>(
-        &'a self,
+    fn gen_block<'region, 'context, 'blocks, 'vars, 'varc>(
+        &self,
         block_id: BlockId,
-        target_region: & Region<'ctx>,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
+        block_references: &'blocks HashMap<usize, BlockRef<'context, 'region>>,
+        variable_store: &'vars HashMap<SSAID, Value<'varc, 'region>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
         cfg: &ControlFlowGraph<BlockId>,
-    ) -> Result<()> where 'a: 'ctx {
+        variable_stores: &'vars Vec<HashMap<SSAID, Value<'varc, 'region>>>,
+    ) -> Result<()> where 'ctx: 'context, 'blocks: 'context, 'vars: 'context, 'region: 'varc  {
         let ir_block = block_db.get(&block_id).unwrap();
-        let current_block = Block::new(&[]);
          // TODO: What about block arguments?
 
                 for instruction in ir_block.instructions.iter() {
@@ -494,35 +579,82 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         instruction,
                         0,
                         cfg,
+                        block_references,
                         variable_store,
-                        &mut HashMap::new()
+                        variable_stores,
                     )?;
                 }
-        let current_block_ref = target_region.append_block(current_block);
 
-                Ok(())
 
+        Ok(())
 
     }
 
-    fn gen_instruction<'a, 'f>(
-        &'a self,
+    // TODO Next: Need to create a new mutable map of local vars for each operation layer and then provide a set of maps from parent scopes.
+    fn generate_if_else_operation<'parent_block, 'parent_context, 'context, 'this>(
+        &self, 
+        condition: Value<'parent_context, 'parent_block>, 
+        location: Location<'parent_context>,
+        cfg: &ControlFlowGraph<BlockId>,
+        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        ) -> Result<(Operation<'context>)> where 'parent_context: 'this, 'parent_block: 'this, 'parent_context: 'context  {
+    let if_block = Block::new(&[]);
+    let else_block = Block::new(&[]);
+    
+    let if_region = Region::new(); 
+    let else_region = Region::new();
+
+    let if_block_ref = if_region.append_block(if_block);
+    let else_block_ref = if_region.append_block(else_block);
+
+    let mut block_references: HashMap<usize, BlockRef<'_, '_>> = HashMap::new();
+    block_references.insert(0, if_block_ref);
+
+    let mut  new_variables: HashMap<SSAID, Value<'_, '_>> = HashMap::new();
+
+    
+    self.gen_instruction(
+        &Instruction::MutBorrow(SSAID(0)),
+        0,
+        cfg,
+        &block_references,
+        &mut new_variables,
+        variable_stores,
+        
+        );
+        
+
+
+                Ok(melior::dialect::scf::r#if(
+                    condition,
+                    &[],
+                    if_region,
+                    else_region,
+                    location,
+                ))
+
+
+}
+
+    fn gen_instruction<'parent_block, 'parent_context, 'context, 'this, 'blocks, 'vars, 'varc>(
+        &self,
         instruction: &Instruction,
         current_block_id: usize,
         cfg: &ControlFlowGraph<BlockId>,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
-        region_references: &mut HashMap<BlockId, Region<'ctx>>,
+        block_references: &'blocks HashMap<usize, BlockRef<'context, 'parent_block>>,
+        variable_store: &'vars HashMap<SSAID, Value<'varc, 'this>>,
+        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
 
-    ) -> Result<Option<Value<'ctx, 'a>>> where 'a: 'ctx {
+    ) -> Result<Option<Value<'context, 'parent_block>>> where 'ctx: 'this, 'ctx: 'context, 'this: 'context, 'blocks: 'context, 'blocks: 'vars, 'vars: 'varc  {
         debug!("generating instruction {:?}", instruction);
-        let current_block = self.block_references.get(&current_block_id).unwrap();
+        let current_block = block_references.get(&current_block_id).unwrap();
         let location = melior::ir::Location::unknown(self.context);
         let result = match instruction {
             Instruction::AssignFnArg(id, position) => {
                 debug!("declaring function argument {}", position);
                 let value_ref = current_block.argument(*position).expect(&format!( // TODO: might need entry block here?
                     "expected at least {} function arguments for fn",
-                    position,
+                    position + 1,
                 ));
 
                 let ptr = current_block
@@ -548,23 +680,27 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 None
             }
             Instruction::Assign(ref lhs_id, ref rhs_id) => {
-                self.gen_assignment(lhs_id, rhs_id, current_block_id, variable_store)?;
+                self.gen_assignment(lhs_id, rhs_id, current_block_id, block_references, variable_store)?;
                 None
             }
             Instruction::Call(function_id, arguments, result_reciever) => {
+                todo!()
+                /*
                 self.gen_function_call(
                     function_id.clone(),
                     arguments.clone(),
+                    block_references,
                     variable_store,
                     current_block_id,
                     result_reciever,
                 )?;
 
                 variable_store.get(result_reciever).cloned()
+                */
             }
             Instruction::Return(result) => {
                 let return_values = if let Some(expression) = result {
-                        self.query_value(expression, variable_store, 0)?;
+                        self.query_value(expression, block_references, variable_store, 0)?;
 
                     let return_value = variable_store.get(expression).unwrap().to_owned();
                     vec![return_value]
@@ -580,9 +716,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             }
             Instruction::Addition(lhs, rhs, result_reciever) => {
                 let first_operand_value =
-                    self.gen_variable_load(*lhs, variable_store, current_block_id)?;
+                    self.gen_variable_load(*lhs, block_references, variable_store, current_block_id)?;
                 let second_operand_value =
-                    self.gen_variable_load(*rhs, variable_store, current_block_id)?;
+                    self.gen_variable_load(*rhs, block_references, variable_store, current_block_id)?;
                 let operation = melior::dialect::arith::addi(
                     first_operand_value,
                     second_operand_value,
@@ -617,9 +753,9 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
             Instruction::GreaterThan(lhs, rhs, result_reciever) => {
                 let first_operand_value =
-                    self.gen_variable_load(*lhs, variable_store, current_block_id)?;
+                    self.gen_variable_load(*lhs, block_references, variable_store, current_block_id)?;
                 let second_operand_value =
-                    self.gen_variable_load(*rhs, variable_store, current_block_id)?;
+                    self.gen_variable_load(*rhs, block_references, variable_store, current_block_id)?;
                 let operation = melior::dialect::arith::cmpi(
                     self.context,
                     arith::CmpiPredicate::Sgt,
@@ -658,30 +794,34 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 then_block,
                 else_block,
             ) => {
-                let condition = self.gen_variable_load(*condition, variable_store, current_block_id)?;
+                let condition = self.gen_variable_load(*condition, block_references, variable_store, current_block_id)?;
                 
-                let then_mlir_block = self.block_references.get(&0).unwrap();
-                let else_mlir_block = Block::new(&[]);
-
+                let then_mlir_block = block_references.get(&then_block.0).unwrap();
+                let else_mlir_block = block_references.get(&else_block.0).unwrap();
 
                 // block_map.insert(*then_block, then_mlir_block_reference);
                 // block_map.insert(*else_block, else_mlir_block_reference);
                 // NEXT NEXT: make it so we can just return the next bock_id and have gen_block retrieve the write mlirblockref.
                 // How do we get the followup block id here? Find the dominator
 
-
                 // TODO: what is if/else is the last expression?
                 let next_block = cfg.find_first_common_successor(then_block, else_block).unwrap();
-                let then_region = region_references.remove(then_block).unwrap();
-                let else_region = region_references.remove(else_block).unwrap();
 
-                current_block.append_operation(melior::dialect::scf::r#if(
+                // TODO: Will we ever need to reuse the 
+                // TODO: Next ish check if this architecture can handle scoping -> conclusion it should
+               // let then_region = region_references.remove(then_block).unwrap();
+                
+              //  let else_region = region_references.remove(else_block).unwrap();
+
+                todo!();
+                /* current_block.append_operation(melior::dialect::scf::r#if(
                     condition,
                     &[],
                     then_region,
                     else_region,
                     location,
                 ));
+                */
 
 
                  None
@@ -690,7 +830,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 let array_len = items.len();
                 let item_values = items
                     .into_iter()
-                    .map(|item| self.gen_variable_load(*item, variable_store, current_block_id))
+                    .map(|item| self.gen_variable_load(*item, block_references, variable_store, current_block_id))
                     .collect::<Result<Vec<Value>>>()?;
 
                 let array_ptr = current_block
@@ -766,12 +906,12 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 index,
                 result,
             } => {
-                let Ok(index_ptr) = self.gen_variable_load(*index, variable_store, current_block_id)
+                let Ok(index_ptr) = self.gen_variable_load(*index, block_references, variable_store, current_block_id)
                 else {
                     bail!("failed to find index {}", index.0);
                 };
 
-                let Ok(array_ptr) = self.gen_variable_load(*array, variable_store, current_block_id)
+                let Ok(array_ptr) = self.gen_variable_load(*array, block_references, variable_store, current_block_id)
                 else {
                     bail!("failed to find array {}", array.0);
                 };
@@ -830,15 +970,16 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(result)
     }
 
-    fn query_value<'a, 'f>(
-        &'a self,
+    fn query_value<'parent_block, 'context, 'varc, 'this, 'otherthis>(
+        &self,
         id: &SSAID,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'ctx>>,
+        block_references: &'this HashMap<usize, BlockRef<'context, 'parent_block>>,
+        variable_store: &'otherthis mut HashMap<SSAID, Value<'varc, 'parent_block>>,
         current_block: usize,
-    ) -> Result<()> where 'a: 'ctx {
-
+    ) -> Result<()> where 'ctx: 'context, 'this: 'context, 'ctx: 'varc, 'this: 'varc     {
+       
         debug!("found static value");
-                    let current_block = self.block_references.get(&0).unwrap();
+       let current_block = block_references.get(&0).unwrap();
         if let Some(static_value) = self.program.static_values.get(id) {
             match static_value {
                 nodes::Value::String(val) => {
@@ -860,7 +1001,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         Location::unknown(self.context),
                     );
 
-                    let ptr_val = self.block_references.get(&0).unwrap().append_operation(ptr).clone().result(0).unwrap();
+                    let ptr_val = block_references.get(&0).unwrap().append_operation(ptr).clone().result(0).unwrap();
                     let store_op = melior::dialect::memref::store(
                         value,
                         ptr_val.into(),
@@ -897,7 +1038,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     );
 
                     // let ptr_val = current_block.append_operation(ptr).clone().result(0).unwrap().clone();
-                    let ptr_val = self.block_references.get(&0).unwrap().append_operation(ptr).clone().result(0).unwrap();
+                    let ptr_val = block_references.get(&0).unwrap().append_operation(ptr).clone().result(0).unwrap();
 
                     let store_op = melior::dialect::memref::store(
                         integer_val.into(),
@@ -926,11 +1067,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         }
     }
 
-    pub fn gen_pointer_to_annon_str<'a>(
+    pub fn gen_pointer_to_annon_str<'a, 'c>(
         &self,
-        current_block: &'a Block<'ctx>,
+        current_block: &'a Block<'c>,
         value: String,
-    ) -> Result<OperationRef<'ctx, 'a>> {
+    ) -> Result<OperationRef<'c, 'a>> where 'ctx: 'a, 'ctx: 'c {
         self.generate_annon_string(value, current_block)
     }
     fn gen_annon_string_id(&self) -> String {
@@ -942,11 +1083,11 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         id
     }
 
-    fn generate_annon_string<'a>(
+    fn generate_annon_string<'a, 'c>(
         &self,
         value: String,
-        current_block: &'a Block<'ctx>,
-    ) -> Result<OperationRef<'ctx, 'a>> {
+        current_block: &'a Block<'c>,
+    ) -> Result<OperationRef<'c, 'a>> where 'ctx: 'a, 'ctx: 'c {
         let location = melior::ir::Location::unknown(self.context);
         let id = self.gen_annon_string_id();
         let string_type = llvm::r#type::array(
@@ -989,15 +1130,16 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(current_block.append_operation(address_op))
     }
 
-    fn gen_assignment<'a>(
-        &'a self,
+    fn gen_assignment<'parent_block, 'context, 'varc, 'this>(
+        &self,
         lhs_id: &SSAID,
         rhs_id: &SSAID,
         current_block: usize,
-        variable_store: &mut HashMap<SSAID, Value<'ctx, 'a>>,
-    ) -> Result<()> where 'a: 'ctx {
+        block_references: &'this HashMap<usize, BlockRef<'context, 'parent_block>>,
+        variable_store: &'this mut HashMap<SSAID, Value<'varc, 'parent_block>>,
+    ) -> Result<()> where 'ctx: 'context, 'this: 'context {
         debug!("generating assignment");
-        self.query_value(rhs_id, variable_store, current_block)?;
+        self.query_value(rhs_id, block_references, variable_store, current_block)?;
         let initial_value = variable_store.get(rhs_id).unwrap().to_owned();
         debug!("found initial value");
 
