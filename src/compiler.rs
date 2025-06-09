@@ -1,9 +1,10 @@
 use anyhow::Result;
+use tracing::debug;
 
 use crate::{
     ast::{identifiers::ScopeID, parser::parse, scopes::build_program_scopes},
     ir::{IrGenerator, IrProgram},
-    types::resolve_types, cli::load_program,
+    types::resolve_types, cli::load_program, cli::load_program_without_std_lib,
     backend::mlir::codegen::{generate_mlir, MlirGenerationConfig},
 };
 
@@ -12,6 +13,16 @@ pub fn produce_ir(src: &str) -> Result<IrProgram> {
     let (ast, mut node_db, messages) = parse(&input)?;
     let program_scopes = build_program_scopes(&ast, &mut node_db);
     let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
+    let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
+    Ok(ir_generator.convert_to_ssa())
+}
+
+pub fn produce_ir_without_std(src: &str) -> Result<IrProgram> {
+    let input = load_program_without_std_lib(Some(src.to_string()))?;
+    let (ast, mut node_db, messages) = parse(&input)?;
+    let program_scopes = build_program_scopes(&ast, &mut node_db);
+    let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
+    debug!("type db: {:#?}", expression_types);
     let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
     Ok(ir_generator.convert_to_ssa())
 }
