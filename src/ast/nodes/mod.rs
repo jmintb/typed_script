@@ -35,7 +35,7 @@ pub enum Type {
 
 // TODO: this should really happen in the types module.
 impl Type {
-    pub fn as_mlir_type<'c>(&self, context: &'c Context, types: &HashMap<Identifier, Type>) -> melior::ir::Type<'c> {
+    pub fn as_mlir_type<'c, 'a>(&self, context: &'c Context, types: &HashMap<Identifier, Type>) -> melior::ir::Type<'a> where 'c: 'a {
         match self {
             Type::Pointer => llvm::r#type::opaque_pointer(context),
             Type::String => llvm::r#type::opaque_pointer(context),

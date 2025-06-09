@@ -235,14 +235,14 @@ type TransformFn<Ctx> =
 impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
     pub fn new(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
         let scope = IrScope {
-            blocks: program.blocks,
+            blocks: program.blocks.clone(),
             control_flow_graph: control_flow_graph.clone(),
         };
         Self {
             control_flow_graph,
             scope,
-            ssa_variables: program.ssa_variables,
-            access_modes: program.access_modes,
+            ssa_variables: program.get_all_ssa_variables(),
+            access_modes: program.access_modes.clone(),
             block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: false,
@@ -251,14 +251,14 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
 
     pub fn new_reversed(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
         let scope = IrScope {
-            blocks: program.blocks,
+            blocks: program.blocks.clone(),
             control_flow_graph: control_flow_graph.clone(),
         };
         Self {
             control_flow_graph,
             scope,
-            ssa_variables: program.ssa_variables,
-            access_modes: program.access_modes,
+            access_modes: program.access_modes.clone(),
+            ssa_variables: program.get_all_ssa_variables(),
             block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: true,

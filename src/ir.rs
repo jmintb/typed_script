@@ -3,7 +3,6 @@ use std::{
     fmt::Display,
 };
 
-use anyhow::{bail, Result};
 use tracing::debug;
 
 use crate::{
@@ -11,14 +10,14 @@ use crate::{
         identifiers::{BlockID, ExpressionID, FunctionDeclarationID, ScopeID, StatementID},
         nodes::{
             AccessModes, Array, ArrayLookup, Assign, Assignment, Call, Expression, FunctionArg,
-            Identifier, IfElseStatement, IfStatement, Operation, Operator, Return, StructField,
+            Identifier, IfElseStatement, IfStatement, Operation, Operator, Return,
             StructFieldPath, StructInit, Type, Value, While,
         },
         scopes::Scope,
         Ast, NodeDatabase,
     },
     control_flow_graph::ControlFlowGraph,
-    types::{FunctionType, TypeDB},
+    types::TypeDB,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
@@ -44,7 +43,7 @@ impl Display for BlockId {
 
 #[derive(Clone, Debug)]
 pub struct IrProgram {
-    pub ssa_variables: BTreeMap<SSAID, Variable>,
+    pub ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<SSAID, Variable>>,
     pub blocks: BTreeMap<BlockId, Block>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
@@ -53,6 +52,7 @@ pub struct IrProgram {
     pub node_db: NodeDatabase,
     pub static_values: HashMap<SSAID, Value>,
     pub external_function_declaraitons: Vec<FunctionDeclarationID>,
+    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
 }
 
 impl IrProgram {
@@ -62,6 +62,19 @@ impl IrProgram {
             .unwrap()
             .clone()
     }
+
+    pub fn get_all_ssa_variables(&self) ->  BTreeMap<SSAID, Variable> {
+        let mut all_ssa_variable = BTreeMap::new();
+
+        for (_, Variable_map) in self.ssa_variables.iter() {
+            for (k, v) in Variable_map {
+                all_ssa_variable.insert(k.clone(), v.clone());
+            }
+        }
+
+        all_ssa_variable
+    }
+
 }
 
 impl Display for IrProgram {
@@ -77,7 +90,7 @@ impl Display for IrProgram {
                     f.write_fmt(format_args!(
                         "{}: {}\n",
                         instruction_count,
-                        instruction.to_display_string(&self.ssa_variables)
+                        instruction.to_display_string(&self.ssa_variables[&function_id])
                     ))?;
                 }
 
@@ -94,12 +107,21 @@ impl Display for IrProgram {
 #[derive(Clone, Debug)]
 pub struct Block {
     pub instructions: Vec<Instruction>,
+    pub produced_directly_by_control_flow: bool // Indicates if the block was created by a control flow instruction.
 }
 
 impl Block {
     fn new() -> Self {
         Self {
             instructions: Vec::new(),
+            produced_directly_by_control_flow: false
+        }
+    }
+
+    fn new_from_control_flow_instruction() -> Self { 
+        Self {
+            instructions: Vec::new(),
+            produced_directly_by_control_flow: false
         }
     }
 }
@@ -120,6 +142,7 @@ pub enum Instruction {
     Call(FunctionId, Vec<(SSAID, AccessModes)>, SSAID),
     AssignFnArg(SSAID, usize),
     Return(Option<SSAID>),
+    IfElse(SSAID, BlockId, BlockId),
 }
 
 impl Instruction {
@@ -160,6 +183,15 @@ impl Instruction {
                 )
             }
 
+            Self::IfElse(condition, then_block, else_block) => {
+                format!(
+                    "if {}_{} then {}_block else {}_block",
+                    condition.0,
+                    ssa_variables.get(condition).unwrap().original_variable.0,
+                    then_block.0,
+                    else_block.0
+                )
+            }
             Self::Addition(lhs, rhs, result) => {
                 format!(
                     "{}_{} = {}_{} + {}_{}",
@@ -272,7 +304,7 @@ pub struct Variable {
 
 #[derive(Clone, Debug)]
 pub struct IrGenerator {
-    ssa_variables: BTreeMap<SSAID, Variable>,
+    ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<SSAID, Variable>>,
     blocks: BTreeMap<BlockId, Block>,
     id_count: usize,
     entry_block: BlockId,
@@ -286,6 +318,8 @@ pub struct IrGenerator {
     entry_point_function: FunctionDeclarationID,
     static_values: HashMap<SSAID, Value>,
     external_function_declaraitons: Vec<FunctionDeclarationID>,
+    expression_types: HashMap<ExpressionID, types::Type>,
+    ssaid_variable_types: BTreeMap<SSAID, types::Type>
 }
 
 use crate::types;
@@ -300,6 +334,7 @@ impl IrGenerator {
     ) -> Self {
         let entry_block = Block {
             instructions: Vec::new(),
+            produced_directly_by_control_flow: false,
         };
 
         let entry_block_id = BlockId(0);
@@ -322,7 +357,17 @@ impl IrGenerator {
             scopes,
             static_values: HashMap::new(),
             external_function_declaraitons: Vec::new(),
+            expression_types,
+            ssaid_variable_types: BTreeMap::new()
         }
+    }
+
+    fn store_current_fn_variable(&mut self, id: SSAID, ssa_var: Variable) {
+        self.ssa_variables.entry(self.current_function).or_insert(BTreeMap::new()).insert(id, ssa_var);
+    }
+
+    fn current_fn_variables(&self) -> &BTreeMap<SSAID, Variable> {
+        &self.ssa_variables[&self.current_function]
     }
 
     fn new_ssa_id(&mut self) -> SSAID {
@@ -338,7 +383,7 @@ impl IrGenerator {
             id,
         };
 
-        self.ssa_variables.insert(id, ssa_var);
+        self.store_current_fn_variable(id, ssa_var);
 
         id
     }
@@ -360,7 +405,7 @@ impl IrGenerator {
     }
 
     fn latest_gen_variable(&self, var_id: Identifier) -> Option<SSAID> {
-        self.ssa_variables
+        self.current_fn_variables()
             .clone()
             .into_values()
             .filter(|ssa_var| ssa_var.original_variable == var_id)
@@ -415,7 +460,7 @@ impl IrGenerator {
         let cfg = ControlFlowGraph::new(entry_block);
         self.control_flow_graphs.insert(self.current_function, cfg);
 
-        let _ = self.convert_block(function_body_id, entry_block);
+        let _ = self.convert_existing_ir_block(function_body_id, entry_block);
     }
 
     // TODO NEXT: make this parallel down to function level with CFG.
@@ -444,7 +489,8 @@ impl IrGenerator {
             node_db: self.node_db,
             static_values: self.static_values,
             external_function_declaraitons: self.external_function_declaraitons,
-        }
+            ssa_variable_types: self.ssaid_variable_types,
+    }
     }
 
     fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
@@ -480,9 +526,21 @@ impl IrGenerator {
 
         let ssa_id = self.add_ssa_variable(assignment.id);
         let assign_instruction = Instruction::Assign(ssa_id, result_id);
+        self.set_ssaid_type(ssa_id, self.ssaid_variable_types.get(&result_id).unwrap().clone());
         self.add_instruction(updated_block_id, assign_instruction);
         self.add_instruction(updated_block_id, self.get_access_instruction(result_id));
         updated_block_id
+    }
+    
+    fn convert_existing_ir_block(&mut self, ast_block_id: BlockID, start_block: BlockId) -> BlockId {
+        let mut current_block = start_block;
+        let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap().clone();
+
+        for statement in ast_block.statements.iter() {
+            current_block = self.convert_statement(*statement, current_block);
+        }
+
+        current_block
     }
 
     fn convert_block(&mut self, ast_block_id: BlockID, current_block: BlockId) -> BlockId {
@@ -593,6 +651,8 @@ impl IrGenerator {
                 let function_call_result_reciever =
                     self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
 
+                self.set_ssaid_type(function_call_result_reciever, types::Type::Unit); 
+
                 self.add_instruction(
                     current_block,
                     Instruction::Call(
@@ -620,7 +680,7 @@ impl IrGenerator {
                     return (current_block, Some(ssa_var));
                 }
                 _ => {
-                    let ssa_var = self.declare_static_value(val, current_block);
+                    let ssa_var = self.declare_static_value(val, current_block, self.expression_types.get(&expression_id).unwrap().clone());
                     return (current_block, Some(ssa_var));
                 }
             },
@@ -661,12 +721,15 @@ impl IrGenerator {
                 else_block,
             }) => {
                 let parent_block = current_block;
-                (current_block, _) = self.convert_expression(condition, current_block);
-                current_block = self.convert_block(then_block, current_block);
+                let (inner_current_block, condition_ssaid) = self.convert_expression(condition, current_block);
+                let converted_then_block = self.convert_block(then_block, inner_current_block);
                 let post_if_block = self.add_block();
-                self.record_cfg_connection(current_block, post_if_block);
-                current_block = self.convert_block(else_block, parent_block);
-                self.record_cfg_connection(current_block, post_if_block);
+                self.record_cfg_connection(converted_then_block, post_if_block);
+                let converted_else_block = self.convert_block(else_block, parent_block);
+                self.record_cfg_connection(converted_else_block, post_if_block);
+
+                let if_else_instruction = Instruction::IfElse(condition_ssaid.unwrap(), converted_then_block, converted_else_block);
+                self.add_instruction(parent_block, if_else_instruction);
 
                 current_block = post_if_block;
             }
@@ -733,6 +796,7 @@ impl IrGenerator {
                             let ssa_id = self
                                 .add_ssa_variable(Identifier::new("@greater_than_result".to_string()));
                             let assign_instruction = Instruction::GreaterThan(lhs_id, rhs_id, ssa_id);
+                            self.set_ssaid_type(ssa_id, types::Type::Boolean);
                             self.add_instruction(current_block, assign_instruction);
                             self.add_instruction(
                                 current_block,
@@ -815,10 +879,15 @@ impl IrGenerator {
         position: usize,
         current_block: BlockId,
     ) {
+        let argument_type = match argument.r#type {
+            Some(Type::StringLiteral) => types::Type::String,
+            _ => todo!("argument typing not implemented for: {:?}", argument)
+        };
         let ssa_id = self.add_ssa_variable(argument.name);
         let assign_instruction = Instruction::AssignFnArg(ssa_id, position);
         self.access_modes.insert(ssa_id, argument.access_mode);
         self.add_instruction(current_block, assign_instruction);
+        self.set_ssaid_type(ssa_id, argument_type);
     }
 
     fn add_instruction(&mut self, updated_block_id: BlockId, assign_instruction: Instruction) {
@@ -829,7 +898,7 @@ impl IrGenerator {
             .push(assign_instruction)
     }
 
-    fn declare_static_value(&mut self, val: Value, current_block: BlockId) -> SSAID {
+    fn declare_static_value(&mut self, val: Value, current_block: BlockId, expression_type: types::Type) -> SSAID {
         let static_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
         self.static_values.insert(static_ssa_id, val);
         let expression_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
@@ -837,16 +906,21 @@ impl IrGenerator {
             current_block,
             Instruction::Assign(expression_ssa_id, static_ssa_id),
         );
+        self.set_ssaid_type(static_ssa_id, expression_type.clone());
+        self.set_ssaid_type(expression_ssa_id, expression_type);
+
+
         expression_ssa_id
+    }
+
+    fn set_ssaid_type(&mut self, ssaid: SSAID, r#type: types::Type) {
+        self.ssaid_variable_types.insert(ssaid, r#type);
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ast::parser::parse;
-    use crate::ast::scopes::build_program_scopes;
-    use crate::types::resolve_types;
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;

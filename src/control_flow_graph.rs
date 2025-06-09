@@ -68,6 +68,16 @@ where
         true
     }
 
+    pub fn dominates3(&self, dominator: T, dominatee: T) -> bool {
+        let successors = self.cycle_aware_successors(&dominatee).unwrap();
+
+        successors
+            .iter()
+            .filter(|successor_generation| successor_generation.len() == 1)
+            .flatten()
+            .any(|successor| *successor == dominator)
+    }
+
     pub fn dominates(&self, node_a: T, node_b: T) -> bool {
         let mut visisted_nodes = BTreeSet::new();
         let mut paths: VecDeque<T> = self.direct_predecessors(&node_b).collect();
@@ -232,6 +242,10 @@ where
         Ok(successors)
     }
 
+    pub fn reachable_nodes<'a>(&'a self, id: &'a T) -> Result<Vec<T>> {
+        self.cycle_aware_successors(id).map(|successors| successors.into_iter().flatten().collect())
+    }
+
     pub fn cycle_aware_successors<'a>(&'a self, id: &'a T) -> Result<Vec<Vec<T>>> {
         if !self.contains(id) {
             bail!(format!("{} is not in this control flow graph", id));
@@ -379,6 +393,54 @@ where
         false
     }
 
+
+    // TODO: Test nested cycles
+
+    pub fn find_first_common_successor(&self, block_id_a: &T, block_id_b: &T) -> Option<T> {
+        let cycle_successor_a = self.find_cycle_successor(block_id_a);
+        let cycle_successor_b = self.find_cycle_successor(block_id_b);
+
+        // In this case we find the closest common successor in the cycle.
+        // They are in the same cycle.
+        if cycle_successor_a.is_some() && cycle_successor_b.is_some() {
+              let mut predecessor = cycle_successor_a.unwrap();  
+
+              loop {
+                  let prev_predecessor = predecessor.clone();
+                  let mut next_predecessors = self.direct_predecessors(&prev_predecessor);
+                  let next_predeccesor = next_predecessors.next();
+
+                  if next_predecessors.next().is_some()  {
+                      break;
+                  }
+
+                  predecessor = next_predeccesor.unwrap();
+
+              }
+
+              return Some(predecessor);
+
+              }
+
+
+        // In normal case must find first successor which domninates both.
+        let successors = self.successors(block_id_a).unwrap();
+        
+        for successor_gen in successors {
+            for successor in successor_gen {
+                if self.dominates(successor, *block_id_a) 
+                   && self.dominates(successor, *block_id_b) {
+                     
+                }
+            }
+        }
+
+        
+
+        None
+    
+    }
+
     pub fn find_cycle_successor(&self, block_id: &T) -> Option<T> {
         debug!("finding cycle successor for {block_id}");
 
@@ -431,7 +493,7 @@ where
     }
 
     pub fn contains(&self, node: &T) -> bool {
-        self.blocks.contains(node)
+        self.blocks.contains(node) || self.entry_point == *node
     }
 }
 

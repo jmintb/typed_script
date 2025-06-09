@@ -51,6 +51,11 @@ pub fn load_program(path: Option<String>) -> Result<String> {
     Ok(format!("{std_lib}\n {}", std::fs::read_to_string(&path)?))
 }
 
+pub fn load_program_without_std_lib(path: Option<String>) -> Result<String> {
+    let path = path.unwrap_or("./main.ts".to_string());
+    Ok(std::fs::read_to_string(&path)?)
+}
+
 pub fn exec_cli() -> Result<()> {
     let cli = Cli::parse();
 

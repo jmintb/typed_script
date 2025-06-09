@@ -10,6 +10,7 @@ use crate::ast::identifiers::{
 };
 use crate::identifiers::{IDGenerator, ID};
 use crate::ast::nodes::AccessModes;
+use tracing::debug;
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -221,6 +222,18 @@ pub fn resolve_types(
         .flatten()
         .collect();
 
+    for (id, expression) in db.expressions.iter() {
+        match expression {
+            Expression::Value(Value::String(_)) => {
+                types.insert(*id, Type::String);
+            }
+            Expression::Value(Value::Integer(_)) => {
+                types.insert(*id, Type::Integer(SignedIntegerType(32)));
+            }
+            _ => ()
+        }
+    }
+
     for function_declaration_id in function_declarations {
         let function_declaration = db
             .function_declarations
@@ -242,8 +255,6 @@ pub fn resolve_types(
         //     arguments: function_declaration.arguments,
         // };
 
-        // let
-
         let Some(function_body_id) = function_declaration.body else {
             break;
         };
@@ -254,6 +265,7 @@ pub fn resolve_types(
             match statement {
                 StatementID::Expression(id) => {
                     let expression = db.expressions.get(&id).unwrap();
+                    debug!("typing statement: {:?}", expression);
                     let expression_type = match expression {
                         Expression::Value(value) => match value {
                             Value::String(..) => Type::String,
