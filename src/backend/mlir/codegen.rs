@@ -791,7 +791,6 @@ impl<'ctx> CodeGen<'ctx> {
                     Location::unknown(self.context),
                     );
 
-                let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
                 let ptr_val = variable_store[result_reciever];
 
                 let store_op = melior::dialect::memref::store(
@@ -802,11 +801,6 @@ impl<'ctx> CodeGen<'ctx> {
                     );
 
                 current_block.append_operation(store_op);
-
-                // MOVE: move result reciever init to locals generation.
-                // variable_store.insert(*result_reciever, ptr_val.into());
-
-                // MOVE NEXT: figure out what to do for types of locals? focus on strings?
 
                 Some(ptr_val.into())
             }
@@ -1230,9 +1224,9 @@ mod test {
     #[rstest]
     #[test_log::test]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::compiler::produce_ir_without_std;
+        use crate::compiler::produce_ir;
 
-        let ir_program = produce_ir_without_std(path.to_str().unwrap())?;
+        let ir_program = produce_ir(path.to_str().unwrap())?;
         let mlir_generation_config = MlirGenerationConfig {
             verify_mlir: true,
             program: ir_program.clone(),
