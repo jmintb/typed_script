@@ -1,0 +1,47 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_23",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_21",
+    ],
+], [
+    [
+        "Boolean(false)",
+        "if_else_start",
+        "Boolean(true)",
+        "if_else_start",
+        "return",
+    ],
+], [
+    [
+        "block_14",
+        "block_18",
+    ],
+    [
+        "block_4",
+        "block_8",
+    ],
+], [
+    [
+        "call print([\"\\\"else\\\"\", \"Int(4)\"])",
+    ],
+    [
+        "call print([\"\\\"false \\\\n\\\"\", \"Int(7)\"])",
+    ],
+    [
+        "call print([\"\\\"else \\\\n\\\"\", \"Int(6)\"])",
+    ],
+    [
+        "call print([\"\\\"false\\\"\", \"Int(5)\"])",
+    ],
+]
