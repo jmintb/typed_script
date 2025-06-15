@@ -36,11 +36,6 @@ extern fn sprintf(output: str, format: str, number: integer) -> integer;
 extern fn fflush(file: str) -> integer;
 extern fn sleep(time: integer) -> integer;
 
-fn print(val: str, len: integer) {
-     let stdoutptr = fdopen(1, \"w\");
-     fwrite(val, len, 1, stdoutptr);
-     return;
-    }
     "
     .to_string()
 }

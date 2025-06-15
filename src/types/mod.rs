@@ -28,10 +28,10 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone)]
-pub struct SignedIntegerType(usize);
+pub struct SignedIntegerType(pub usize);
 
 #[derive(Debug, Clone)]
-pub struct UnsignedIntegerType(usize);
+pub struct UnsignedIntegerType(pub usize);
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum TypeID {
@@ -185,6 +185,8 @@ pub struct TypedProgram {
     pub type_assignments: HashMap<ExpressionID, Type>,
 }
 
+// NEXT: fix types resvoling enough to get function return types resolved.
+// Maybe the get the API right atleast instead of hacking around.
 pub fn resolve_types(
     ast: &Ast,
     db: &NodeDatabase,
@@ -240,20 +242,21 @@ pub fn resolve_types(
             .get(&function_declaration_id)
             .unwrap();
 
-        // TODO: add function type
 
-        // let return_type = function_declaration
-        //     .return_type
-        //     .map(|return_type| match return_type {
-        //         nodes::Type::String => Type::String,
-        //         _ => todo!("Add type conversion"),
-        //     });
+         let return_type = function_declaration
+             .return_type
+             .map(|return_type| match return_type {
+                 nodes::Type::String => Type::String,
+                 _ => todo!("Add type conversion"),
+             });
 
-        // let function_type = FunctionType {
-        //     key_words: function_declaration.keywords,
-        //     return_type,
-        //     arguments: function_declaration.arguments,
-        // };
+         let function_type = FunctionType {
+             key_words: function_declaration.keywords,
+             return_type,
+             arguments: function_declaration.arguments,
+         };
+
+         types.insert(function_declaration_id, function_type);
 
         let Some(function_body_id) = function_declaration.body else {
             break;

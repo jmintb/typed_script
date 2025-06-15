@@ -4,6 +4,5 @@ fn main() {
   let result = (a) + (b);
   let output = "result: %d";
   sprintf(output, output, result);
-  print(output, 12);
   return
 }
