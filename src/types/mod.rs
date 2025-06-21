@@ -10,6 +10,7 @@ use crate::ast::identifiers::{
 };
 use crate::identifiers::{IDGenerator, ID};
 use crate::ast::nodes::AccessModes;
+use crate::ast::nodes;
 use tracing::debug;
 
 #[derive(Debug, Clone)]
@@ -25,6 +26,15 @@ pub enum Type {
     Pointer,
     Unit,
     Array(ArrayTypeID),
+}
+
+impl Type {
+    fn from_ast_node(node: &nodes::Type) -> Self {
+        match node {
+                 crate::ast::nodes::Type::String => Self::String,
+                 _ => todo!("Add type conversion"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -56,15 +66,9 @@ pub struct StructField {
 #[derive(Debug, Clone)]
 pub struct FunctionType {
     pub key_words: Vec<FunctionKeyword>,
-    pub return_type: Option<Type>,
-    pub arguments: Vec<FunctionArgumentType>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FunctionArgumentType {
-    pub name: Identifier,
-    pub r#type: Type,
-    pub access_mode: AccessModes,
+    pub return_type: Type,
+    pub parameter_types: Vec<Type>,
+    pub parameter_access_modes: Vec<AccessModes>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
@@ -127,6 +131,7 @@ impl From<ArrayTypeID> for TypeID {
     }
 }
 
+
 #[derive(Debug, Clone)]
 pub struct TypeDB {
     pub struct_types: HashMap<StructTypeID, StructDeclaration>,
@@ -170,6 +175,17 @@ impl TypeDB {
         self.struct_types.insert(id, struct_type);
         id
     }
+
+    fn insert_function_type(
+        &mut self,
+        identifier: Identifier,
+        r#type: FunctionType,
+        scope_id: ScopeID,
+        ) -> FunctionTypeID {
+        let id = self.new_type_id_for_identifier(identifier, scope_id);
+        self.function_types.insert(id, r#type);
+        id
+    }
 }
 
 pub struct Function {
@@ -178,15 +194,8 @@ pub struct Function {
     return_type: TypeID,
 }
 
-pub struct TypedProgram {
-    pub ast: Ast,
-    pub db: NodeDatabase,
-    pub types: TypeDB,
-    pub type_assignments: HashMap<ExpressionID, Type>,
-}
-
-// NEXT: fix types resvoling enough to get function return types resolved.
-// Maybe the get the API right atleast instead of hacking around.
+// NEXT: fix types resolving enough to get function return types resolved.
+// Maybe the get the API right atleast instead of hacking around. -> start inserting function types into TypeDB
 pub fn resolve_types(
     ast: &Ast,
     db: &NodeDatabase,
@@ -196,7 +205,7 @@ pub fn resolve_types(
     let mut type_db = TypeDB::new();
     let mut types = HashMap::new();
 
-    let mut gather_types = |db: &NodeDatabase,
+    let mut gather_type_declarations = |db: &NodeDatabase,
                             node_id: NodeID,
                             parent_node_id: Option<NodeID>,
                             output: &mut TypeDB| {
@@ -211,7 +220,7 @@ pub fn resolve_types(
         Ok(())
     };
 
-    ast.traverse(db, &mut gather_types, &mut type_db);
+    ast.traverse(db, &mut gather_type_declarations, &mut type_db);
 
     type WalkerContext = (HashMap<ExpressionID, Type>, ScopeID);
     // let mut walker_context: WalkerContext = (types, root_scope);
@@ -243,20 +252,23 @@ pub fn resolve_types(
             .unwrap();
 
 
-         let return_type = function_declaration
+         let return_type = Type::from_ast_node(function_declaration
              .return_type
-             .map(|return_type| match return_type {
-                 nodes::Type::String => Type::String,
-                 _ => todo!("Add type conversion"),
-             });
+             .as_ref()
+             .expect("expected return type on function declaration"));
+
+         let parameter_types = function_declaration.argument_types().map(Type::from_ast_node).collect();
+         let parameter_access_modes = function_declaration.parameter_access_modes().collect();
+
 
          let function_type = FunctionType {
-             key_words: function_declaration.keywords,
-             return_type,
-             arguments: function_declaration.arguments,
+             key_words: function_declaration.keywords.clone(),
+             return_type: return_type,
+             parameter_types: parameter_types,
+             parameter_access_modes: parameter_access_modes,
          };
 
-         types.insert(function_declaration_id, function_type);
+         type_db.insert_function_type(function_declaration.identifier.clone(), function_type, root_scope);
 
         let Some(function_body_id) = function_declaration.body else {
             break;
