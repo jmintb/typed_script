@@ -78,7 +78,11 @@ impl FunctionDeclaration {
     }
 
     pub fn argument_types(&self) -> impl Iterator<Item = &Type> {
-        self.arguments.iter().map(|argument| argument.r#type.as_ref().unwrap_or(&Type::Unit))
+        self.arguments.iter().map(|argument| argument.r#type.as_ref().expect(&format!("expected a parameter type in function {:?}", self.identifier)))
+    }
+    
+    pub fn parameter_access_modes(&self) -> impl Iterator<Item = AccessModes> + '_ {
+        self.arguments.iter().map(|argument| argument.access_mode.clone())
     }
 }
 

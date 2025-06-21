@@ -10,9 +10,10 @@ use crate::ast::identifiers::{
 };
 use crate::identifiers::{IDGenerator, ID};
 use crate::ast::nodes::AccessModes;
+use crate::ast::nodes;
 use tracing::debug;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Type {
     Struct(StructTypeID),
     Function(FunctionTypeID),
@@ -27,10 +28,23 @@ pub enum Type {
     Array(ArrayTypeID),
 }
 
-#[derive(Debug, Clone)]
+impl Type {
+    fn from_ast_node(node: &nodes::Type) -> Self {
+        match node {
+                 crate::ast::nodes::Type::String => Self::String,
+                 crate::ast::nodes::Type::StringLiteral => Self::String,
+                 crate::ast::nodes::Type::Pointer => Self::Pointer,
+                 crate::ast::nodes::Type::SignedInteger => Self::Integer(SignedIntegerType(32)),
+                 crate::ast::nodes::Type::Unit => Self::Unit,
+                 _ => todo!("Add type conversion {:?}", node),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct SignedIntegerType(pub usize);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct UnsignedIntegerType(pub usize);
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -56,15 +70,9 @@ pub struct StructField {
 #[derive(Debug, Clone)]
 pub struct FunctionType {
     pub key_words: Vec<FunctionKeyword>,
-    pub return_type: Option<Type>,
-    pub arguments: Vec<FunctionArgumentType>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FunctionArgumentType {
-    pub name: Identifier,
-    pub r#type: Type,
-    pub access_mode: AccessModes,
+    pub return_type: Type,
+    pub parameter_types: Vec<Type>,
+    pub parameter_access_modes: Vec<AccessModes>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
@@ -127,13 +135,14 @@ impl From<ArrayTypeID> for TypeID {
     }
 }
 
+
 #[derive(Debug, Clone)]
 pub struct TypeDB {
     pub struct_types: HashMap<StructTypeID, StructDeclaration>,
     pub function_types: HashMap<FunctionTypeID, FunctionType>,
     pub function_declaration_types: HashMap<FunctionDeclarationID, FunctionTypeID>,
     id_generator: IDGenerator,
-    pub ids: HashMap<TypeID, (Identifier, ScopeID)>,
+    pub ids: HashMap<TypeID, (Identifier, ScopeID)>, // TODO: get rid of identifier at this stage in the compiler.
 }
 
 impl TypeDB {
@@ -170,6 +179,17 @@ impl TypeDB {
         self.struct_types.insert(id, struct_type);
         id
     }
+
+    fn insert_function_type(
+        &mut self,
+        function_declaration: FunctionDeclarationID,
+        r#type: FunctionType,
+        ) -> FunctionTypeID {
+        let id = self.new_id::<FunctionTypeID>();
+        self.function_types.insert(id, r#type);
+        self.function_declaration_types.insert(function_declaration, id);
+        id
+    }
 }
 
 pub struct Function {
@@ -178,15 +198,8 @@ pub struct Function {
     return_type: TypeID,
 }
 
-pub struct TypedProgram {
-    pub ast: Ast,
-    pub db: NodeDatabase,
-    pub types: TypeDB,
-    pub type_assignments: HashMap<ExpressionID, Type>,
-}
-
-// NEXT: fix types resvoling enough to get function return types resolved.
-// Maybe the get the API right atleast instead of hacking around.
+// NEXT: fix types resolving enough to get function return types resolved.
+// Maybe the get the API right atleast instead of hacking around. -> start inserting function types into TypeDB
 pub fn resolve_types(
     ast: &Ast,
     db: &NodeDatabase,
@@ -196,7 +209,7 @@ pub fn resolve_types(
     let mut type_db = TypeDB::new();
     let mut types = HashMap::new();
 
-    let mut gather_types = |db: &NodeDatabase,
+    let mut gather_type_declarations = |db: &NodeDatabase,
                             node_id: NodeID,
                             parent_node_id: Option<NodeID>,
                             output: &mut TypeDB| {
@@ -211,7 +224,7 @@ pub fn resolve_types(
         Ok(())
     };
 
-    ast.traverse(db, &mut gather_types, &mut type_db);
+    ast.traverse(db, &mut gather_type_declarations, &mut type_db);
 
     type WalkerContext = (HashMap<ExpressionID, Type>, ScopeID);
     // let mut walker_context: WalkerContext = (types, root_scope);
@@ -236,6 +249,8 @@ pub fn resolve_types(
         }
     }
 
+    debug!("resolving types for functions {:?}", function_declarations);
+
     for function_declaration_id in function_declarations {
         let function_declaration = db
             .function_declarations
@@ -243,23 +258,28 @@ pub fn resolve_types(
             .unwrap();
 
 
-         let return_type = function_declaration
+         let return_type = Type::from_ast_node(function_declaration
              .return_type
-             .map(|return_type| match return_type {
-                 nodes::Type::String => Type::String,
-                 _ => todo!("Add type conversion"),
-             });
+             .as_ref()
+             .unwrap_or(&nodes::Type::Unit)
+             );
+
+         let parameter_types = function_declaration.argument_types().map(Type::from_ast_node).collect();
+         let parameter_access_modes = function_declaration.parameter_access_modes().collect();
+
 
          let function_type = FunctionType {
-             key_words: function_declaration.keywords,
-             return_type,
-             arguments: function_declaration.arguments,
+             key_words: function_declaration.keywords.clone(),
+             return_type: return_type,
+             parameter_types: parameter_types,
+             parameter_access_modes: parameter_access_modes,
          };
 
-         types.insert(function_declaration_id, function_type);
+        let function_type_id = type_db.insert_function_type(function_declaration_id, function_type.clone());
+         debug!("storing type {:?} {:?} for function declaration {:?} {:?}", function_type_id, function_type, function_declaration.identifier, function_declaration_id);
 
         let Some(function_body_id) = function_declaration.body else {
-            break;
+            continue;
         };
 
         let function_body = db.blocks.get(&function_body_id).unwrap();
