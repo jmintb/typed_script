@@ -140,6 +140,7 @@ pub enum Instruction {
     MutBorrowEnd(SSAID),
     Drop(SSAID),
     Call(FunctionId, Vec<(SSAID, AccessModes)>, SSAID),
+    ResultlessCall(FunctionId, Vec<(SSAID, AccessModes)>),
     AssignFnArg(SSAID, usize),
     Return(Option<SSAID>),
     IfElse(SSAID, BlockId, BlockId),
@@ -278,6 +279,20 @@ impl Instruction {
                 format!(
                     "receiver_{:?} = @{}({})",
                     result_id,
+                    function_id.0 .0,
+                    args.iter()
+                        .map(|(variable_id, access_mode)| format!(
+                            "{} {}_{},",
+                            access_mode,
+                            variable_id.0,
+                            ssa_variables.get(variable_id).unwrap().original_variable.0
+                        ))
+                        .fold(String::new(), |acc, next| format!("{} {}", acc, next))
+                )
+            }
+            Self::ResultlessCall(function_id, args) => {
+                format!(
+                    "@{}({})",
                     function_id.0 .0,
                     args.iter()
                         .map(|(variable_id, access_mode)| format!(
@@ -598,17 +613,21 @@ impl IrGenerator {
                 arguments,
             }) => {
                 // TODO: Use actual function type and not just circumvent using declarations.
-                let function_type_id = &self
+                let function_declaration_id = &self
                     .node_db
                     .get_function_declaration_id_from_identifier(function_id.clone())
                     .unwrap();
 
+                let function_type_id = *self.type_db.function_declaration_types.get(function_declaration_id).expect(&format!("expected find type for function in {:?} {:?}", function_declaration_id, self.type_db.function_declaration_types));
+
                 let function_declaration = self
                     .node_db
                     .function_declarations
-                    .get(function_type_id)
+                    .get(function_declaration_id)
                     .unwrap()
                     .clone();
+
+                let function_return_type = self.type_db.function_types.get(&function_type_id).unwrap().return_type;
 
                 let argument_types = function_declaration.arguments.clone();
 
@@ -650,7 +669,8 @@ impl IrGenerator {
                 let function_call_result_reciever =
                     self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
 
-                self.set_ssaid_type(function_call_result_reciever, types::Type::Unit); 
+
+                self.set_ssaid_type(function_call_result_reciever, function_return_type); 
 
                 self.add_instruction(
                     current_block,

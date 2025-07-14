@@ -268,6 +268,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         for (ssa_id, _) in local_ir_variables {
             let fusion_type = self.program.ssa_variable_types.get(ssa_id).expect(&format!("failed to find type for: {:?}", ssa_id));
+            debug!("found type {:?} for ssa id {:?}", fusion_type, ssa_id);
             let variable_allocation_op = melior::dialect::memref::alloca(
                 self.context,
                 MemRefType::new(as_mlir_type(fusion_type.clone(),self.context, &HashMap::new()), &[], None, None),

@@ -13,7 +13,7 @@ use crate::ast::nodes::AccessModes;
 use crate::ast::nodes;
 use tracing::debug;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Type {
     Struct(StructTypeID),
     Function(FunctionTypeID),
@@ -32,15 +32,19 @@ impl Type {
     fn from_ast_node(node: &nodes::Type) -> Self {
         match node {
                  crate::ast::nodes::Type::String => Self::String,
-                 _ => todo!("Add type conversion"),
+                 crate::ast::nodes::Type::StringLiteral => Self::String,
+                 crate::ast::nodes::Type::Pointer => Self::Pointer,
+                 crate::ast::nodes::Type::SignedInteger => Self::Integer(SignedIntegerType(32)),
+                 crate::ast::nodes::Type::Unit => Self::Unit,
+                 _ => todo!("Add type conversion {:?}", node),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SignedIntegerType(pub usize);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct UnsignedIntegerType(pub usize);
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -138,7 +142,7 @@ pub struct TypeDB {
     pub function_types: HashMap<FunctionTypeID, FunctionType>,
     pub function_declaration_types: HashMap<FunctionDeclarationID, FunctionTypeID>,
     id_generator: IDGenerator,
-    pub ids: HashMap<TypeID, (Identifier, ScopeID)>,
+    pub ids: HashMap<TypeID, (Identifier, ScopeID)>, // TODO: get rid of identifier at this stage in the compiler.
 }
 
 impl TypeDB {
@@ -178,12 +182,12 @@ impl TypeDB {
 
     fn insert_function_type(
         &mut self,
-        identifier: Identifier,
+        function_declaration: FunctionDeclarationID,
         r#type: FunctionType,
-        scope_id: ScopeID,
         ) -> FunctionTypeID {
-        let id = self.new_type_id_for_identifier(identifier, scope_id);
+        let id = self.new_id::<FunctionTypeID>();
         self.function_types.insert(id, r#type);
+        self.function_declaration_types.insert(function_declaration, id);
         id
     }
 }
@@ -245,6 +249,8 @@ pub fn resolve_types(
         }
     }
 
+    debug!("resolving types for functions {:?}", function_declarations);
+
     for function_declaration_id in function_declarations {
         let function_declaration = db
             .function_declarations
@@ -255,7 +261,8 @@ pub fn resolve_types(
          let return_type = Type::from_ast_node(function_declaration
              .return_type
              .as_ref()
-             .expect("expected return type on function declaration"));
+             .unwrap_or(&nodes::Type::Unit)
+             );
 
          let parameter_types = function_declaration.argument_types().map(Type::from_ast_node).collect();
          let parameter_access_modes = function_declaration.parameter_access_modes().collect();
@@ -268,10 +275,11 @@ pub fn resolve_types(
              parameter_access_modes: parameter_access_modes,
          };
 
-         type_db.insert_function_type(function_declaration.identifier.clone(), function_type, root_scope);
+        let function_type_id = type_db.insert_function_type(function_declaration_id, function_type.clone());
+         debug!("storing type {:?} {:?} for function declaration {:?} {:?}", function_type_id, function_type, function_declaration.identifier, function_declaration_id);
 
         let Some(function_body_id) = function_declaration.body else {
-            break;
+            continue;
         };
 
         let function_body = db.blocks.get(&function_body_id).unwrap();
