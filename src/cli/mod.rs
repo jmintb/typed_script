@@ -14,6 +14,9 @@ enum SubCommands {
     Run {
         path: Option<String>,
     },
+    Runold {
+        path: Option<String>,
+    },
     Build {
         #[arg(long)]
         emit_mlir: bool,
@@ -35,7 +38,11 @@ extern fn fwrite(val: str, size: integer, len: integer, file: str) -> integer;
 extern fn sprintf(output: str, format: str, number: integer) -> integer;
 extern fn fflush(file: str) -> integer;
 extern fn sleep(time: integer) -> integer;
-
+fn print(val: str, len: integer) {
+     let stdoutptr = fdopen(1, \"w\");
+     fwrite(val, len, 1, stdoutptr);
+     return;
+    }
     "
     .to_string()
 }
@@ -57,6 +64,15 @@ pub fn exec_cli() -> Result<()> {
     match cli.command {
         SubCommands::Run { path } => {
             compiler::jit(&path.unwrap())?
+
+        }
+        SubCommands::Runold { path } => {
+            let contents = load_program(path)?;
+            let ast = parse(&contents)?;
+            let typed_program = type_ast(ast)?;
+            let engine = generate_mlir(typed_program, false)?;
+            unsafe { engine.invoke_packed("main", &mut [])? };
+
         }
         SubCommands::Build {
             emit_mlir,
