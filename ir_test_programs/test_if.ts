@@ -6,8 +6,9 @@ fn main() {
   } 
 
   print(test, 3)
+  return;
 }
 
 fn move_val(owned input: str) {
-  
+ return; 
 }

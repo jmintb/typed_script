@@ -228,7 +228,7 @@ impl Instruction {
             }
             Self::AnonymousValue(id) => {
                 format!(
-                    "{} := {}",
+                    "{}_anonymous := {}",
                     id.0,
                     static_ssa_values[id].to_debug_string()
                 )
@@ -975,9 +975,9 @@ mod test {
 
     #[rstest]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::compiler::produce_ir;
+        use crate::compiler::produce_ir_without_std;
 
-        let ir_progam = produce_ir(path.to_str().unwrap())?;
+        let ir_progam = produce_ir_without_std(path.to_str().unwrap())?;
 
         insta::assert_snapshot!(
             format!(

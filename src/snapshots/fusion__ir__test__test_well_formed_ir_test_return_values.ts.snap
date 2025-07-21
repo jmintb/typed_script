@@ -1,0 +1,16 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", ir_progam)"
+---
+IR:
+fn 4:
+block_1
+0: receiver_SSAID(2) = @8()
+1: 3_val = 2_generate_message_result
+2: move(2_generate_message_result)
+3: return
+
+fn 8:
+block_4
+0: 5_anonymous := Int(2)
+1: return 5
