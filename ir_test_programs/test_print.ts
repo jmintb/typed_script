@@ -4,3 +4,7 @@ fn main() {
   return
 }
 
+fn print(message: let string, len: let int) {
+  return;
+}
+
