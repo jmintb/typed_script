@@ -90,7 +90,7 @@ impl Display for IrProgram {
                     f.write_fmt(format_args!(
                         "{}: {}\n",
                         instruction_count,
-                        instruction.to_display_string(&self.ssa_variables[&function_id])
+                        instruction.to_display_string(&self.ssa_variables[&function_id], &self.static_values)
                     ))?;
                 }
 
@@ -144,6 +144,7 @@ pub enum Instruction {
     AssignFnArg(SSAID, usize),
     Return(Option<SSAID>),
     IfElse(SSAID, BlockId, BlockId),
+    AnonymousValue(SSAID),
 }
 
 impl Instruction {
@@ -155,7 +156,7 @@ impl Instruction {
         }
     }
 
-    pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>) -> String {
+    pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>, static_ssa_values: &HashMap<SSAID, Value>) -> String {
         match self {
             Self::ArrayLookup{ array, index, result } => {
                 format!(
@@ -223,6 +224,13 @@ impl Instruction {
                     ssa_variables.get(to).unwrap().original_variable.0,
                     from.0,
                     ssa_variables.get(from).unwrap().original_variable.0
+                )
+            }
+            Self::AnonymousValue(id) => {
+                format!(
+                    "{} := {}",
+                    id.0,
+                    static_ssa_values[id].to_debug_string()
                 )
             }
             Self::AssignFnArg(to, position) => {
@@ -665,13 +673,24 @@ impl IrGenerator {
                     }
                 }
 
-                // TODO: it might not always mmake sense to produce a function result.
+               let result =  match function_return_type {
+                    types::Type::Unit => {
+                self.add_instruction(
+                    current_block,
+                    Instruction::ResultlessCall(
+                        FunctionId(
+                            self.node_db
+                                .get_function_declaration_id_from_identifier(function_id)
+                                .unwrap(),
+                        ),
+                        function_args,
+                    ),
+                );
+                 None
+                    }
+                     _ => {
                 let function_call_result_reciever =
                     self.add_ssa_variable(Identifier::new(format!("{}_result", function_id.0)));
-
-
-                self.set_ssaid_type(function_call_result_reciever, function_return_type); 
-
                 self.add_instruction(
                     current_block,
                     Instruction::Call(
@@ -681,21 +700,33 @@ impl IrGenerator {
                                 .unwrap(),
                         ),
                         function_args,
-                        function_call_result_reciever,
-                    ),
-                );
+                        function_call_result_reciever
+                        )
+                    );
+
+
+                self.set_ssaid_type(function_call_result_reciever, function_return_type); 
+
+                Some(function_call_result_reciever)
+                         
+                     }
+                };
+
+                
+
+
+
 
                 for instruction in free_instructions {
                     self.add_instruction(current_block, instruction);
                 }
 
-                return (current_block, Some(function_call_result_reciever));
+                return (current_block, result);
             }
 
             Expression::Value(val) => match val {
                 Value::Variable(id) => {
                     let ssa_var = self.latest_gen_variable(id.clone()).unwrap();
-                    // self.add_instruction(current_block, self.get_access_instruction(ssa_var));
                     return (current_block, Some(ssa_var));
                 }
                 _ => {
@@ -920,18 +951,12 @@ impl IrGenerator {
     }
 
     fn declare_static_value(&mut self, val: Value, current_block: BlockId, expression_type: types::Type) -> SSAID {
-        let static_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
+        let static_ssa_id = self.add_ssa_variable(Identifier("anonymous".to_string()));
         self.static_values.insert(static_ssa_id, val);
-        let expression_ssa_id = self.add_ssa_variable(Identifier("Anonymous".to_string()));
-        self.add_instruction(
-            current_block,
-            Instruction::Assign(expression_ssa_id, static_ssa_id),
-        );
         self.set_ssaid_type(static_ssa_id, expression_type.clone());
-        self.set_ssaid_type(expression_ssa_id, expression_type);
+        self.add_instruction(current_block, Instruction::AnonymousValue(static_ssa_id));
 
-
-        expression_ssa_id
+        static_ssa_id
     }
 
     fn set_ssaid_type(&mut self, ssaid: SSAID, r#type: types::Type) {

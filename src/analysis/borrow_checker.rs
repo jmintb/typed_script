@@ -158,6 +158,9 @@ impl BorrowChecker {
                     Instruction::Assign(to, from) => {
                         variable_states.insert(*to, VariableState::Ready);
                     }
+                    Instruction::AnonymousValue(id) => {
+                        variable_states.insert(*id, VariableState::Ready);
+                    }
                     Instruction::Borrow(id) => match variable_states.get(&id) {
                         Some(VariableState::Ready) => {
                             variable_states.insert(*id, VariableState::Borrowed);
