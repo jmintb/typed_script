@@ -1,0 +1,55 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", ir_progam)"
+---
+IR:
+fn 17:
+block_1
+0: 2_anonymous := "222"
+1: 3_test = 2_anonymous
+2: move(2_anonymous)
+3: 4_anonymous := Int(1)
+4: 5_anonymous := Int(0)
+5: 6_@less_than_result = 4_anonymous < 5_anonymous
+6: move(4_anonymous)
+7: move(5_anonymous)
+8: if 6_@less_than_result then 7_block else 9_block
+
+block_7
+0: move(3_test)
+1: @20( owned 3_test,)
+
+block_9
+0: move(3_test)
+1: 10_anonymous := Int(3)
+2: borrow(10_anonymous)
+3: @26( owned 3_test, let 10_anonymous,)
+4: borrow_end(10_anonymous)
+
+block_8
+0: borrow(3_test)
+1: @23( let 3_test,)
+2: borrow_end(3_test)
+3: return
+
+block_8
+0: borrow(3_test)
+1: @23( let 3_test,)
+2: borrow_end(3_test)
+3: return
+
+fn 20:
+block_11
+0: 12_test = fnarg
+1: return
+
+fn 23:
+block_13
+0: 14_test = fnarg
+1: return
+
+fn 26:
+block_15
+0: 16_val = fnarg
+1: 17_len = fnarg
+2: return

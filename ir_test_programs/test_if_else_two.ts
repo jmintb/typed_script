@@ -5,8 +5,14 @@ fn main() {
   } else {
     print(test , 3)
   }
+
+  return;
 }
 
 fn move_val(owned test: str) {
-  
+  return; 
+}
+
+fn print(owned val: str, len: integer) {
+  return;
 }

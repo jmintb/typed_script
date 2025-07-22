@@ -9,12 +9,17 @@ fn main() {
 
   borrow_val(test)
   
+  return; 
 }
 
 fn move_val(owned test: str) {
-    
+  return;
 }
 
 fn borrow_val(test: str) {
-  
+  return;
+}
+
+fn print(owned val: str, len: integer) {
+  return;
 }
