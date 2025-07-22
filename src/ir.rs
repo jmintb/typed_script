@@ -129,7 +129,9 @@ impl Block {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
     Addition(SSAID, SSAID, SSAID),
+    Subtraction(SSAID, SSAID, SSAID),
     GreaterThan(SSAID, SSAID, SSAID),
+    LessThan(SSAID, SSAID, SSAID),
     InitArray(Vec<SSAID>, SSAID), // TODO: Could this be something more general like calling a function?, do we need access modes here, in in function calls?
     ArrayLookup {array: SSAID, index: SSAID, result: SSAID},
     Assign(SSAID, SSAID),
@@ -205,10 +207,32 @@ impl Instruction {
                     ssa_variables.get(rhs).unwrap().original_variable.0
                 )
             }
+            Self::Subtraction(lhs, rhs, result) => {
+                format!(
+                    "{}_{} = {}_{} - {}_{}",
+                    result.0,
+                    ssa_variables.get(result).unwrap().original_variable.0,
+                    lhs.0,
+                    ssa_variables.get(lhs).unwrap().original_variable.0,
+                    rhs.0,
+                    ssa_variables.get(rhs).unwrap().original_variable.0
+                )
+            }
 
             Self::GreaterThan(lhs, rhs, result) => {
                 format!(
                     "{}_{} = {}_{} > {}_{}",
+                    result.0,
+                    ssa_variables.get(result).unwrap().original_variable.0,
+                    lhs.0,
+                    ssa_variables.get(lhs).unwrap().original_variable.0,
+                    rhs.0,
+                    ssa_variables.get(rhs).unwrap().original_variable.0
+                )
+            }
+            Self::LessThan(lhs, rhs, result) => {
+                format!(
+                    "{}_{} = {}_{} < {}_{}",
                     result.0,
                     ssa_variables.get(result).unwrap().original_variable.0,
                     lhs.0,
@@ -843,10 +867,44 @@ impl IrGenerator {
 
                             return (current_block, Some(ssa_id));
                         }
+                        Operator::Subtraction => {
+                            let ssa_id = self
+                                .add_ssa_variable(Identifier::new("@Subtraction_result".to_string()));
+                            let assign_instruction = Instruction::Subtraction(lhs_id, rhs_id, ssa_id);
+                            self.set_ssaid_type(ssa_id, types::Type::Integer(types::SignedIntegerType(32)));
+                            self.add_instruction(current_block, assign_instruction);
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(lhs_id),
+                            );
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(rhs_id),
+                            );
+
+                            return (current_block, Some(ssa_id));
+                        }
                         Operator::GreaterThan => {
                             let ssa_id = self
                                 .add_ssa_variable(Identifier::new("@greater_than_result".to_string()));
                             let assign_instruction = Instruction::GreaterThan(lhs_id, rhs_id, ssa_id);
+                            self.set_ssaid_type(ssa_id, types::Type::Boolean);
+                            self.add_instruction(current_block, assign_instruction);
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(lhs_id),
+                            );
+                            self.add_instruction(
+                                current_block,
+                                self.get_access_instruction(rhs_id),
+                            );
+
+                            return (current_block, Some(ssa_id));
+                        }
+                        Operator::LessThan => {
+                            let ssa_id = self
+                                .add_ssa_variable(Identifier::new("@less_than_result".to_string()));
+                            let assign_instruction = Instruction::LessThan(lhs_id, rhs_id, ssa_id);
                             self.set_ssaid_type(ssa_id, types::Type::Boolean);
                             self.add_instruction(current_block, assign_instruction);
                             self.add_instruction(
