@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::ir::{Block, IrProgram, Variable, SSAID};
 use crate::ast::nodes::AccessModes;
+use crate::types;
 
 use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId};
 use anyhow::Result;
@@ -16,14 +17,15 @@ pub struct IrScope {
 }
 
 #[derive(Clone, Debug)]
-pub struct IrInterpreter<Ctx> {
+pub struct IrInterpreter<'a, Ctx> {
     scope: IrScope,
-    control_flow_graph: ControlFlowGraph<BlockId>,
+    control_flow_graph: &'a ControlFlowGraph<BlockId>,
     block_states: BTreeMap<BlockId, Ctx>,
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     context: Ctx,
     reverse_traversel: bool,
+    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
 }
 
 pub struct ReverseCycleAwareBlockIterator {
@@ -227,13 +229,14 @@ pub struct TransformContext {
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     pub variable_states: BTreeMap<SSAID, VariableState>,
+    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
 }
 
 type TransformFn<Ctx> =
     dyn FnMut(usize, &mut TransformContext, &BlockId, &mut Ctx) -> Result<usize>;
 
-impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
-    pub fn new(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
+impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
+    pub fn new(control_flow_graph: &'a ControlFlowGraph<BlockId>, program: &IrProgram) -> Self {
         let scope = IrScope {
             blocks: program.blocks.clone(),
             control_flow_graph: control_flow_graph.clone(),
@@ -246,10 +249,11 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: false,
+            ssa_variable_types: program.ssa_variable_types.clone(),
         }
     }
 
-    pub fn new_reversed(control_flow_graph: ControlFlowGraph<BlockId>, program: IrProgram) -> Self {
+    pub fn new_reversed(control_flow_graph: &'a ControlFlowGraph<BlockId>, program: &IrProgram) -> Self {
         let scope = IrScope {
             blocks: program.blocks.clone(),
             control_flow_graph: control_flow_graph.clone(),
@@ -262,6 +266,7 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: true,
+            ssa_variable_types: program.ssa_variable_types.clone(),
         }
     }
 
@@ -271,6 +276,7 @@ impl<Ctx: Clone + Default> IrInterpreter<Ctx> {
             ssa_variables: self.ssa_variables.clone(),
             access_modes: self.access_modes.clone(),
             variable_states: BTreeMap::new(),
+            ssa_variable_types: self.ssa_variable_types.clone(),
         };
 
         if self.reverse_traversel {

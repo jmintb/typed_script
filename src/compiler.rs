@@ -8,6 +8,8 @@ use crate::{
     backend::mlir::codegen::{generate_mlir, MlirGenerationConfig},
 };
 
+use crate::analysis::type_evaluation::evaluate_types;
+
 pub fn produce_ir(src: &str) -> Result<IrProgram> {
     let input = load_program(Some(src.to_string()))?;
     let (ast, mut node_db, messages) = parse(&input)?;
@@ -29,12 +31,14 @@ pub fn produce_ir_without_std(src: &str) -> Result<IrProgram> {
 
 pub fn jit(input: &str) -> Result<()> {
     let ir = produce_ir(input)?;
+    let types = evaluate_types(&ir)?;
 
     // TODO: missing statement id to scope mapping
 
     let mlir_generation_config = MlirGenerationConfig {
         program: ir,
         verify_mlir: true,
+        program_types: types
     };
 
 

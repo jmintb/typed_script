@@ -253,7 +253,7 @@ impl BorrowChecker {
 
     pub fn check(&mut self, ir_program: &IrProgram) -> Result<()> {
         for function_id in ir_program.control_flow_graphs.keys() {
-        let interpreter = IrInterpreter::<BorrowCheckerState>::new(ir_program.control_flow_graphs.get(function_id).cloned().unwrap(), ir_program.clone());
+        let interpreter = IrInterpreter::<BorrowCheckerState>::new(ir_program.control_flow_graphs.get(function_id).unwrap(), ir_program);
         interpreter.transform(&mut Self::check_instruction)?;
         }
 

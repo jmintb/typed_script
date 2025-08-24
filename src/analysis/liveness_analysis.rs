@@ -151,9 +151,8 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDecl
             ir_program
                 .control_flow_graphs
                 .get(&function_id)
-                .cloned()
                 .unwrap(),
-            ir_program.clone(),
+            ir_program,
         );
 
         let livenss = interpreter.transform(

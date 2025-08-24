@@ -14,7 +14,6 @@ use melior::{
     dialect::{
         arith,
         func::{self},
-        index,
         llvm::{self, attributes::Linkage},
         memref, scf, DialectRegistry,
     },
@@ -43,10 +42,12 @@ use crate::ast::nodes;
 use crate::ast::nodes::FunctionKeyword;
 use crate::ir::Instruction;
 use crate::ir::SSAID;
+use crate::analysis::type_evaluation::IrProgramTypes;
 
 pub struct MlirGenerationConfig {
     pub program: IrProgram,
     pub verify_mlir: bool,
+    pub program_types: BTreeMap<FunctionDeclarationID, IrProgramTypes>,
 }
 
 // TODO: Figure out how we can share the module generation code without dropping references.
@@ -59,6 +60,7 @@ pub fn generate_mlir<'c>(config: MlirGenerationConfig) -> Result<ExecutionEngine
         &module,
         HashMap::new(),
         config.program,
+        config.program_types
     ));
 
     code_gen.gen_code()?;
@@ -114,7 +116,7 @@ fn run_mlir_passes(context: &Context, module: &mut Module) {
 pub fn generate_mlir_string(cfg: MlirGenerationConfig) -> Result<String> {
     let context = prepare_mlir_context();
     let mut module = Module::new(melior::ir::Location::unknown(&context));
-    let mut code_gen = Box::new(CodeGen::new(&context, &module, HashMap::new(), cfg.program));
+    let mut code_gen = Box::new(CodeGen::new(&context, &module, HashMap::new(), cfg.program, cfg.program_types));
     code_gen.gen_code()?;
     run_mlir_passes(&context, &mut module);
 
@@ -126,14 +128,46 @@ pub fn generate_mlir_string(cfg: MlirGenerationConfig) -> Result<String> {
 
 use crate::types;
 
-    pub fn as_mlir_type<'c, 'a>(fusion_type: types::Type, context: &'c Context, types: &HashMap<Identifier, Type>) -> melior::ir::Type<'a> where 'c: 'a {
+    pub fn as_mlir_type<'c, 'a>(fusion_type: types::Type, context: &'c Context, types: &IrProgramTypes) -> melior::ir::Type<'a> where 'c: 'a {
         match fusion_type {
             types::Type::Pointer => llvm::r#type::opaque_pointer(context),
             types::Type::String => llvm::r#type::opaque_pointer(context),
             types::Type::Integer(_) => IntegerType::new(context, 32).into(),
             types::Type::Boolean => IntegerType::new(context, 1).into(),
             types::Type::Unit => llvm::r#type::void(context),
+            types::Type::Array(array_type_id) => {
+
+                            let array_type = types.array_types.get(array_type_id).unwrap();
+                            let element_type = as_mlir_type(array_type.element_type, context, types);
+                            
+
+                            MemRefType::new(
+                                element_type,
+                                &[array_type.length as i64],
+                                None,
+                                None,
+                                ).into()
+            }
             _ => todo!("unimplemented type to mlir type {:?}", fusion_type),
+        }
+    }
+    
+pub fn as_memref_type<'c, 'a>(fusion_type: types::Type, context: &'c Context, types: &IrProgramTypes) -> MemRefType<'a> where 'c: 'a {
+        match fusion_type {
+            types::Type::Array(array_type_id) => {
+
+                            let array_type = types.array_types.get(array_type_id).unwrap();
+                            let element_type = as_mlir_type(array_type.element_type, context, types);
+                            
+
+                            MemRefType::new(
+                                element_type,
+                                &[array_type.length as i64],
+                                None,
+                                None,
+                                )
+            }
+            _ => todo!("unimplemented type to memref type {:?}", fusion_type),
         }
     }
 
@@ -171,6 +205,7 @@ struct CodeGen<'ctx> {
     annon_string_counter: RefCell<usize>,
     type_store: HashMap<SSAID, nodes::Type>,
     program: IrProgram,
+    program_types: BTreeMap<FunctionDeclarationID, IrProgramTypes>,
     current_fn_decl_id: FunctionDeclarationID
 }
 
@@ -180,6 +215,7 @@ impl<'ctx> CodeGen<'ctx> {
         module: &'ctx Module<'ctx>,
         types: HashMap<SSAID, nodes::Type>,
         ir_program: IrProgram,
+        ir_types: BTreeMap<FunctionDeclarationID, IrProgramTypes>
     ) -> Self {
         Self {
             context,
@@ -188,6 +224,8 @@ impl<'ctx> CodeGen<'ctx> {
             type_store: types,
             current_fn_decl_id: ir_program.entry_function_id,
             program: ir_program,
+            program_types: ir_types,
+
         }
     }
 
@@ -264,20 +302,33 @@ impl<'ctx> CodeGen<'ctx> {
         let local_ir_variables = &self.program.ssa_variables[function_decl_id];
 
         for (ssa_id, value) in local_ir_variables {
-            let fusion_type = self.program.ssa_variable_types.get(ssa_id).expect(&format!("failed to find type for: {:?}", ssa_id));
+
+            let fusion_type = if self.program.ssa_variable_types.contains_key(ssa_id) { 
+                self.program.ssa_variable_types.get(ssa_id).expect(&format!("failed to find type for: {:?}", ssa_id))
+            } else {
+                self.program_types.get(function_decl_id).unwrap().variable_types.get(ssa_id).unwrap()
+            };
+
+
+
             debug!("found type {:?} for ssa id {:?}", fusion_type, ssa_id);
+            let inner_type = as_mlir_type(fusion_type.clone(),self.context, self.program_types.get(function_decl_id).unwrap());
             let variable_allocation_op = melior::dialect::memref::alloca(
                 self.context,
-                MemRefType::new(as_mlir_type(fusion_type.clone(),self.context, &HashMap::new()), &[], None, None),
+                MemRefType::new(inner_type, &[], None, None),
                 &[],
                 &[],
                 None,
                 Location::unknown(self.context),
             );
-
-
             let variable_mlir_value: Value = entry_block.append_operation(variable_allocation_op).result(0).unwrap().into();
             locals.insert(*ssa_id, variable_mlir_value);
+
+            /*
+
+            if let types::Type::Array(_) = fusion_type {
+            }
+            */
 
             let key = ssa_id;
             if self.program.static_values.contains_key(key) {
@@ -1038,23 +1089,26 @@ impl<'ctx> CodeGen<'ctx> {
                     .map(|item| self.gen_variable_load(*item, block_references, variable_store, current_block_id))
                     .collect::<Result<Vec<Value>>>()?;
 
-                let array_ptr = current_block
-                    .append_operation(memref::alloca(
-                            self.context,
-                            MemRefType::new(
-                                item_values[0].r#type().into(),
-                                &[array_len as i64],
-                                None,
-                                None,
-                                ),
-                                &[],
-                                &[],
-                                None,
-                                location,
-                                ))
+                let program_types = self.program_types.get(&self.current_fn_decl_id).unwrap();
+                let array_type = program_types.variable_types.get(result_receiver).unwrap();
+                let memref_type = as_memref_type(*array_type, self.context, program_types);
+                            
+
+                let array_ptr = melior::dialect::memref::alloca(
+                    self.context,
+                    memref_type,
+                    &[],
+                    &[],
+                    None,
+                    Location::unknown(self.context)
+                    ); 
+
+                let array_ptr_val: Value = current_block
+                    .append_operation(array_ptr)
                     .result(0)
                     .unwrap()
                     .into();
+
 
                 for (index, item) in item_values.into_iter().enumerate() {
                     let index = current_block
@@ -1072,38 +1126,23 @@ impl<'ctx> CodeGen<'ctx> {
 
                     current_block.append_operation(memref::store(
                             item,
-                            array_ptr,
+                            array_ptr_val,
                             &[index.into()],
                             location,
                             ));
                 }
 
-                let result_ptr = melior::dialect::memref::alloca(
-                    self.context,
-                    MemRefType::new(array_ptr.r#type(), &[], None, None),
-                    &[],
-                    &[],
-                    None,
-                    Location::unknown(self.context),
-                    );
-
-                let ptr_val: Value = current_block
-                    .append_operation(result_ptr)
-                    .result(0)
-                    .unwrap()
-                    .into();
 
                 let ptr_val: Value = variable_store[result_receiver];
 
 
                 let store_op = melior::dialect::memref::store(
-                    array_ptr,
+                    array_ptr_val,
                     ptr_val,
                     &[],
                     melior::ir::Location::unknown(self.context),
                     );
                 current_block.append_operation(store_op);
-                debug!("init array {:?}", array_ptr);
 
                 // MOVE: move result reciever init to locals generation.
 
@@ -1150,11 +1189,7 @@ impl<'ctx> CodeGen<'ctx> {
                             Location::unknown(self.context),
                             );
 
-                        let ptr_val: Value = current_block
-                            .append_operation(result_ptr)
-                            .result(0)
-                            .unwrap()
-                            .into();
+                        let ptr_val: Value = variable_store[result];
 
                         let store_op = melior::dialect::memref::store(
                             gep_op_2,
@@ -1168,6 +1203,9 @@ impl<'ctx> CodeGen<'ctx> {
                 // variable_store.insert(*result, ptr_val);
 
                 Some(ptr_val)
+            }
+            Instruction::AnonymousValue(id) => {
+                Some(self.gen_variable_load(*id, block_references, variable_store, current_block_id)?)
             }
             Instruction::MutBorrow(id)
             | Instruction::MutBorrowEnd(id)
@@ -1391,16 +1429,19 @@ mod test {
     #[rstest]
     #[test_log::test]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::compiler::produce_ir_without_std;
+        use crate::compiler::produce_ir;
+        use crate::analysis::type_evaluation::evaluate_types;
 
-        let ir_program = produce_ir_without_std(path.to_str().unwrap())?;
+        let ir_program = produce_ir(path.to_str().unwrap())?;
+        debug!("testing codegen for IR: {ir_program} \n cfg: {:?}", ir_program.control_flow_graphs);
+        let ir_types = evaluate_types(&ir_program)?;
         let mlir_generation_config = MlirGenerationConfig {
             verify_mlir: true,
             program: ir_program.clone(),
+            program_types: ir_types,
         };
 
 
-        debug!("testing codegen for IR: {ir_program} \n cfg: {:?}", ir_program.control_flow_graphs);
         let mlir_output = generate_mlir_string(mlir_generation_config)?;
 
         insta::assert_snapshot!(
