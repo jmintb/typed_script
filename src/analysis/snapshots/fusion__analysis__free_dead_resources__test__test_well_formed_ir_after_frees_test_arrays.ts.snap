@@ -7,64 +7,71 @@ fn 17:
 block_1
 0: 2_val = fnarg
 1: 3_len = fnarg
+2: 4_anonymous := Int(1)
+3: borrow(4_anonymous)
+4: 5_anonymous := "w"
+5: borrow(5_anonymous)
+6: receiver_SSAID(6) = @0( let 4_anonymous, let 5_anonymous,)
+7: borrow_end(4_anonymous)
+8: borrow_end(5_anonymous)
+9: 7_stdoutptr = 6_fdopen_result
+10: drop(4_anonymous)
+11: move(6_fdopen_result)
+12: drop(5_anonymous)
+13: borrow(2_val)
+14: borrow(3_len)
+15: 8_anonymous := Int(1)
+16: borrow(8_anonymous)
+17: borrow(7_stdoutptr)
+18: receiver_SSAID(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
+19: borrow_end(2_val)
+20: drop(2_val)
+21: borrow_end(3_len)
+22: drop(3_len)
+23: drop(9_fwrite_result)
+24: borrow_end(8_anonymous)
+25: borrow_end(7_stdoutptr)
+26: drop(8_anonymous)
+27: drop(7_stdoutptr)
+28: return
 
-block_4
-0: 6_Anonymous = 5_Anonymous
-1: borrow(6_Anonymous)
-2: 8_Anonymous = 7_Anonymous
-3: borrow(8_Anonymous)
-4: receiver_SSAID(9) = @0( let 6_Anonymous, let 8_Anonymous,)
-5: borrow_end(6_Anonymous)
-6: borrow_end(8_Anonymous)
-7: 10_stdoutptr = 9_fdopen_result
-8: drop(6_Anonymous)
-9: move(9_fdopen_result)
-10: drop(8_Anonymous)
-11: borrow(2_val)
-12: borrow(3_len)
-13: 12_Anonymous = 11_Anonymous
-14: borrow(12_Anonymous)
-15: borrow(10_stdoutptr)
-16: receiver_SSAID(13) = @2( let 2_val, let 3_len, let 12_Anonymous, let 10_stdoutptr,)
-17: borrow_end(2_val)
-18: drop(2_val)
-19: borrow_end(3_len)
-20: drop(3_len)
-21: drop(13_fwrite_result)
-22: borrow_end(12_Anonymous)
-23: borrow_end(10_stdoutptr)
-24: drop(12_Anonymous)
-25: drop(10_stdoutptr)
-26: return
-
-fn 31:
-block_14
-
-block_15
-0: 17_Anonymous = 16_Anonymous
-1: 18_val = 17_Anonymous
-2: drop(18_val)
-3: move(17_Anonymous)
-4: 21_Anonymous = 20_Anonymous
-5: 23_Anonymous = 22_Anonymous
-6: 25_Anonymous = 24_Anonymous
-7: move(21_Anonymous)
-8: move(23_Anonymous)
-9: move(25_Anonymous)
-10: array_init_result_SSAID(19) = InitArray[ 21_Anonymous, 23_Anonymous, 25_Anonymous,]
-11: 26_vals = 19_@array_init_result
-12: move(19_@array_init_result)
-13: 28_Anonymous = 27_Anonymous
-14: move(28_Anonymous)
-15: move(26_vals)
-16: array_lookup_result_SSAID(29) = ArrayLookup( 26_vals, 28_Anonymous, 29_@array_lookup_result,)
-17: borrow(29_@array_lookup_result)
-18: 31_Anonymous = 30_Anonymous
-19: borrow(31_Anonymous)
-20: receiver_SSAID(32) = @17( let 29_@array_lookup_result, let 31_Anonymous,)
-21: borrow_end(29_@array_lookup_result)
-22: drop(29_@array_lookup_result)
-23: drop(32_print_result)
-24: borrow_end(31_Anonymous)
-25: drop(31_Anonymous)
-26: return
+fn 35:
+block_10
+0: 11_anonymous := "test\n"
+1: 12_val = 11_anonymous
+2: drop(12_val)
+3: move(11_anonymous)
+4: 14_anonymous := "first \n"
+5: 15_anonymous := "second \n"
+6: 16_anonymous := "third \n"
+7: move(14_anonymous)
+8: move(15_anonymous)
+9: move(16_anonymous)
+10: array_init_result_SSAID(13) = InitArray[ 14_anonymous, 15_anonymous, 16_anonymous,]
+11: 17_vals = 13_@array_init_result
+12: move(13_@array_init_result)
+13: 18_anonymous := Int(1)
+14: move(18_anonymous)
+15: move(17_vals)
+16: array_lookup_result_SSAID(19) = ArrayLookup( 17_vals, 18_anonymous, 19_@array_lookup_result,)
+17: borrow(19_@array_lookup_result)
+18: 20_anonymous := Int(8)
+19: borrow(20_anonymous)
+20: @17( let 19_@array_lookup_result, let 20_anonymous,)
+21: borrow_end(19_@array_lookup_result)
+22: drop(19_@array_lookup_result)
+23: borrow_end(20_anonymous)
+24: drop(20_anonymous)
+25: 21_anonymous := Int(2)
+26: move(21_anonymous)
+27: move(17_vals)
+28: array_lookup_result_SSAID(22) = ArrayLookup( 17_vals, 21_anonymous, 22_@array_lookup_result,)
+29: borrow(22_@array_lookup_result)
+30: 23_anonymous := Int(7)
+31: borrow(23_anonymous)
+32: @17( let 22_@array_lookup_result, let 23_anonymous,)
+33: borrow_end(22_@array_lookup_result)
+34: drop(22_@array_lookup_result)
+35: borrow_end(23_anonymous)
+36: drop(23_anonymous)
+37: return

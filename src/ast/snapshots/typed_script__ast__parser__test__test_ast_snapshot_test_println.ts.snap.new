@@ -1,6 +1,0 @@
----
-source: src/ast/parser.rs
-assertion_line: 358
-expression: "format!(\"{:#?}\", ast.0.to_string(&ast.1))"
----
-"[\n    \"root\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"main\\\",\\n        ),\\n    ],\\n]\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"println\\\",\\n        ),\\n        Identifier(\\n            \\\"main\\\",\\n        ),\\n    ],\\n]\",\n    \"[\\n    [\\n        Identifier(\\n            \\\"unnamed\\\",\\n        ),\\n    ],\\n    [\\n        Identifier(\\n            \\\"unnamed\\\",\\n        ),\\n    ],\\n]\",\n    \"[\\n    [],\\n    [],\\n]\",\n]"

@@ -5,7 +5,7 @@ fn main() {
     return;
 }
 
-fn borrow(let test: ptr) {
+fn borrow(test: str) {
    return; 
 }
 

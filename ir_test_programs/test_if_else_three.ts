@@ -19,7 +19,3 @@ fn move_val(owned test: str) {
 fn borrow_val(test: str) {
   return;
 }
-
-fn print(owned val: str, len: integer) {
-  return;
-}

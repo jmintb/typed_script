@@ -1042,9 +1042,9 @@ mod test {
 
     #[rstest]
     fn test_ir_output(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::compiler::produce_ir_without_std;
+        use crate::compiler::produce_ir;
 
-        let ir_progam = produce_ir_without_std(path.to_str().unwrap())?;
+        let ir_progam = produce_ir(path.to_str().unwrap())?;
 
         insta::assert_snapshot!(
             format!(
