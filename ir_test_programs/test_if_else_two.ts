@@ -12,7 +12,3 @@ fn main() {
 fn move_val(owned test: str) {
   return; 
 }
-
-fn print(owned val: str, len: integer) {
-  return;
-}

@@ -9,72 +9,72 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    4,
+                    7,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            2,
+                            5,
                         ),
                         inststruction: 0,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                2,
+                                5,
                             ),
                             inststruction: 2,
                         },
                     ],
                 },
                 SSAID(
-                    5,
+                    8,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            2,
+                            5,
                         ),
                         inststruction: 1,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                2,
+                                5,
                             ),
                             inststruction: 8,
                         },
                     ],
                 },
                 SSAID(
-                    6,
+                    9,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            2,
+                            5,
                         ),
                         inststruction: 4,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                2,
+                                5,
                             ),
                             inststruction: 4,
                         },
                     ],
                 },
                 SSAID(
-                    7,
+                    10,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
-                            2,
+                            5,
                         ),
                         inststruction: 7,
                     },
                     end_addresses: [
                         AbstractAddress {
                             block_id: BlockId(
-                                2,
+                                5,
                             ),
                             inststruction: 7,
                         },
@@ -83,10 +83,10 @@ Ok(
             },
             variable_moved: {
                 SSAID(
-                    4,
+                    7,
                 ): {
                     BlockId(
-                        2,
+                        5,
                     ),
                 },
             },

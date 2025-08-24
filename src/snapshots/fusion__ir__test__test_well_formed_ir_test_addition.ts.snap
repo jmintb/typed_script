@@ -3,17 +3,42 @@ source: src/ir.rs
 expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
-fn 10:
+fn 17:
 block_1
-0: 2_anonymous := Int(2)
-1: 3_a = 2_anonymous
-2: move(2_anonymous)
-3: 4_anonymous := Int(3)
-4: 5_b = 4_anonymous
-5: move(4_anonymous)
-6: 6_@addition_result = 3_a + 5_b
-7: move(3_a)
-8: move(5_b)
-9: 7_result = 6_@addition_result
-10: move(6_@addition_result)
+0: 2_val = fnarg
+1: 3_len = fnarg
+2: 4_anonymous := Int(1)
+3: borrow(4_anonymous)
+4: 5_anonymous := "w"
+5: borrow(5_anonymous)
+6: receiver_SSAID(6) = @0( let 4_anonymous, let 5_anonymous,)
+7: borrow_end(4_anonymous)
+8: borrow_end(5_anonymous)
+9: 7_stdoutptr = 6_fdopen_result
+10: move(6_fdopen_result)
+11: borrow(2_val)
+12: borrow(3_len)
+13: 8_anonymous := Int(1)
+14: borrow(8_anonymous)
+15: borrow(7_stdoutptr)
+16: receiver_SSAID(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
+17: borrow_end(2_val)
+18: borrow_end(3_len)
+19: borrow_end(8_anonymous)
+20: borrow_end(7_stdoutptr)
+21: return
+
+fn 28:
+block_10
+0: 11_anonymous := Int(2)
+1: 12_a = 11_anonymous
+2: move(11_anonymous)
+3: 13_anonymous := Int(3)
+4: 14_b = 13_anonymous
+5: move(13_anonymous)
+6: 15_@addition_result = 12_a + 14_b
+7: move(12_a)
+8: move(14_b)
+9: 16_result = 15_@addition_result
+10: move(15_@addition_result)
 11: return

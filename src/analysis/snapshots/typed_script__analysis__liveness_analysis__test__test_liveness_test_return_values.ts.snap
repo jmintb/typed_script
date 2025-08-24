@@ -9,59 +9,7 @@ Ok(
         ): VariableLiveness {
             variables: {
                 SSAID(
-                    7,
-                ): AbstractAddressRange {
-                    start_address: AbstractAddress {
-                        block_id: BlockId(
-                            6,
-                        ),
-                        inststruction: 0,
-                    },
-                    end_addresses: [
-                        AbstractAddress {
-                            block_id: BlockId(
-                                6,
-                            ),
-                            inststruction: 2,
-                        },
-                    ],
-                },
-                SSAID(
-                    8,
-                ): AbstractAddressRange {
-                    start_address: AbstractAddress {
-                        block_id: BlockId(
-                            6,
-                        ),
-                        inststruction: 1,
-                    },
-                    end_addresses: [
-                        AbstractAddress {
-                            block_id: BlockId(
-                                6,
-                            ),
-                            inststruction: 1,
-                        },
-                    ],
-                },
-            },
-            variable_moved: {
-                SSAID(
-                    7,
-                ): {
-                    BlockId(
-                        6,
-                    ),
-                },
-            },
-            loans: {},
-        },
-        FunctionDeclarationID(
-            8,
-        ): VariableLiveness {
-            variables: {
-                SSAID(
-                    4,
+                    3,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
                         block_id: BlockId(
@@ -73,6 +21,58 @@ Ok(
                         AbstractAddress {
                             block_id: BlockId(
                                 2,
+                            ),
+                            inststruction: 2,
+                        },
+                    ],
+                },
+                SSAID(
+                    4,
+                ): AbstractAddressRange {
+                    start_address: AbstractAddress {
+                        block_id: BlockId(
+                            2,
+                        ),
+                        inststruction: 1,
+                    },
+                    end_addresses: [
+                        AbstractAddress {
+                            block_id: BlockId(
+                                2,
+                            ),
+                            inststruction: 1,
+                        },
+                    ],
+                },
+            },
+            variable_moved: {
+                SSAID(
+                    3,
+                ): {
+                    BlockId(
+                        2,
+                    ),
+                },
+            },
+            loans: {},
+        },
+        FunctionDeclarationID(
+            8,
+        ): VariableLiveness {
+            variables: {
+                SSAID(
+                    8,
+                ): AbstractAddressRange {
+                    start_address: AbstractAddress {
+                        block_id: BlockId(
+                            6,
+                        ),
+                        inststruction: 0,
+                    },
+                    end_addresses: [
+                        AbstractAddress {
+                            block_id: BlockId(
+                                6,
                             ),
                             inststruction: 0,
                         },

@@ -882,6 +882,37 @@ impl<'ctx> CodeGen<'ctx> {
 
     }
 
+        fn generate_arith_comparion<'context, 'region>(&self, left_hand_side: SSAID, right_hand_side: SSAID, reciever: SSAID, predicate: arith::CmpiPredicate, block_references: &HashMap<usize, BlockRef<'context, 'region>>, variable_store: & HashMap<SSAID, Value<'context, 'region>>, current_block_id: usize ) -> Result<()> {
+
+                let current_block = block_references.get(&current_block_id).unwrap();
+                let location = melior::ir::Location::unknown(self.context);
+                let first_operand_value =
+                    self.gen_variable_load(left_hand_side, block_references, variable_store, current_block_id)?;
+                let second_operand_value =
+                    self.gen_variable_load(right_hand_side, block_references, variable_store, current_block_id)?;
+                let operation = melior::dialect::arith::cmpi(
+                    self.context,
+                    predicate,
+                    first_operand_value,
+                    second_operand_value,
+                    location,
+                    );
+
+                let value = current_block.append_operation(operation).result(0)?;
+
+                let ptr_val = variable_store[&reciever];
+                let store_op = melior::dialect::memref::store(
+                    value.into(),
+                    ptr_val.into(),
+                    &[],
+                    melior::ir::Location::unknown(self.context),
+                    );
+
+                current_block.append_operation(store_op);
+
+                Ok(())
+    }
+
     fn gen_instruction<'parent_block, 'parent_context, 'context, 'this, 'blocks, 'vars, 'varc>(
         &self,
         instruction: &Instruction,
@@ -990,15 +1021,6 @@ impl<'ctx> CodeGen<'ctx> {
 
                 let value = current_block.append_operation(operation).result(0)?;
 
-                let ptr = melior::dialect::memref::alloca(
-                    self.context,
-                    MemRefType::new(value.r#type(), &[], None, None),
-                    &[],
-                    &[],
-                    None,
-                    Location::unknown(self.context),
-                    );
-
                 let ptr_val = variable_store[result_reciever];
 
                 let store_op = melior::dialect::memref::store(
@@ -1014,44 +1036,14 @@ impl<'ctx> CodeGen<'ctx> {
             }
 
             Instruction::GreaterThan(lhs, rhs, result_reciever) => {
-                let first_operand_value =
-                    self.gen_variable_load(*lhs, block_references, variable_store, current_block_id)?;
-                let second_operand_value =
-                    self.gen_variable_load(*rhs, block_references, variable_store, current_block_id)?;
-                let operation = melior::dialect::arith::cmpi(
-                    self.context,
-                    arith::CmpiPredicate::Sgt,
-                    first_operand_value,
-                    second_operand_value,
-                    location,
-                    );
-
-                let value = current_block.append_operation(operation).result(0)?;
-
-                let ptr = melior::dialect::memref::alloca(
-                    self.context,
-                    MemRefType::new(value.r#type(), &[], None, None),
-                    &[],
-                    &[],
-                    None,
-                    Location::unknown(self.context),
-                    );
-
-                let ptr_val = current_block.append_operation(ptr).result(0).unwrap();
+                self.generate_arith_comparion(*lhs, *rhs, *result_reciever, arith::CmpiPredicate::Sgt, block_references, variable_store, current_block_id)?;
                 let ptr_val = variable_store[result_reciever];
-                let store_op = melior::dialect::memref::store(
-                    value.into(),
-                    ptr_val.into(),
-                    &[],
-                    melior::ir::Location::unknown(self.context),
-                    );
-
-                current_block.append_operation(store_op);
-
-
-                // MOVE: move result reciever init to locals generation.
-                // variable_store.insert(*result_reciever, ptr_val.into());
-
+                Some(ptr_val.into())
+            }
+            
+            Instruction::LessThan(lhs, rhs, result_reciever) => {
+                self.generate_arith_comparion(*lhs, *rhs, *result_reciever, arith::CmpiPredicate::Slt, block_references, variable_store, current_block_id)?;
+                let ptr_val = variable_store[result_reciever];
                 Some(ptr_val.into())
             }
             Instruction::IfElse(
