@@ -20,8 +20,15 @@ use crate::{
     types::TypeDB,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash, Default)]
 pub struct SSAID(pub usize);
+impl From<usize> for SSAID {
+    fn from(ssaid: usize) -> Self {
+        Self(ssaid)
+    }
+}
+
+
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash)]
 pub struct BlockId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -573,7 +580,9 @@ impl IrGenerator {
 
         let ssa_id = self.add_ssa_variable(assignment.id);
         let assign_instruction = Instruction::Assign(ssa_id, result_id);
-        self.set_ssaid_type(ssa_id, self.ssaid_variable_types.get(&result_id).expect(&format!("expected type for SSA variable {:?}", result_id)).clone());
+        if let Some(r#type) = self.ssaid_variable_types.get(&result_id) {
+            self.set_ssaid_type(ssa_id, r#type.clone());
+        }
         self.add_instruction(updated_block_id, assign_instruction);
         self.add_instruction(updated_block_id, self.get_access_instruction(result_id));
         updated_block_id

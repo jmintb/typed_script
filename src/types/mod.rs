@@ -12,8 +12,9 @@ use crate::identifiers::{IDGenerator, ID};
 use crate::ast::nodes::AccessModes;
 use crate::ast::nodes;
 use tracing::debug;
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Type {
     Struct(StructTypeID),
     Function(FunctionTypeID),
@@ -24,6 +25,7 @@ pub enum Type {
     UnsignedInteger(UnsignedIntegerType),
     Boolean,
     Pointer,
+    #[default]
     Unit,
     Array(ArrayTypeID),
 }
@@ -53,6 +55,12 @@ pub enum TypeID {
     Function(FunctionTypeID),
     Named(NamedTypeID),
     Array(ArrayTypeID),
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ArrayType {
+    pub element_type: Type,
+    pub length: usize
 }
 
 #[derive(Debug, Clone)]
@@ -120,8 +128,9 @@ impl From<NamedTypeID> for TypeID {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash, Debug, Default)]
 pub struct ArrayTypeID(ID);
+
 
 impl From<ID> for ArrayTypeID {
     fn from(value: ID) -> Self {
@@ -129,9 +138,41 @@ impl From<ID> for ArrayTypeID {
     }
 }
 
+impl Into<usize> for ArrayTypeID {
+    fn into(self) -> usize {
+        self.0
+    }
+}
+
 impl From<ArrayTypeID> for TypeID {
     fn from(value: ArrayTypeID) -> Self {
         Self::Array(value)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FlatEntityStore<T, K: From<usize>> {
+    entities: Vec<T>,
+    // This is only to force a specific type is used as the IDs in a store. It stores no data at runtime.
+    id_type_marker: PhantomData<K>
+}
+
+impl<T, K: From<usize> + Into<usize>> FlatEntityStore<T, K>  {
+    pub fn insert(&mut self, entity: T) -> K {
+        let next_id = self.entities.len();
+        self.entities.push(entity);
+        K::from(next_id)
+    }
+
+    pub fn get(&self, id: K) -> Option<&T> {
+        self.entities.get(id.into())
+    }
+
+    fn new() -> Self {
+        Self {
+            entities: Vec::new(),
+            id_type_marker: PhantomData{}
+        }
     }
 }
 
@@ -143,6 +184,7 @@ pub struct TypeDB {
     pub function_declaration_types: HashMap<FunctionDeclarationID, FunctionTypeID>,
     id_generator: IDGenerator,
     pub ids: HashMap<TypeID, (Identifier, ScopeID)>, // TODO: get rid of identifier at this stage in the compiler.
+    pub array_types: FlatEntityStore<ArrayType, ArrayTypeID>,
 }
 
 impl TypeDB {
@@ -153,6 +195,7 @@ impl TypeDB {
             function_declaration_types: HashMap::new(),
             function_types: HashMap::new(),
             ids: HashMap::new(),
+            array_types: FlatEntityStore::new(),
         }
     }
 
@@ -297,9 +340,13 @@ pub fn resolve_types(
                         Expression::Assignment(Assignment {
                             id, expression
                         }) =>  Type::Unit, 
-                        _ => Type::Unit,
+                        Expression::Array(array) => {
+                            //let array_type = ArrayType {length: array.items.len(), element_type:  //NEXT evaluate the experession type inside the array.};
+                            todo!();
+                        }
 
-                        _ => todo!("typing not implemented for {:?}", expression),
+
+                        _ => Type::Unit
                     };
                     types.insert(*id, expression_type);
                 }
