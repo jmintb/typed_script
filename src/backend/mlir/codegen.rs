@@ -459,7 +459,9 @@ impl<'ctx> CodeGen<'ctx> {
             // I don't thin the domination block is entirely correct yet.
             // Question: When do we need multiple top level blocks?
                 debug!("block {:?} dominates entry {:?}", block_id, cfg.dominates3(block_id, cfg.entry_point));
-            if cfg.dominates3(block_id, cfg.entry_point) || block_id == cfg.entry_point {
+                let block = self.program.blocks.get(&block_id).unwrap();
+                debug!("block {:?} create by control flow {:?}", block_id, block.produced_directly_by_control_flow);
+            if !block.produced_directly_by_control_flow && (cfg.dominates3(block_id, cfg.entry_point) || block_id == cfg.entry_point) {
                 debug!("generating code for block {}", block_id);
                 self.gen_block(block_id, &result, &local_variable_store, block_db, cfg, &vec![local_variable_store.clone()])?;
             }
@@ -836,6 +838,93 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
 
     }
+    
+    fn generate_while_loop_operation<'parent_block, 'parent_context, 'context, 'this>(
+        &self, 
+        condition_block_id: usize,
+        body_block_id: usize,
+        location: Location<'parent_context>,
+        cfg: &ControlFlowGraph<BlockId>,
+        variable_store: &HashMap<SSAID, Value<'parent_block, 'parent_block>>,
+        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        block_db: &BTreeMap<BlockId, ir::Block>,
+        ) -> Result<(Operation<'context>)> where 'parent_context: 'this, 'parent_block: 'this, 'parent_context: 'context  {
+        debug!("generating while loop with blocks {:?}, {:?}", condition_block_id, body_block_id);
+        let condition_block = Block::new(&[]);
+        let body_block = Block::new(&[]);
+
+        let condition_region = Region::new(); 
+        let body_region = Region::new();
+
+        let conditio_block_ref = condition_region.append_block(condition_block);
+        let body_block_ref = body_region.append_block(body_block);
+
+        let mut block_references: HashMap<usize, BlockRef<'_, '_>> = HashMap::new();
+        block_references.insert(condition_block_id, conditio_block_ref);
+        block_references.insert(body_block_id, body_block_ref);
+
+
+        self.gen_block(BlockId(condition_block_id), &block_references, variable_store, block_db, cfg, variable_stores )?;
+        let condition_result = self.gen_variable_load(
+            self.program.get_block_result(&BlockId(condition_block_id)).unwrap(), 
+            &block_references, 
+            variable_store, 
+            condition_block_id
+            )?;
+
+        let condition_operation = scf::condition(condition_result, &[], location);
+        conditio_block_ref.append_operation(condition_operation);
+
+        // TODO: is there a scoping issue here? Could if block interefere with else block.
+        self.gen_block(BlockId(body_block_id), &block_references, variable_store, block_db, cfg, variable_stores )?;
+        body_block_ref.append_operation(scf::r#yield(&[], location));
+
+        Ok(melior::dialect::scf::r#while(
+                &[],
+                &[],
+                condition_region,
+                body_region,
+                location,
+                ))
+
+
+    }
+
+    fn generate_if_operation<'parent_block, 'parent_context, 'context, 'this>(
+        &self, 
+        if_block_id: usize,
+        condition: Value<'parent_context, 'parent_block>, 
+        location: Location<'parent_context>,
+        cfg: &ControlFlowGraph<BlockId>,
+        variable_store: &HashMap<SSAID, Value<'parent_block, 'parent_block>>,
+        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        block_db: &BTreeMap<BlockId, ir::Block>,
+        ) -> Result<(Operation<'context>)> where 'parent_context: 'this, 'parent_block: 'this, 'parent_context: 'context  {
+        debug!("generating if with block {:?}", if_block_id);
+        let if_block = Block::new(&[]);
+
+        let if_region = Region::new(); 
+
+        let if_block_ref = if_region.append_block(if_block);
+
+        let mut block_references: HashMap<usize, BlockRef<'_, '_>> = HashMap::new();
+        block_references.insert(if_block_id, if_block_ref);
+
+
+        self.gen_block(BlockId(if_block_id), &block_references, variable_store, block_db, cfg, variable_stores )?;
+
+        if_block_ref.append_operation(scf::r#yield(&[], location));
+
+        Ok(melior::dialect::scf::r#if(
+                condition,
+                &[],
+                if_region,
+                Region::new(),
+                location,
+                ))
+
+
+    }
 
     // TODO Next: Need to create a new mutable map of local vars for each operation layer and then provide a set of maps from parent scopes.
     fn generate_if_else_operation<'parent_block, 'parent_context, 'context, 'this>(
@@ -1072,6 +1161,47 @@ impl<'ctx> CodeGen<'ctx> {
                  current_block.append_operation(if_operation?);
 
 
+                None
+            }
+            Instruction::If(
+                condition,
+                then_block,
+                ) => {
+                debug!("generate code for if else" );
+                let condition = self.gen_variable_load(*condition, block_references, variable_store, current_block_id)?;
+
+                // let then_mlir_block = block_references.get(&then_block.0).unwrap();
+                // let else_mlir_block = block_references.get(&else_block.0).unwrap();
+
+                // block_map.insert(*then_block, then_mlir_block_reference);
+                // block_map.insert(*else_block, else_mlir_block_reference);
+                // NEXT NEXT: make it so we can just return the next bock_id and have gen_block retrieve the write mlirblockref.
+                // How do we get the followup block id here? Find the dominator
+
+                // TODO: what is if/else is the last expression?
+                // let next_block = cfg.find_first_common_successor(then_block, else_block).unwrap();
+
+                // TODO: Will we ever need to reuse the 
+                // TODO: Next ish check if this architecture can handle scoping -> conclusion it should
+                   
+                 let if_operation = self.generate_if_operation(then_block.0, condition, location, cfg, variable_store, variable_stores, block_db);
+                 current_block.append_operation(if_operation?);
+
+
+                None
+            }
+            Instruction::WhileLoop {  condition, body } => {
+                let while_operation = self.generate_while_loop_operation(
+                    condition.0,
+                    body.0, 
+                    location,
+                    cfg,
+                    variable_store,
+                    variable_stores,
+                    block_db
+                    )?;
+
+                current_block.append_operation(while_operation);
                 None
             }
             Instruction::InitArray(items, result_receiver) => {

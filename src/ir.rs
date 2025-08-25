@@ -60,6 +60,7 @@ pub struct IrProgram {
     pub static_values: HashMap<SSAID, Value>,
     pub external_function_declaraitons: Vec<FunctionDeclarationID>,
     pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
+    block_results: BTreeMap<BlockId, SSAID>
 }
 
 impl IrProgram {
@@ -80,6 +81,10 @@ impl IrProgram {
         }
 
         all_ssa_variable
+    }
+
+    pub fn get_block_result(&self, block_id: &BlockId) -> Option<SSAID> {
+        self.block_results.get(block_id).cloned()
     }
 
 }
@@ -128,7 +133,7 @@ impl Block {
     fn new_from_control_flow_instruction() -> Self { 
         Self {
             instructions: Vec::new(),
-            produced_directly_by_control_flow: false
+            produced_directly_by_control_flow: true
         }
     }
 }
@@ -153,7 +158,9 @@ pub enum Instruction {
     AssignFnArg(SSAID, usize),
     Return(Option<SSAID>),
     IfElse(SSAID, BlockId, BlockId),
+    If(SSAID, BlockId),
     AnonymousValue(SSAID),
+    WhileLoop { condition: BlockId, body: BlockId }
 }
 
 impl Instruction {
@@ -167,6 +174,12 @@ impl Instruction {
 
     pub fn to_display_string(&self, ssa_variables: &BTreeMap<SSAID, Variable>, static_ssa_values: &HashMap<SSAID, Value>) -> String {
         match self {
+            Self::WhileLoop { condition, body, .. } => {
+                format!("While block_{:?}  {{ block_{:?} }}",
+                        condition,
+                        body
+                        )
+            }
             Self::ArrayLookup{ array, index, result } => {
                 format!(
                     "array_lookup_result_{:?} = ArrayLookup({})",
@@ -201,6 +214,14 @@ impl Instruction {
                     ssa_variables.get(condition).unwrap().original_variable.0,
                     then_block.0,
                     else_block.0
+                )
+            }
+            Self::If(condition, then_block) => {
+                format!(
+                    "if {}_{} then {}_block",
+                    condition.0,
+                    ssa_variables.get(condition).unwrap().original_variable.0,
+                    then_block.0,
                 )
             }
             Self::Addition(lhs, rhs, result) => {
@@ -360,6 +381,7 @@ pub struct Variable {
 pub struct IrGenerator {
     ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<SSAID, Variable>>,
     blocks: BTreeMap<BlockId, Block>,
+    block_results: BTreeMap<BlockId, SSAID>,
     id_count: usize,
     entry_block: BlockId,
     access_modes: BTreeMap<SSAID, AccessModes>,
@@ -412,7 +434,8 @@ impl IrGenerator {
             static_values: HashMap::new(),
             external_function_declaraitons: Vec::new(),
             expression_types,
-            ssaid_variable_types: BTreeMap::new()
+            ssaid_variable_types: BTreeMap::new(),
+            block_results: BTreeMap::new()
         }
     }
 
@@ -456,6 +479,24 @@ impl IrGenerator {
         self.blocks.insert(id, block);
 
         id
+    }
+    
+    fn add_block_contained_in_instruction(&mut self) -> BlockId {
+        let id = self.new_block_id();
+        let block = Block::new_from_control_flow_instruction();
+        debug!("add block {}", id.0);
+
+        self.blocks.insert(id, block);
+
+        id
+    }
+
+    fn set_block_result(&mut self, block_id: BlockId, ssaid: SSAID) {
+        if self.block_results.contains_key(&block_id) {
+            panic!("block results should only be set once")
+        }
+
+        self.block_results.insert(block_id, ssaid);
     }
 
     fn latest_gen_variable(&self, var_id: Identifier) -> Option<SSAID> {
@@ -544,6 +585,7 @@ impl IrGenerator {
             static_values: self.static_values,
             external_function_declaraitons: self.external_function_declaraitons,
             ssa_variable_types: self.ssaid_variable_types,
+            block_results: self.block_results
     }
     }
 
@@ -559,10 +601,10 @@ impl IrGenerator {
             });
     }
 
-    fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> BlockId {
+    fn convert_statement(&mut self, statement_id: StatementID, current_block: BlockId) -> (BlockId, Option<SSAID>)  {
         match statement_id {
             StatementID::Expression(expression_id) => {
-                self.convert_expression(expression_id, current_block).0
+                self.convert_expression(expression_id, current_block)
             }
             _ => todo!(),
         }
@@ -588,12 +630,58 @@ impl IrGenerator {
         updated_block_id
     }
     
+    fn convert_assign(&mut self, assignment: Assign, current_block: BlockId) -> BlockId {
+        let (updated_block_id, Some(result_id)) =
+            self.convert_expression(assignment.expression, current_block)
+        else {
+            panic!(
+                "Expected a result from expression {:?}",
+                self.node_db.expressions.get(&assignment.expression)
+            );
+        };
+
+
+
+        // TODO: this breaks SSA, we probably have to pass the latest values to each loop iteration.
+        let ssa_id = self.latest_gen_variable(assignment.id).unwrap();
+        let assign_instruction = Instruction::Assign(ssa_id, result_id);
+        self.add_instruction(updated_block_id, assign_instruction);
+        self.add_instruction(updated_block_id, self.get_access_instruction(result_id));
+        updated_block_id
+    }
+    
     fn convert_existing_ir_block(&mut self, ast_block_id: BlockID, start_block: BlockId) -> BlockId {
         let mut current_block = start_block;
         let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap().clone();
 
         for statement in ast_block.statements.iter() {
-            current_block = self.convert_statement(*statement, current_block);
+            let statement_result = self.convert_statement(*statement, current_block);
+            current_block = statement_result.0;
+            if let Some(block_result) = statement_result.1 {
+                self.set_block_result(current_block, block_result);
+            }
+        }
+
+        current_block
+    }
+    
+    fn convert_block_from_control_flow(&mut self, ast_block_id: BlockID, current_block: BlockId) -> BlockId {
+        let mut current_block = current_block;
+        let mut parent_block = current_block;
+        current_block = self.add_block_contained_in_instruction();
+        self.record_cfg_connection(parent_block, current_block);
+
+        let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap().clone();
+
+        for statement in ast_block.statements.iter() {
+            let statement_result = self.convert_statement(*statement, current_block);
+            current_block = statement_result.0;
+            if let Some(block_result) = statement_result.1 {
+                self.set_block_result(current_block, block_result);
+            }
+            if current_block != parent_block {
+                parent_block = current_block;
+            }
         }
 
         current_block
@@ -608,7 +696,11 @@ impl IrGenerator {
         let ast_block = self.node_db.blocks.get(&ast_block_id).unwrap().clone();
 
         for statement in ast_block.statements.iter() {
-            current_block = self.convert_statement(*statement, current_block);
+            let statement_result = self.convert_statement(*statement, current_block);
+            current_block = statement_result.0;
+            if let Some(block_result) = statement_result.1 {
+                self.set_block_result(current_block, block_result);
+            }
             if current_block != parent_block {
                 parent_block = current_block;
             }
@@ -745,11 +837,6 @@ impl IrGenerator {
                      }
                 };
 
-                
-
-
-
-
                 for instruction in free_instructions {
                     self.add_instruction(current_block, instruction);
                 }
@@ -790,10 +877,12 @@ impl IrGenerator {
                 then_block,
             }) => {
                 let parent_block = current_block;
-                (current_block, _) = self.convert_expression(condition, current_block);
-                current_block = self.convert_block(then_block, current_block);
+                let (condition_block, condition_result) = self.convert_expression(condition, current_block);
+                let converted_then_block = self.convert_block_from_control_flow(then_block, condition_block); // TODO: this is a hack it should not be necessary to mark a block.
                 let post_if_block = self.add_block();
-                self.record_cfg_connection(current_block, post_if_block);
+                self.record_cfg_connection(converted_then_block, post_if_block);
+                let if_instruction = Instruction::If(condition_result.unwrap(), converted_then_block);
+                self.add_instruction(parent_block, if_instruction);
 
                 current_block = post_if_block;
             }
@@ -818,17 +907,21 @@ impl IrGenerator {
             }
 
             Expression::While(While { condition, body }) => {
-                let condition_block = self.add_block();
+                let parent_block = current_block;
+                let condition_block = self.add_block_contained_in_instruction(); // TODO: this is a hack essentially, checking for graph domination should make this not needed in mlir code gen.
                 self.record_cfg_connection(current_block, condition_block);
                 current_block = condition_block;
-                (current_block, _) = self.convert_expression(condition, current_block);
-                let body_block = self.add_block();
-                self.record_cfg_connection(condition_block, body_block);
-                let body_block = self.convert_block(body, body_block);
+                let new_condition_block = self.convert_existing_ir_block(condition, current_block);
+                let body_block = self.add_block_contained_in_instruction();
+                self.record_cfg_connection(new_condition_block, body_block);
+                let body_block = self.convert_existing_ir_block(body, body_block);
                 self.record_cfg_connection(body_block, condition_block);
                 let post_loop_block = self.add_block();
                 self.record_cfg_connection(condition_block, post_loop_block);
                 current_block = post_loop_block;
+                self.add_instruction(parent_block, Instruction::WhileLoop{ condition: condition_block, body: body_block});
+
+
             }
 
             Expression::Return(Return { expression }) => {
@@ -934,7 +1027,7 @@ impl IrGenerator {
 
             Expression::Assign(Assign { id, expression }) => {
                 current_block =
-                    self.convert_assignment(Assignment { id, expression }, current_block);
+                    self.convert_assign(Assign { id, expression }, current_block);
             }
 
             Expression::Array(Array { items }) => {

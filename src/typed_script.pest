@@ -52,7 +52,7 @@ array = { "[" ~ ( expression ~ ",")* ~ expression? ~ "]"}
 array_lookup = { identifier ~ "[" ~ expression ~ "]"}
 
 expression = _{
-	array | array_lookup | return | assign | if_else | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation    
+	array | array_lookup | return | assign | if_else | if | while_loop | boolean | call | structInit | structFieldRef | integer | string | identifier | reference | operation    
 }
 
 condition = _{ expression }
@@ -73,7 +73,9 @@ type = {
 	array_type | pointer | signed_integer | unsigned_integer | string_type | named_type
 }
 
-if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
+if_else = { "if" ~ condition ~ "{" ~ block ~ "}" ~ "else" ~ "{" ~ block ~ "}" }
+
+if = { "if" ~ condition ~ "{" ~ block ~ "}" }
 
 block = { stmt* }
 

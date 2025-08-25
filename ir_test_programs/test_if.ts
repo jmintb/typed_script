@@ -5,7 +5,6 @@ fn main() {
    move_val(test)   
   } 
 
-  print(test, 3)
   return;
 }
 

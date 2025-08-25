@@ -85,6 +85,11 @@ where
             return false;
         }
 
+        debug!("direct predecessors for {} {:?}", node_b, paths);
+        if paths.len() == 1 && paths[0] == node_a {
+            return true;
+        }
+
         while let Some(path) = paths.pop_back() {
             debug!("paths for {} {} {:?} {}", node_a, node_b, paths, path);
             if path == node_a {
