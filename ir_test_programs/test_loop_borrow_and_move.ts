@@ -6,10 +6,11 @@ fn main() {
     let val = "test2";
     i = (i) + (1) 
     borrow_and_move(val, i)
-
   }
+
+  return;
 }
 
 fn borrow_and_move(owned input: str, j: integer) {
-    
+  return; 
 }

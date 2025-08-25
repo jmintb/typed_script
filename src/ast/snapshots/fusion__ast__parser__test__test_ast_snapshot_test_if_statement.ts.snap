@@ -1,0 +1,23 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_15",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_13",
+    ],
+], [
+    [
+        "call print([\"\\\"help1\\\"\", \"Int(4)\"])",
+        "call print([\"\\\"help2\\\"\", \"Int(4)\"])",
+        "return",
+    ],
+]

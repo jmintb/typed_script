@@ -1,0 +1,29 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_18",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_16",
+    ],
+], [
+    [
+        "i = Int(0) ",
+        "block_5",
+        "i = Operation(Variable(i) + Int(1)) ",
+        "call print([\"\\\"hello \\\\n\\\"\", \"Int(8)\"])",
+        "return",
+    ],
+], [
+    [
+        "Operation(Variable(i) < Int(10))",
+    ],
+]

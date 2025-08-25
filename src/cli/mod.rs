@@ -3,6 +3,7 @@ use clap::{command, Parser, Subcommand};
 
 use crate::{codegen::generate_mlir, parser::parse, typed_ast::type_ast, compiler};
 
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -22,8 +23,6 @@ enum SubCommands {
         emit_mlir: bool,
         #[arg(long)]
         emit_llvmir: bool,
-        #[arg(long)]
-        emit_ast: bool,
         path: Option<String>,
     },
 }
@@ -77,19 +76,11 @@ pub fn exec_cli() -> Result<()> {
         SubCommands::Build {
             emit_mlir,
             emit_llvmir,
-            emit_ast,
             path,
         } => {
-            let contents = load_program(path)?;
-            let ast = parse(&contents)?;
-            let typed_program = type_ast(ast)?;
 
-            if emit_ast {
-                println!("{:#?}", typed_program.ast);
-                return Ok(());
-            }
+            let engine =  compiler::compile(&path.unwrap())?;
 
-            let engine = generate_mlir(typed_program, emit_mlir)?;
             if emit_llvmir {
                 engine.dump_to_object_file("testllvm.ir");
             }

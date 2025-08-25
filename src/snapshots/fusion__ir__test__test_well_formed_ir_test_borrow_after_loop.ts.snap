@@ -1,0 +1,72 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", ir_progam)"
+---
+IR:
+fn 17:
+block_1
+0: 2_val = fnarg
+1: 3_len = fnarg
+2: 4_anonymous := Int(1)
+3: borrow(4_anonymous)
+4: 5_anonymous := "w"
+5: borrow(5_anonymous)
+6: receiver_SSAID(6) = @0( let 4_anonymous, let 5_anonymous,)
+7: borrow_end(4_anonymous)
+8: borrow_end(5_anonymous)
+9: 7_stdoutptr = 6_fdopen_result
+10: move(6_fdopen_result)
+11: borrow(2_val)
+12: borrow(3_len)
+13: 8_anonymous := Int(1)
+14: borrow(8_anonymous)
+15: borrow(7_stdoutptr)
+16: receiver_SSAID(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
+17: borrow_end(2_val)
+18: borrow_end(3_len)
+19: borrow_end(8_anonymous)
+20: borrow_end(7_stdoutptr)
+21: return
+
+fn 38:
+block_10
+0: 11_anonymous := Int(0)
+1: 12_i = 11_anonymous
+2: move(11_anonymous)
+3: While block_BlockId(13)  { block_BlockId(16) }
+
+block_13
+0: 14_anonymous := Int(2)
+1: 15_@less_than_result = 12_i < 14_anonymous
+2: move(12_i)
+3: move(14_anonymous)
+
+block_16
+0: 17_anonymous := "test"
+1: 18_test = 17_anonymous
+2: move(17_anonymous)
+3: borrow(18_test)
+4: @44( let 18_test,)
+5: borrow_end(18_test)
+6: 19_anonymous := Int(1)
+7: 20_@addition_result = 12_i + 19_anonymous
+8: move(12_i)
+9: move(19_anonymous)
+10: 12_i = 20_@addition_result
+11: move(20_@addition_result)
+
+block_21
+0: borrow(18_test)
+1: @44( let 18_test,)
+2: borrow_end(18_test)
+3: return
+
+fn 41:
+block_22
+0: 23_test = fnarg
+1: return
+
+fn 44:
+block_24
+0: 25_test = fnarg
+1: return

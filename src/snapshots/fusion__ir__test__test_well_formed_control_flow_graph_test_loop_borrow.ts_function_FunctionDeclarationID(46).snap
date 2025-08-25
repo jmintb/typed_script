@@ -1,0 +1,8 @@
+---
+source: src/ir.rs
+expression: "format!(\"{}\", control_flow_graph)"
+---
+entry point: block_10
+block_10 -> [block_19, ]
+block_19 -> [block_22, block_29, ]
+block_22 -> [block_19, ]

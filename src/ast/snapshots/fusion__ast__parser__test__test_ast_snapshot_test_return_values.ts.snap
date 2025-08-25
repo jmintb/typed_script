@@ -1,0 +1,30 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_12",
+    ],
+], [
+    [
+        "main",
+        "generate_message",
+    ],
+], [
+    [
+        "block_10",
+    ],
+    [
+        "block_6",
+    ],
+], [
+    [
+        "return \"a message \\n\" ",
+    ],
+    [
+        "val = call generate_message([]) ",
+        "call print([\"Variable(val)\", \"Int(12)\"])",
+        "return",
+    ],
+]
