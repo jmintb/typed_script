@@ -1,0 +1,24 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_12",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_10",
+    ],
+], [
+    [
+        "output = \"my output %d\" ",
+        "call sprintf([\"Variable(output)\", \"Variable(output)\", \"Int(2)\"])",
+        "call print([\"Variable(output)\", \"Int(20)\"])",
+        "return",
+    ],
+]

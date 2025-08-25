@@ -1,0 +1,27 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_20",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_18",
+    ],
+], [
+    [
+        "a = Int(2) ",
+        "b = Int(3) ",
+        "result = Operation(Variable(b) * Variable(a)) ",
+        "output = \"result: %d\" ",
+        "call sprintf([\"Variable(output)\", \"Variable(output)\", \"Variable(result)\"])",
+        "call print([\"Variable(output)\", \"Int(12)\"])",
+        "return",
+    ],
+]

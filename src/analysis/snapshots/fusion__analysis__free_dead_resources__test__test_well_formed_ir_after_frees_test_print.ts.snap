@@ -1,0 +1,51 @@
+---
+source: src/analysis/free_dead_resources.rs
+expression: "format!(\"{}\", ir_program)"
+---
+IR:
+fn 17:
+block_1
+0: 2_val = fnarg
+1: 3_len = fnarg
+2: 4_anonymous := Int(1)
+3: borrow(4_anonymous)
+4: 5_anonymous := "w"
+5: borrow(5_anonymous)
+6: receiver_SSAID(6) = @0( let 4_anonymous, let 5_anonymous,)
+7: borrow_end(4_anonymous)
+8: borrow_end(5_anonymous)
+9: 7_stdoutptr = 6_fdopen_result
+10: drop(4_anonymous)
+11: move(6_fdopen_result)
+12: drop(5_anonymous)
+13: borrow(2_val)
+14: borrow(3_len)
+15: 8_anonymous := Int(1)
+16: borrow(8_anonymous)
+17: borrow(7_stdoutptr)
+18: receiver_SSAID(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
+19: borrow_end(2_val)
+20: drop(2_val)
+21: borrow_end(3_len)
+22: drop(3_len)
+23: drop(9_fwrite_result)
+24: borrow_end(8_anonymous)
+25: borrow_end(7_stdoutptr)
+26: drop(8_anonymous)
+27: drop(7_stdoutptr)
+28: return
+
+fn 25:
+block_10
+0: 11_anonymous := "hello world!"
+1: 12_message = 11_anonymous
+2: move(11_anonymous)
+3: borrow(12_message)
+4: 13_anonymous := Int(12)
+5: borrow(13_anonymous)
+6: @17( let 12_message, let 13_anonymous,)
+7: borrow_end(12_message)
+8: drop(12_message)
+9: borrow_end(13_anonymous)
+10: drop(13_anonymous)
+11: return

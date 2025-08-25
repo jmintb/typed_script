@@ -1,0 +1,7 @@
+---
+source: src/analysis/borrow_checker.rs
+expression: "format!(\"{:#?}\", analysis_result)"
+---
+Err(
+    "variable value in block 18 was already Some(Moved)",
+)

@@ -189,6 +189,9 @@ impl Expression {
             Expression::Assignment(assignment) => {
                format!("{} = {} ",  assignment.id.0, db.expressions.get(&assignment.expression).unwrap().to_debug_string(db)?) 
             }
+            Expression::Assign(assignment) => {
+               format!("{} = {} ",  assignment.id.0, db.expressions.get(&assignment.expression).unwrap().to_debug_string(db)?) 
+            }
             Expression::Return(ret) => {
                 if let Some(return_expression) = ret.expression {
                     format!("return {} ",  db.expressions.get(&return_expression).unwrap().to_debug_string(db)?) 
@@ -281,7 +284,6 @@ pub struct Assignment {
     pub expression: ExpressionID,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct While {
     pub condition: BlockID,
@@ -333,6 +335,8 @@ impl Operator {
             Self::Subtraction => String::from("-"),
             Self::Multiplication => String::from("*"),
             Self::Division => String::from("/"),
+            Self::LessThan => String::from("<"),
+            Self::GreaterThan => String::from(">"),
             _ => todo!("implement debug string for operation {:?}", self)
         }
     }

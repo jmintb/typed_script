@@ -6,7 +6,6 @@ fn main() {
 
   while (i) < (2) {
     borrow_val(val);
-    sleep(1);
     print(values[i], 6);
     i = (i) + (1);
   }

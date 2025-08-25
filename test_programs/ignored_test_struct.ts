@@ -1,5 +1,4 @@
 
-
 struct Test {
   fielda: str,
   fieldb: str,

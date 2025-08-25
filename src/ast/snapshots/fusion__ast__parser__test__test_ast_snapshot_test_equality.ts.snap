@@ -1,0 +1,34 @@
+---
+source: src/ast/parser.rs
+expression: "format!(\"{}\", ast.0.to_string(&ast.1))"
+---
+root, [
+    [
+        "module_89",
+    ],
+], [
+    [
+        "main",
+    ],
+], [
+    [
+        "block_87",
+    ],
+], [
+    [
+        "a = Int(2) ",
+        "b = Int(2) ",
+        "c = Int(1) ",
+        "call print([\"\\\"a equals b \\\\n\\\"\", \"Int(12)\"])",
+        "call print([\"\\\"a equals c \\\\n\\\"\", \"Int(12)\"])",
+        "call print([\"\\\"a not equal to c \\\\n\\\"\", \"Int(20)\"])",
+        "call print([\"\\\"a greater than c \\\\n\\\"\", \"Int(18)\"])",
+        "call print([\"\\\"a greater than or equal to c \\\\n\\\"\", \"Int(30)\"])",
+        "call print([\"\\\"a greater than or equal to a \\\\n\\\"\", \"Int(30)\"])",
+        "call print([\"\\\"c less than or equal to a \\\\n\\\"\", \"Int(27)\"])",
+        "call print([\"\\\"a less than or equal to c \\\\n\\\"\", \"Int(27)\"])",
+        "call print([\"\\\"a less than or equal to a \\\\n\\\"\", \"Int(27)\"])",
+        "call print([\"\\\"c less than a \\\\n\\\"\", \"Int(18)\"])",
+        "return",
+    ],
+]

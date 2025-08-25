@@ -1,5 +1,6 @@
 use anyhow::Result;
 use tracing::debug;
+use melior::ExecutionEngine;
 
 use crate::{
     ast::{identifiers::ScopeID, parser::parse, scopes::build_program_scopes},
@@ -27,6 +28,26 @@ pub fn produce_ir_without_std(src: &str) -> Result<IrProgram> {
     debug!("type db: {:#?}", expression_types);
     let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
     Ok(ir_generator.convert_to_ssa())
+}
+
+pub fn compile(input: &str) -> Result<(ExecutionEngine)> {
+    let ir = produce_ir(input)?;
+    let types = evaluate_types(&ir)?;
+
+    // TODO: missing statement id to scope mapping
+
+    let mlir_generation_config = MlirGenerationConfig {
+        program: ir,
+        verify_mlir: true,
+        program_types: types
+    };
+
+
+    let engine =  generate_mlir(mlir_generation_config)?;
+    // Overall goal introduce scopes and an ID based approach NOT a whole type system.
+    // TODO: be able to output IR -> stay focus on e2e pipeline
+    // 2. IR -> MLIR
+    Ok(engine)
 }
 
 pub fn jit(input: &str) -> Result<()> {
