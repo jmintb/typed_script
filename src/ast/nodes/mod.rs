@@ -281,9 +281,10 @@ pub struct Assignment {
     pub expression: ExpressionID,
 }
 
+
 #[derive(Debug, Clone)]
 pub struct While {
-    pub condition: ExpressionID,
+    pub condition: BlockID,
     pub body: BlockID,
 }
 

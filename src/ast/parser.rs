@@ -16,7 +16,7 @@ use super::{
     nodes::{
         Array, ArrayLookup, Assignment, Block, Call, Expression, FunctionArg, FunctionDeclaration,
         IfElseStatement, Integer, Operation, Operator, Return, StructDeclaration, StructField,
-        StructInit, Type, Value
+        StructInit, Type, Value, While, Assign, IfStatement
     },
     Ast, NodeDatabase,
 };
@@ -176,6 +176,7 @@ fn parse_statement(
         | Rule::structInit
         | Rule::string
         | Rule::if_else
+        | Rule::r#if
         | Rule::while_loop
         | Rule::r#return
         | Rule::assignment
@@ -201,11 +202,13 @@ fn parse_expression(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Expres
         Rule::operation => Expression::Operation(parse_operation(builder, pair)?),
         Rule::boolean => Expression::Value(Value::Boolean(parse_boolean(pair)?)),
         Rule::r#if_else => Expression::Ifelse(parse_if_else(builder, pair)?),
+        Rule::r#if => Expression::If(parse_if(builder, pair)?),
         // Rule::while_loop => Expression::While(parse_while(expression)?),
-        // Rule::assign => Expression::Assign(parse_assign(expression)?),
         Rule::r#return => Expression::Return(parse_return(builder, pair)?),
         Rule::array => Expression::Array(parse_array(builder, pair)?),
         Rule::array_lookup => Expression::ArrayLookup(parse_array_lookup(builder, pair)?),
+        Rule::while_loop => Expression::While(parse_while_loop(builder, pair)?),
+        Rule::assign => Expression::Assign(parse_assign(builder, pair)?),
         _ => panic!("Got unexpected expression: {:?}", pair.as_rule()),
     };
 
@@ -221,6 +224,28 @@ fn parse_boolean(expression: Pair<Rule>) -> Result<bool> {
         r => bail!("expected either false or true but got rule: {r:#?}"),
     })
 }
+
+fn parse_if(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<IfStatement> {
+    let mut if_pairs = if let Rule::r#if = rule.as_rule() {
+        rule.into_inner()
+    } else {
+        bail!("expected an if rule got {rule:#?}");
+    };
+
+    let condition = parse_expression(builder, if_pairs.next().unwrap())?;
+
+    let Some(then_pair) = if_pairs.next() else {
+        bail!("if else expression missing then block");
+    };
+    let then_block = parse_block(builder, then_pair)?;
+
+
+    Ok(IfStatement {
+        condition,
+        then_block,
+    })
+}
+
 
 fn parse_if_else(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<IfElseStatement> {
     let mut if_else_pairs = if let Rule::r#if_else = rule.as_rule() {
@@ -247,6 +272,33 @@ fn parse_if_else(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<IfElseSta
         condition,
         then_block,
         else_block,
+    })
+}
+
+fn parse_while_loop(builder: &mut AstBuilder, expression: Pair<Rule>) -> Result<While> {
+    let mut inner = if let Rule::while_loop = expression.as_rule() {
+        expression.into_inner()
+    } else {
+        bail!(
+            "expected the while rule, found {:?} instead",
+            expression.as_rule()
+        )
+    };
+
+    let condition = parse_expression(builder, inner.next().unwrap())?;
+    
+    let block = Block::new(vec![StatementID::Expression(condition)]);
+
+    let condition_block_id = builder.db.new_block(block);
+
+    let block = parse_block(
+        builder,
+        inner.next().unwrap(),
+    )?;
+
+    Ok(While {
+        condition: condition_block_id,
+        body: block,
     })
 }
 
@@ -377,6 +429,23 @@ fn parse_fn_call(builder: &mut AstBuilder, call_expression: Pair<Rule>) -> Resul
     };
 
     Ok(call)
+}
+
+fn parse_assign(builder: &mut AstBuilder, pair: Pair<'_, Rule>) -> Result<Assign> {
+    let mut inner_rules = pair.into_inner();
+
+    let identifier = inner_rules.next().unwrap();
+
+    let expression = inner_rules.next().unwrap();
+
+    let expression = parse_expression(builder, expression);
+
+    let assignment = Assign {
+        id: Identifier::new(identifier.as_str().trim().into()),
+        expression: expression.unwrap(),
+    };
+
+    Ok(assignment)
 }
 
 fn parse_assignment(builder: &mut AstBuilder, pair: Pair<'_, Rule>) -> Result<Assignment> {
