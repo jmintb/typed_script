@@ -138,9 +138,9 @@ impl From<ID> for ArrayTypeID {
     }
 }
 
-impl Into<usize> for ArrayTypeID {
-    fn into(self) -> usize {
-        self.0
+impl From<ArrayTypeID> for usize {
+    fn from(val: ArrayTypeID) -> Self {
+        val.0
     }
 }
 
@@ -235,12 +235,6 @@ impl TypeDB {
     }
 }
 
-pub struct Function {
-    key_words: Vec<FunctionKeyword>,
-    arguments: Vec<TypeID>,
-    return_type: TypeID,
-}
-
 // NEXT: fix types resolving enough to get function return types resolved.
 // Maybe the get the API right atleast instead of hacking around. -> start inserting function types into TypeDB
 pub fn resolve_types(
@@ -269,15 +263,9 @@ pub fn resolve_types(
 
     ast.traverse(db, &mut gather_type_declarations, &mut type_db);
 
-    type WalkerContext = (HashMap<ExpressionID, Type>, ScopeID);
-    // let mut walker_context: WalkerContext = (types, root_scope);
-
     // TODO; create a traverser which incldues the current scope.
     let function_declarations: Vec<FunctionDeclarationID> = db
-        .module_declarations
-        .iter()
-        .map(|(_, module_declaration)| module_declaration.function_declarations.clone())
-        .flatten()
+        .module_declarations.values().flat_map(|module_declaration| module_declaration.function_declarations.clone())
         .collect();
 
     for (id, expression) in db.expressions.iter() {
@@ -313,9 +301,9 @@ pub fn resolve_types(
 
          let function_type = FunctionType {
              key_words: function_declaration.keywords.clone(),
-             return_type: return_type,
-             parameter_types: parameter_types,
-             parameter_access_modes: parameter_access_modes,
+             return_type,
+             parameter_types,
+             parameter_access_modes,
          };
 
         let function_type_id = type_db.insert_function_type(function_declaration_id, function_type.clone());
@@ -330,7 +318,7 @@ pub fn resolve_types(
         for statement in function_body.statements.iter() {
             match statement {
                 StatementID::Expression(id) => {
-                    let expression = db.expressions.get(&id).unwrap();
+                    let expression = db.expressions.get(id).unwrap();
                     debug!("typing statement: {:?}", expression);
                     let expression_type = match expression {
                         Expression::Value(value) => match value {

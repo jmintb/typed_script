@@ -188,7 +188,7 @@ pub struct FunctionArg {
 pub struct Ast(pub Vec<TypedAst>);
 
 pub fn parse(input: &str) -> Result<Ast> {
-    let program = TSParser::parse(Rule::program, &input)?;
+    let program = TSParser::parse(Rule::program, input)?;
 
     let mut ast: Vec<TypedAst> = vec![];
 
@@ -222,7 +222,6 @@ fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
         .next()
         .unwrap()
         .into_inner()
-        .into_iter()
         .map(parse_statement)
         .collect::<Result<Vec<TypedAst>>>()?;
 
@@ -230,7 +229,6 @@ fn parse_if(rule: Pair<Rule>) -> Result<IfStatement> {
         Some(
             inner
                 .into_inner()
-                .into_iter()
                 .map(parse_statement)
                 .collect::<Result<Vec<TypedAst>>>()?,
         )
@@ -376,7 +374,7 @@ fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {
             Some(Rule::letAccess) => AccessModes::Let,
             Some(Rule::ownedAccess) => AccessModes::Owned,
             Some(Rule::inoutAccess) => AccessModes::Inout,
-            e @ _ => bail!("exptec to find an access found instead foud {:?}", e),
+            e => bail!("exptec to find an access found instead foud {:?}", e),
         }
     } else {
         AccessModes::default()
@@ -484,7 +482,7 @@ fn parse_array_lookup(expression: Pair<'_, Rule>) -> Result<ArrayLookup> {
     };
 
     Ok(ArrayLookup {
-        array_identifier: array_identifier,
+        array_identifier,
         index_expression: index.into(),
     })
 }
@@ -502,7 +500,7 @@ fn parse_array(expression: Pair<'_, Rule>) -> Result<Array> {
         .collect::<Result<Vec<TSExpression>>>()?;
 
     Ok(Array {
-        items: items.into(),
+        items,
     })
 }
 
@@ -556,7 +554,6 @@ fn parse_while(expression: Pair<'_, Rule>) -> Result<While> {
             .next()
             .unwrap()
             .into_inner()
-            .into_iter()
             .map(parse_statement)
             .collect::<Result<Vec<TypedAst>>>()?,
     );
@@ -627,11 +624,11 @@ fn parse_integer(integer: Pair<Rule>) -> Result<TSValue> {
     }
 }
 fn parse_fn_call(call_expression: Pair<Rule>) -> Result<TSExpression> {
-    let mut inner = call_expression.clone().into_inner().into_iter();
+    let mut inner = call_expression.clone().into_inner();
 
     let id = inner.next().unwrap();
 
-    let args = inner.next().unwrap().into_inner().into_iter();
+    let args = inner.next().unwrap().into_inner();
 
     let args = args.map(|arg| parse_expression(arg).unwrap()).collect();
 

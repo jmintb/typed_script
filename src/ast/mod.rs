@@ -8,14 +8,14 @@ use std::collections::{HashMap, VecDeque};
 use anyhow::{Result, bail};
 use tracing::debug;
 
-use crate::{identifiers::{IDGenerator, ID}};
+use crate::identifiers::{IDGenerator, ID};
 
 use self::{
     declarations::ModuleDeclaration,
     identifiers::{BlockID, ExpressionID, ScopeID, StatementID},
     nodes::{
-        Block, Declaration, Expression, FunctionDeclaration, Identifier, IfElseStatement,
-        IfStatement, Node, Statement, StructDeclaration, While,
+        Block, Expression, FunctionDeclaration, Identifier, IfElseStatement,
+        IfStatement, StructDeclaration, While,
     },
 };
 use super::ast::identifiers::{
@@ -34,6 +34,12 @@ pub struct Scope {
 #[derive(Debug, Clone)]
 pub struct Ast {
     modules: Vec<ModuleDeclarationID>,
+}
+
+impl Default for Ast {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Ast {
@@ -156,7 +162,7 @@ impl Ast {
             que.push_back(next_row);
         }
 
-        format!("{}", tree_rows.join(", "))
+        tree_rows.join(", ").to_string()
     }
 
     pub fn traverse<Ctx>(
@@ -268,9 +274,6 @@ pub struct NodeDatabase {
 }
 
 impl NodeDatabase {
-    fn new() -> Self {
-        Self::default()
-    }
 
     pub fn get_function_declaration_id_from_identifier(&self, name: impl Into<Identifier>) -> Result<FunctionDeclarationID> {
         let name: Identifier = name.into();
@@ -311,13 +314,6 @@ impl NodeDatabase {
         self.id_generator.new_id::<T>()
     }
 
-    fn get_mut_module_ref(
-        &mut self,
-        module_id: &ModuleDeclarationID,
-    ) -> Option<&mut ModuleDeclaration> {
-        self.module_declarations.get_mut(module_id)
-    }
-
     fn new_function_declaration(
         &mut self,
         declaration: FunctionDeclaration,
@@ -340,38 +336,4 @@ impl NodeDatabase {
         id
     }
 
-    fn get_declaration(&self, declaration_id: DeclarationID) -> Option<Declaration> {
-        match declaration_id {
-            DeclarationID::ModuleDeclarationID(module_declaration_id) => self
-                .module_declarations
-                .get(&module_declaration_id)
-                .map(|module_declaration| Declaration::Module(module_declaration.clone())),
-            DeclarationID::StructDeclaration(struct_declaration_id) => self
-                .struct_declarations
-                .get(&struct_declaration_id)
-                .map(|struct_declaration| Declaration::Struct(struct_declaration.clone())),
-            DeclarationID::FunctionDeclaration(function_declaration_id) => self
-                .function_declarations
-                .get(&function_declaration_id)
-                .map(|function_declaration| Declaration::Function(function_declaration.clone())),
-        }
-    }
-
-    fn get_node(&self, node_id: NodeID) -> Option<Node> {
-        match node_id {
-            NodeID::Statement(StatementID::Declaration(declaration_id))
-            | NodeID::Declaration(declaration_id) => self
-                .get_declaration(declaration_id)
-                .map(|declaration| Node::Statement(Statement::Declaration(declaration))),
-
-            NodeID::Statement(StatementID::Expression(expression_id)) => self
-                .expressions
-                .get(&expression_id)
-                .map(|expression| Node::Statement(Statement::Expression(expression.clone()))),
-            NodeID::Block(block_id) => self.blocks.get(&block_id).map(|_block| {
-                Node::Statement(Statement::Expression(Expression::Block(block_id)))
-            }),
-            _ => todo!("not implemented {:?}", node_id),
-        }
-    }
 }

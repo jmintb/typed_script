@@ -40,7 +40,7 @@ impl AstBuilder {
 }
 
 pub fn parse(input: &str) -> Result<(Ast, NodeDatabase, Vec<String>)> {
-    let program = TSParser::parse(Rule::program, &input)?;
+    let program = TSParser::parse(Rule::program, input)?;
     let mut builder = AstBuilder::new();
     parse_program(program, &mut builder)
 }
@@ -104,7 +104,6 @@ fn parse_struct_field_declaration(decl: Pair<Rule>) -> Result<StructField> {
 fn parse_block(builder: &mut AstBuilder, rule: Pair<Rule>) -> Result<BlockID> {
     let statements = rule
         .into_inner()
-        .into_iter()
         .map(|rule| parse_statement(builder, rule))
         .collect::<Result<Vec<StatementID>>>()?;
 
@@ -315,7 +314,7 @@ fn parse_array(builder: &mut AstBuilder, expression: Pair<Rule>) -> Result<Array
         .collect::<Result<Vec<ExpressionID>>>()?;
 
     Ok(Array {
-        items: items.into(),
+        items,
     })
 }
 
@@ -340,8 +339,8 @@ fn parse_array_lookup(builder: &mut AstBuilder, expression: Pair<'_, Rule>) -> R
     };
 
     Ok(ArrayLookup {
-        array_identifier: array_identifier,
-        index_expression: index.into(),
+        array_identifier,
+        index_expression: index,
     })
 }
 
@@ -385,7 +384,7 @@ fn parse_return(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Return> {
     };
 
     let expression_id = if let Some(next) = inner.next() {
-        Some(parse_expression(builder, next)?.into())
+        Some(parse_expression(builder, next)?)
     } else {
         None
     };
@@ -403,9 +402,7 @@ fn parse_integer(integer: Pair<Rule>) -> Result<Integer> {
     if let Rule::integer = integer.as_rule() {
         let value = integer.as_str().trim().parse()?;
         Ok(Integer {
-            value,
-            signed: true,
-            size: 32,
+            value
         })
     } else {
         bail!("expected string , got {:?}", integer.as_rule())
@@ -413,11 +410,11 @@ fn parse_integer(integer: Pair<Rule>) -> Result<Integer> {
 }
 
 fn parse_fn_call(builder: &mut AstBuilder, call_expression: Pair<Rule>) -> Result<Call> {
-    let mut inner = call_expression.clone().into_inner().into_iter();
+    let mut inner = call_expression.clone().into_inner();
 
     let id = inner.next().unwrap();
 
-    let args = inner.next().unwrap().into_inner().into_iter();
+    let args = inner.next().unwrap().into_inner();
 
     let args = args
         .map(|arg| parse_expression(builder, arg).unwrap())
@@ -490,7 +487,7 @@ fn parse_fn_arg(arg: Pair<Rule>) -> Result<FunctionArg> {
             Some(Rule::letAccess) => AccessModes::Let,
             Some(Rule::ownedAccess) => AccessModes::Owned,
             Some(Rule::inoutAccess) => AccessModes::Inout,
-            e @ _ => bail!("exptec to find an access found instead foud {:?}", e),
+            e => bail!("exptec to find an access found instead foud {:?}", e),
         }
     } else {
         AccessModes::default()

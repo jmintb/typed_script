@@ -20,7 +20,6 @@ pub struct IrScope {
 pub struct IrInterpreter<'a, Ctx> {
     scope: IrScope,
     control_flow_graph: &'a ControlFlowGraph<BlockId>,
-    block_states: BTreeMap<BlockId, Ctx>,
     pub ssa_variables: BTreeMap<SSAID, Variable>,
     pub access_modes: BTreeMap<SSAID, AccessModes>,
     context: Ctx,
@@ -112,7 +111,7 @@ impl Iterator for IrBlockIterator {
                         };
 
                         let mut loop_blocks = predecessors_preds;
-                        loop_blocks.split_off(loop_start_pos);
+                        loop_blocks.truncate(loop_start_pos);
                         loop_blocks.reverse();
                         loop_blocks.push(predecessor);
 
@@ -132,7 +131,7 @@ impl Iterator for IrBlockIterator {
                             .position(|pred| *pred == next)
                             .unwrap();
 
-                        loop_successors.split_off(cycle_completetion_position);
+                        loop_successors.truncate(cycle_completetion_position);
 
                         // loop_successors
                         //     .clone()
@@ -246,7 +245,6 @@ impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
             scope,
             ssa_variables: program.get_all_ssa_variables(),
             access_modes: program.access_modes.clone(),
-            block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: false,
             ssa_variable_types: program.ssa_variable_types.clone(),
@@ -263,7 +261,6 @@ impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
             scope,
             access_modes: program.access_modes.clone(),
             ssa_variables: program.get_all_ssa_variables(),
-            block_states: BTreeMap::new(),
             context: Ctx::default(),
             reverse_traversel: true,
             ssa_variable_types: program.ssa_variable_types.clone(),

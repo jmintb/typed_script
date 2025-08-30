@@ -111,15 +111,15 @@ impl From<usize> for TypeID {
     }
 }
 
-impl Into<usize> for StructDeclarationID {
-    fn into(self) -> usize {
-        self.0
+impl From<StructDeclarationID> for usize {
+    fn from(val: StructDeclarationID) -> Self {
+        val.0
     }
 }
 
-impl Into<usize> for ModuleDeclarationID {
-    fn into(self) -> usize {
-        self.0
+impl From<ModuleDeclarationID> for usize {
+    fn from(val: ModuleDeclarationID) -> Self {
+        val.0
     }
 }
 
@@ -135,9 +135,9 @@ impl From<usize> for ModuleDeclarationID {
     }
 }
 
-impl Into<usize> for TypeID {
-    fn into(self) -> usize {
-        self.0
+impl From<TypeID> for usize {
+    fn from(val: TypeID) -> Self {
+        val.0
     }
 }
 
@@ -149,9 +149,9 @@ impl From<usize> for FunctionID {
     }
 }
 
-impl Into<usize> for FunctionID {
-    fn into(self) -> usize {
-        self.0
+impl From<FunctionID> for usize {
+    fn from(val: FunctionID) -> Self {
+        val.0
     }
 }
 
@@ -163,9 +163,9 @@ impl From<usize> for VariableID {
     }
 }
 
-impl Into<usize> for VariableID {
-    fn into(self) -> usize {
-        self.0
+impl From<VariableID> for usize {
+    fn from(val: VariableID) -> Self {
+        val.0
     }
 }
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Hash)]

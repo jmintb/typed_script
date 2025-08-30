@@ -19,32 +19,14 @@ pub enum VariableState {
     Moved,
 }
 
-
-#[derive(Clone, Debug)]
-pub struct BorrowCheckContext {
-    variable_states: BTreeMap<SSAID, VariableState>,
-}
-
-impl Default for BorrowCheckContext {
-    fn default() -> Self {
-        todo!()
-    }
-}
-
-
 #[derive(Clone, Default, Debug)]
 struct BorrowCheckerState {
     block_states: BTreeMap<BlockId, BTreeMap<SSAID, VariableState>>
 }
 
 
-pub struct BorrowChecker {
-    variable_states: BTreeMap<SSAID, VariableState>,
-}
-
 pub fn ge_variable_state(lhs: VariableState, rhs: VariableState) -> bool {
     match lhs {
-        _rhs => true,
         VariableState::Ready => false, // always false because rhs=Ready is caught in first match case.
         VariableState::Borrowed => match rhs {
            VariableState::Ready | VariableState::Borrowed  => true,
@@ -72,12 +54,6 @@ fn stricter_variable_state(current: VariableState, new: VariableState) -> Variab
     
 }
 
-impl BorrowChecker {
-    pub fn new() -> Self {
-        Self {
-            variable_states: BTreeMap::new(),
-        }
-    }
 
     fn check_instruction(instruction_counter: usize, ctx: &mut TransformContext, block_id: &BlockId,  bc_ctx: &mut BorrowCheckerState) -> Result<usize> {
         
@@ -85,44 +61,41 @@ impl BorrowChecker {
             let variable_states = if let Some(state) = bc_ctx.block_states.get_mut(block_id) {
             debug!("founding existing variable state for {block_id}");
             state
+        } else if block_id == &ctx.scope.control_flow_graph.entry_point {
+            debug!("inserting new variable state map for entry point {block_id}");
+            bc_ctx.block_states.insert(*block_id, BTreeMap::new() );
+            bc_ctx.block_states.get_mut(block_id).unwrap()
+
         } else {
-            if block_id == &ctx.scope.control_flow_graph.entry_point {
-                debug!("inserting new variable state map for entry point {block_id}");
-                bc_ctx.block_states.insert(*block_id, BTreeMap::new() );
-                bc_ctx.block_states.get_mut(block_id).unwrap()
+            debug!("generating new variable based on parents variable states {block_id} {:?}", bc_ctx.block_states);
+            let parents ={
+                let mut parents: Vec<BlockId> = ctx.scope.control_flow_graph.direct_predecessors(block_id).collect();
+                while parents.is_empty() || !parents.iter().all(|parent| bc_ctx.block_states.contains_key(parent)) {
+                let parent_successors: Vec<BlockId> = parents.iter().flat_map(|parent| ctx.scope.control_flow_graph.successors(parent).unwrap()).flatten().collect();
+                let new_parents: Vec<BlockId> = parents.iter().flat_map(|parent| ctx.scope.control_flow_graph.direct_predecessors(parent)).filter(|new_parent| !parent_successors.contains(new_parent) )
+                .collect(); 
 
-            } else {
-                debug!("generating new variable based on parents variable states {block_id} {:?}", bc_ctx.block_states);
-                let parents ={
-                    let mut parents: Vec<BlockId> = ctx.scope.control_flow_graph.direct_predecessors(block_id).collect();
-                    while parents.is_empty() || !parents.iter().all(|parent| bc_ctx.block_states.contains_key(parent)) {
-                    let parent_successors: Vec<BlockId> = parents.iter().map(|parent| ctx.scope.control_flow_graph.successors(parent).unwrap()).flatten().flatten().collect();
-                    let new_parents: Vec<BlockId> = parents.iter().map(|parent| ctx.scope.control_flow_graph.direct_predecessors(&parent)).flatten().filter(|new_parent| !parent_successors.contains(new_parent) )
-                    .collect(); 
-
-                        if new_parents.is_empty() {
-                            bail!("failed to find parents")
-                        }
-
-                        parents = new_parents
+                    if new_parents.is_empty() {
+                        bail!("failed to find parents")
                     }
 
-                    parents
-                }; 
-
-
-                let mut ctx: BTreeMap<SSAID, VariableState> = BTreeMap::new();
-                for state in parents.into_iter().map(|parent| bc_ctx.block_states.get(&parent).unwrap()) {
-                    for (key, val) in state {
-                       ctx.entry(*key).and_modify(|existing_state|  *existing_state = stricter_variable_state(*existing_state, *val )                                                                  ).or_insert(*val); 
-                    }
+                    parents = new_parents
                 }
 
-                bc_ctx.block_states.insert(*block_id, ctx );
-                bc_ctx.block_states.get_mut(block_id).unwrap()
+                parents
+            }; 
 
+
+            let mut ctx: BTreeMap<SSAID, VariableState> = BTreeMap::new();
+            for state in parents.into_iter().map(|parent| bc_ctx.block_states.get(&parent).unwrap()) {
+                for (key, val) in state {
+                   ctx.entry(*key).and_modify(|existing_state|  *existing_state = stricter_variable_state(*existing_state, *val )                                                                  ).or_insert(*val); 
+                }
             }
-            
+
+            bc_ctx.block_states.insert(*block_id, ctx );
+            bc_ctx.block_states.get_mut(block_id).unwrap()
+
         }; 
 
         
@@ -161,7 +134,7 @@ impl BorrowChecker {
                     Instruction::AnonymousValue(id) => {
                         variable_states.insert(*id, VariableState::Ready);
                     }
-                    Instruction::Borrow(id) => match variable_states.get(&id) {
+                    Instruction::Borrow(id) => match variable_states.get(id) {
                         Some(VariableState::Ready) => {
                             variable_states.insert(*id, VariableState::Borrowed);
                         }
@@ -171,7 +144,7 @@ impl BorrowChecker {
                                 "variable {} in block {} was already mutably borrowed",
                                 ctx
                                     .ssa_variables
-                                    .get(&id)
+                                    .get(id)
                                     .unwrap()
                                     .original_variable
                                     .0 , block_id.0
@@ -179,7 +152,7 @@ impl BorrowChecker {
                         }
                         None => bail!(format!("Failed to borrow, Variable {} was not in any state, this should not be possible", ctx
                                     .ssa_variables
-                                    .get(&id)
+                                    .get(id)
                                     .unwrap()
                                     .original_variable
                                     .0
@@ -190,14 +163,14 @@ impl BorrowChecker {
                                 "variable {} in block {} was already moved ",
                                 ctx
                                     .ssa_variables
-                                    .get(&id)
+                                    .get(id)
                                     .unwrap()
                                     .original_variable
                                     .0 , block_id.0
                             ))
                         }
                     },
-                    Instruction::MutBorrow(id) => match variable_states.get(&id) {
+                    Instruction::MutBorrow(id) => match variable_states.get(id) {
                         Some(VariableState::Ready) => {
                             variable_states.insert(*id, VariableState::MutBorrowed);
                         }
@@ -205,7 +178,7 @@ impl BorrowChecker {
                             
                             ctx
                                 .ssa_variables
-                                .get(&id)
+                                .get(id)
                                 .unwrap()
                                 .original_variable
                                 .0
@@ -229,7 +202,7 @@ impl BorrowChecker {
 
 
 
-                    Instruction::Drop(id) | Instruction::Move(id) => match variable_states.get(&id) {
+                    Instruction::Drop(id) | Instruction::Move(id) => match variable_states.get(id) {
                         Some(VariableState::Ready) => {
                             variable_states.insert(*id, VariableState::Moved);
                         }
@@ -237,7 +210,7 @@ impl BorrowChecker {
                             "variable {} in block {} was already {e:?}",
                             ctx
                                 .ssa_variables
-                                .get(&id)
+                                .get(id)
                                 .unwrap()
                                 .original_variable
                                 .0
@@ -251,17 +224,16 @@ impl BorrowChecker {
     }
 
 
-    pub fn check(&mut self, ir_program: &IrProgram) -> Result<()> {
+    pub fn check(ir_program: &IrProgram) -> Result<()> {
         for function_id in ir_program.control_flow_graphs.keys() {
         let interpreter = IrInterpreter::<BorrowCheckerState>::new(ir_program.control_flow_graphs.get(function_id).unwrap(), ir_program);
-        interpreter.transform(&mut Self::check_instruction)?;
+        interpreter.transform(&mut check_instruction)?;
         }
 
         Ok(())
     }
 
 
-    }
 
 #[cfg(test)]
 mod test {
@@ -283,8 +255,7 @@ mod test {
         let ir_program = crate::analysis::free_dead_resources::insert_free(liveness.clone(), ir_program);
 
         // debug!("CFG: {:#?}", ir_program.control_flow_graphs);
-        let mut borrow_checker = BorrowChecker::new();
-        let analysis_result = borrow_checker.check(&ir_program);
+        let analysis_result = check(&ir_program);
         debug!("transformed IR program: {} \n liveness {:#?}", ir_program, liveness);
         debug!("cfg: {} ", ir_program.entry_point_cfg());
 

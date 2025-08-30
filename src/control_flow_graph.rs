@@ -166,14 +166,13 @@ where
 
         let direct_predecessors = |ids: Vec<T>| {
             ids.iter()
-                .map(|id| {
+                .flat_map(|id| {
                     self.graph
                         .clone()
                         .into_iter()
                         .filter(|(_parent, children)| children.contains(id))
                         .map(|(parent, _)| parent)
                 })
-                .flatten()
                 .collect()
         };
 
@@ -186,7 +185,7 @@ where
             let new_parents: Vec<T> = parents
                 .clone()
                 .into_iter()
-                .filter(|parent| seen_before.insert(parent.clone()))
+                .filter(|parent| seen_before.insert(*parent))
                 .collect();
 
             if !new_parents.is_empty() {
@@ -228,7 +227,7 @@ where
             let new_children: Vec<T> = children
                 .clone()
                 .into_iter()
-                .filter(|child| seen_before.insert(child.clone()))
+                .filter(|child| seen_before.insert(*child))
                 .collect();
 
             if !new_children.is_empty() {
@@ -301,7 +300,7 @@ where
 
             if !new_children.is_empty() {
                 new_children.iter().for_each(|child| {
-                    seen_before.insert(child.clone());
+                    seen_before.insert(*child);
                 });
                 successors.push(new_children.clone());
             }
@@ -344,8 +343,7 @@ where
                 while !children_in_cycles.contains(&new_children[0]) {
                     children_in_cycles = children_in_cycles
                         .iter()
-                        .map(|child| self.graph.get(child).cloned().unwrap_or(Vec::new()))
-                        .flatten()
+                        .flat_map(|child| self.graph.get(child).cloned().unwrap_or(Vec::new()))
                         .collect();
 
                     queue.push_back(children_in_cycles.clone());
@@ -359,10 +357,8 @@ where
                         queue.push_back(vec![direct_successor]);
                     }
                 }
-            } else {
-                if !direct_successors.is_empty() {
-                    queue.push_back(direct_successors.clone());
-                }
+            } else if !direct_successors.is_empty() {
+                queue.push_back(direct_successors.clone());
             }
         }
 
@@ -411,7 +407,7 @@ where
               let mut predecessor = cycle_successor_a.unwrap();  
 
               loop {
-                  let prev_predecessor = predecessor.clone();
+                  let prev_predecessor = predecessor;
                   let mut next_predecessors = self.direct_predecessors(&prev_predecessor);
                   let next_predeccesor = next_predecessors.next();
 
@@ -459,13 +455,13 @@ where
         debug!("predecessors: {:?}", predecessors);
 
         for predecessor in predecessors.clone() {
-            if predecessor != *block_id && self.dominates(predecessor.clone(), *block_id) {
+            if predecessor != *block_id && self.dominates(predecessor, *block_id) {
                 debug!("dominating predecessor {predecessor}");
                 if let Some(successor) = self
                     .graph
                     .get(&predecessor)
                     .unwrap()
-                    .into_iter()
+                    .iter()
                     .find(|child| !predecessors.contains(child))
                     .cloned()
                 {
@@ -486,7 +482,7 @@ where
             .collect();
 
         for predecessor in predecessors.clone() {
-            if predecessor != *block_id && self.dominates(predecessor.clone(), *block_id) {
+            if predecessor != *block_id && self.dominates(predecessor, *block_id) {
                 debug!("found cycle entry for {} {}", block_id, predecessor);
                 return Some(predecessor);
             }

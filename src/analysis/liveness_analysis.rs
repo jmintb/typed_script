@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{Result};
+use anyhow::Result;
 
 use tracing::debug;
 
@@ -24,9 +24,6 @@ pub struct AbstractAddressRange {
 }
 
 impl AbstractAddressRange {
-    fn insert_end(&mut self, address: AbstractAddress) {
-        self.end_addresses.push(address);
-    }
 
     fn new(start_address: AbstractAddress) -> Self {
         Self {
@@ -44,13 +41,6 @@ pub struct VariableLiveness {
 }
 
 impl VariableLiveness {
-    fn new() -> Self {
-        Self {
-            variables: BTreeMap::new(),
-            loans: BTreeMap::new(),
-            variable_moved: BTreeMap::new(),
-        }
-    }
 
     fn insert_variable_start(
         &mut self,
@@ -71,7 +61,7 @@ impl VariableLiveness {
             .and_modify(|drop_ids| {
                 drop_ids.insert(block_id);
             })
-            .or_insert(BTreeSet::from_iter(vec![block_id].into_iter()));
+            .or_insert(BTreeSet::from_iter(vec![block_id]));
     }
 
     fn insert_variable_end(
@@ -216,7 +206,7 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDecl
             },
         )?;
 
-        liveness_for_fn.insert(function_id.clone(), livenss);
+        liveness_for_fn.insert(function_id, livenss);
     }
 
     Ok(liveness_for_fn)
@@ -235,7 +225,7 @@ mod test {
     #[rstest]
     #[test_log::test]
     fn test_liveness(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::{compiler::produce_ir};
+        use crate::compiler::produce_ir;
 
         let ir_program = produce_ir(path.to_str().unwrap())?;
         let analysis_result = calculate_livenss(&ir_program);

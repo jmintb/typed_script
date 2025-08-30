@@ -1,4 +1,3 @@
-pub mod DataBase;
 mod analysis;
 pub mod ast;
 pub mod cli;
@@ -8,7 +7,6 @@ pub mod control_flow_graph;
 pub mod identifiers;
 mod ir;
 pub mod parser;
-pub mod scoped_progam;
 pub mod typed_ast;
 pub mod types;
 pub mod backend;

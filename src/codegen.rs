@@ -9,7 +9,6 @@ use melior::{
     dialect::{
         arith,
         func::{self},
-        index,
         llvm::{self, attributes::Linkage},
         memref, scf, DialectRegistry,
     },
@@ -67,7 +66,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let id = format!("annonstr{}", self.annon_string_counter.borrow());
 
         self.annon_string_counter
-            .replace_with(|&mut v| v + 1 as usize);
+            .replace_with(|&mut v| v + 1_usize);
 
         id
     }
@@ -117,10 +116,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let mut variable_store: HashMap<TSIdentifier, Value<'ctx, '_>> = HashMap::new();
 
         for (position, argument) in arguments.iter().enumerate() {
-            let value_ref = function_block.argument(position).expect(&format!(
-                "expected at least {} function arguments for fn: {}",
-                position, id.0,
-            ));
+            let value_ref = function_block.argument(position).unwrap_or_else(|_| panic!("expected at least {} function arguments for fn: {}",
+                position, id.0));
 
             let ptr = function_block
                 .append_operation(memref::alloca(
@@ -151,14 +148,14 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
         let functiom_decl = if &id.0 == "main" {
             func::func(
-                &self.context,
-                StringAttribute::new(&self.context, &id.0),
+                self.context,
+                StringAttribute::new(self.context, &id.0),
                 TypeAttribute::new(
                     FunctionType::new(
-                        &self.context,
+                        self.context,
                         arguments
                             .iter()
-                            .map(|_| llvm::r#type::opaque_pointer(&self.context).into())
+                            .map(|_| llvm::r#type::opaque_pointer(self.context))
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         &[],
@@ -167,49 +164,48 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 ),
                 function_region,
                 &[(
-                    Identifier::new(&self.context, "llvm.emit_c_interface"),
-                    Attribute::unit(&self.context),
+                    Identifier::new(self.context, "llvm.emit_c_interface"),
+                    Attribute::unit(self.context),
                 )],
                 location,
             )
         } else if keywords.contains(&FunctionKeyword::LlvmExtern) {
             llvm::func(
-                &self.context,
-                StringAttribute::new(&self.context, &id.0),
+                self.context,
+                StringAttribute::new(self.context, &id.0),
                 TypeAttribute::new(
                     llvm::r#type::function(
-                        return_type.as_mlir_type(&self.context, &self.type_store),
+                        return_type.as_mlir_type(self.context, &self.type_store),
                         arguments
                             .iter()
-                            .map(|a| a.r#type.as_mlir_type(&self.context, &self.type_store))
+                            .map(|a| a.r#type.as_mlir_type(self.context, &self.type_store))
                             .collect::<Vec<Type>>()
                             .as_slice(),
                         false,
-                    )
-                    .into(),
+                    ),
                 ),
                 function_region,
                 &[
                     (
-                        Identifier::new(&self.context, "sym_visibility"),
-                        StringAttribute::new(&self.context, "private").into(),
+                        Identifier::new(self.context, "sym_visibility"),
+                        StringAttribute::new(self.context, "private").into(),
                     ),
                     (
-                        Identifier::new(&self.context, "llvm.emit_c_interface"),
-                        Attribute::unit(&self.context),
+                        Identifier::new(self.context, "llvm.emit_c_interface"),
+                        Attribute::unit(self.context),
                     ),
                 ],
                 location,
             )
         } else {
             func::func(
-                &self.context,
-                StringAttribute::new(&self.context, &id.0),
+                self.context,
+                StringAttribute::new(self.context, &id.0),
                 TypeAttribute::new(
                     FunctionType::new(
-                        &self.context,
+                        self.context,
                         &argument_types,
-                        &[return_type.as_mlir_type(&self.context, &self.type_store)],
+                        &[return_type.as_mlir_type(self.context, &self.type_store)],
                     )
                     .into(),
                 ),
@@ -223,7 +219,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
     }
 
     fn gen_ast_code(&'ctx self, ast: TypedProgram, _emit_mlir: bool) -> Result<()> {
-        let location = Location::unknown(&self.context);
+        let location = Location::unknown(self.context);
 
         for node in ast.ast {
             match node.clone() {
@@ -361,22 +357,6 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         Ok(())
     }
 
-    fn gen_const_index<'a>(
-        &self,
-        index: i64,
-        current_block: &'a Block<'ctx>,
-    ) -> Result<Value<'ctx, 'a>> {
-        let location = melior::ir::Location::unknown(self.context);
-        Ok(current_block
-            .append_operation(index::constant(
-                self.context,
-                IntegerAttribute::new(index, melior::ir::Type::index(self.context)),
-                location,
-            ))
-            .result(0)?
-            .into())
-    }
-
     fn gen_expression_code<'a>(
         &self,
         exp: TypedExpression,
@@ -404,10 +384,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                 Some(
                     current_block
                         .append_operation(melior::dialect::arith::constant(
-                            &self.context,
+                            self.context,
                             IntegerAttribute::new(
                                 v as i64, // TODO why do we need 4 here?
-                                IntegerType::new(&self.context, 32).into(),
+                                IntegerType::new(self.context, 32).into(),
                             )
                             .into(),
                             location,
@@ -454,8 +434,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     OperationBuilder::new("func.call", location)
                         .add_operands(&actual_args)
                         .add_attributes(&[(
-                            Identifier::new(&self.context, "callee"),
-                            FlatSymbolRefAttribute::new(&self.context, &id.0).into(),
+                            Identifier::new(self.context, "callee"),
+                            FlatSymbolRefAttribute::new(self.context, &id.0).into(),
                         )])
                         .add_results(&[return_type.as_mlir_type(self.context, &self.type_store)])
                         .build()?
@@ -466,8 +446,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                         vec![return_type.as_mlir_type(self.context, &self.type_store)]
                     };
                     func::call(
-                        &self.context,
-                        FlatSymbolRefAttribute::new(&self.context, &id.0),
+                        self.context,
+                        FlatSymbolRefAttribute::new(self.context, &id.0),
                         &actual_args,
                         &return_types,
                         location,
@@ -555,8 +535,8 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
             }
             TypedExpression::Struct(id, fields) => {
                 let _size = melior::dialect::arith::constant(
-                    &self.context,
-                    IntegerAttribute::new(1, IntegerType::new(&self.context, 32).into()).into(),
+                    self.context,
+                    IntegerAttribute::new(1, IntegerType::new(self.context, 32).into()).into(),
                     location,
                 );
 
@@ -589,7 +569,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
 
                     struct_ptr = current_block
                         .append_operation(llvm::insert_value(
-                            &self.context,
+                            self.context,
                             struct_ptr,
                             DenseI64ArrayAttribute::new(self.context, &[i as i64]),
                             exp_ptr,
@@ -754,7 +734,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                     .append_operation(memref::alloca(
                         self.context,
                         MemRefType::new(
-                            item_values[0].unwrap().r#type().into(),
+                            item_values[0].unwrap().r#type(),
                             &[array_len as i64],
                             None,
                             None,
@@ -776,8 +756,7 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
                             IntegerAttribute::new(
                                 index as i64,
                                 melior::ir::Type::index(self.context),
-                            )
-                            .into(),
+                            ),
                             location,
                         ))
                         .result(0)
@@ -858,28 +837,28 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let location = melior::ir::Location::unknown(self.context);
         let id = self.gen_annon_string_id();
         let string_type = llvm::r#type::array(
-            IntegerType::new(&self.context, 8).into(),
+            IntegerType::new(self.context, 8).into(),
             (value.len()) as u32,
         );
         let op = OperationBuilder::new("llvm.mlir.global", location)
             .add_regions([Region::new()])
             .add_attributes(&[
                 (
-                    Identifier::new(&self.context, "value"),
-                    StringAttribute::new(&self.context, &format!("{value}")).into(),
+                    Identifier::new(self.context, "value"),
+                    StringAttribute::new(self.context, &value.to_string()).into(),
                 ),
                 (
-                    Identifier::new(&self.context, "sym_name"),
-                    StringAttribute::new(&self.context, &id).into(),
+                    Identifier::new(self.context, "sym_name"),
+                    StringAttribute::new(self.context, &id).into(),
                 ),
                 (
-                    Identifier::new(&self.context, "global_type"),
+                    Identifier::new(self.context, "global_type"),
                     TypeAttribute::new(string_type).into(),
                 ),
                 (
-                    Identifier::new(&self.context, "linkage"),
+                    Identifier::new(self.context, "linkage"),
                     // ArrayAttribute::new(&self.context, &[]).into(),
-                    llvm::attributes::linkage(&self.context, Linkage::Internal),
+                    llvm::attributes::linkage(self.context, Linkage::Internal),
                 ),
             ])
             .build()?;
@@ -889,10 +868,10 @@ impl<'ctx, 'module> CodeGen<'ctx, 'module> {
         let address_op = OperationBuilder::new("llvm.mlir.addressof", location)
             // .enable_result_type_inference()
             .add_attributes(&[(
-                Identifier::new(&self.context, "global_name"),
-                FlatSymbolRefAttribute::new(&self.context, &id).into(),
+                Identifier::new(self.context, "global_name"),
+                FlatSymbolRefAttribute::new(self.context, &id).into(),
             )])
-            .add_results(&[llvm::r#type::opaque_pointer(&self.context)])
+            .add_results(&[llvm::r#type::opaque_pointer(self.context)])
             .build()?;
 
         Ok(current_block.append_operation(address_op))
@@ -924,7 +903,7 @@ pub fn generate_mlir<'c>(ast: TypedProgram, emit_mlir: bool) -> Result<Execution
 
     code_gen.gen_ast_code(ast, emit_mlir)?;
 
-    let pass_manager = pass::PassManager::new(&code_gen.context);
+    let pass_manager = pass::PassManager::new(code_gen.context);
     pass_manager.add_pass(pass::conversion::create_func_to_llvm());
 
     pass_manager

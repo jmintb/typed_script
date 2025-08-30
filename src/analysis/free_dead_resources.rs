@@ -43,12 +43,10 @@ pub fn insert_free(
                 let address = if cfg.is_in_cycle(&target_block_id) {
                     // debug!("{} is in cycle", variable_id.0);
                     let target_block_id =
-                        cfg.find_cycle_successor(&target_block_id).expect(&format!(
-                            "expected to find a successor to the cycle in {} \n {} \n {}",
+                        cfg.find_cycle_successor(&target_block_id).unwrap_or_else(|| panic!("expected to find a successor to the cycle in {} \n {} \n {}",
                             target_block_id,
                             ir_program,
-                            ir_program.entry_point_cfg()
-                        ));
+                            ir_program.entry_point_cfg()));
                     offset = 0;
                     AbstractAddress {
                         block_id: target_block_id,

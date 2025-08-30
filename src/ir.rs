@@ -7,13 +7,12 @@ use tracing::debug;
 
 use crate::{
     ast::{
-        identifiers::{BlockID, ExpressionID, FunctionDeclarationID, ScopeID, StatementID},
+        identifiers::{BlockID, ExpressionID, FunctionDeclarationID, StatementID},
         nodes::{
             AccessModes, Array, ArrayLookup, Assign, Assignment, Call, Expression, FunctionArg,
             Identifier, IfElseStatement, IfStatement, Operation, Operator, Return,
             StructFieldPath, StructInit, Type, Value, While,
         },
-        scopes::Scope,
         Ast, NodeDatabase,
     },
     control_flow_graph::ControlFlowGraph,
@@ -74,9 +73,9 @@ impl IrProgram {
     pub fn get_all_ssa_variables(&self) ->  BTreeMap<SSAID, Variable> {
         let mut all_ssa_variable = BTreeMap::new();
 
-        for (_, Variable_map) in self.ssa_variables.iter() {
-            for (k, v) in Variable_map {
-                all_ssa_variable.insert(k.clone(), v.clone());
+        for (_, variable_map) in self.ssa_variables.iter() {
+            for (k, v) in variable_map {
+                all_ssa_variable.insert(*k, v.clone());
             }
         }
 
@@ -184,7 +183,7 @@ impl Instruction {
                 format!(
                     "array_lookup_result_{:?} = ArrayLookup({})",
                     result,
-                    vec![array, index, result].iter()
+                    [array, index, result].iter()
                         .map(|variable_id| format!(
                             "{}_{},",
                             variable_id.0,
@@ -389,8 +388,6 @@ pub struct IrGenerator {
     current_function: FunctionDeclarationID,
     node_db: NodeDatabase,
     type_db: TypeDB,
-    scopes: HashMap<ScopeID, Scope>,
-    types: HashMap<ExpressionID, Type>,
     entry_point_function: FunctionDeclarationID,
     static_values: HashMap<SSAID, Value>,
     external_function_declaraitons: Vec<FunctionDeclarationID>,
@@ -404,7 +401,6 @@ impl IrGenerator {
     pub fn new(
         ast: Ast,
         node_db: NodeDatabase,
-        scopes: HashMap<ScopeID, Scope>,
         expression_types: HashMap<ExpressionID, types::Type>,
         type_db: TypeDB,
     ) -> Self {
@@ -424,13 +420,11 @@ impl IrGenerator {
             id_count: 1,
             entry_block: entry_block_id,
             access_modes: BTreeMap::new(),
-            types: HashMap::new(),
             control_flow_graphs: BTreeMap::new(),
             current_function: ast.get_entry_function_id(&node_db).unwrap(),
             entry_point_function: ast.get_entry_function_id(&node_db).unwrap(),
             type_db,
             node_db,
-            scopes,
             static_values: HashMap::new(),
             external_function_declaraitons: Vec::new(),
             expression_types,
@@ -440,7 +434,7 @@ impl IrGenerator {
     }
 
     fn store_current_fn_variable(&mut self, id: SSAID, ssa_var: Variable) {
-        self.ssa_variables.entry(self.current_function).or_insert(BTreeMap::new()).insert(id, ssa_var);
+        self.ssa_variables.entry(self.current_function).or_default().insert(id, ssa_var);
     }
 
     fn current_fn_variables(&self) -> &BTreeMap<SSAID, Variable> {
@@ -514,19 +508,6 @@ impl IrGenerator {
             .map(|ssa_var| ssa_var.id)
     }
 
-    pub fn generate_ir_program(
-        self,
-        _ast: &Ast,
-        _node_db: &NodeDatabase,
-        _scopes: &HashMap<ScopeID, Scope>,
-        _types: &HashMap<ExpressionID, Type>,
-        _type_db: &TypeDB,
-    ) -> IrProgram {
-        // NEXT: move node_db and type_db into ir generator
-
-        todo!()
-    }
-
     fn convert_function_declaration(&mut self, function_declaration_id: FunctionDeclarationID) {
         let function_declaration = self
             .node_db
@@ -592,7 +573,7 @@ impl IrGenerator {
     fn record_cfg_connection(&mut self, parent: BlockId, child: BlockId) {
         debug!("record cfg connection {} -> {}", parent.0, child.0);
         self.control_flow_graphs
-            .entry(self.current_function.clone())
+            .entry(self.current_function)
             .and_modify(|cfg| cfg.insert_edge(parent, child))
             .or_insert_with(|| {
                 let mut cfg = ControlFlowGraph::new(parent);
@@ -623,7 +604,7 @@ impl IrGenerator {
         let ssa_id = self.add_ssa_variable(assignment.id);
         let assign_instruction = Instruction::Assign(ssa_id, result_id);
         if let Some(r#type) = self.ssaid_variable_types.get(&result_id) {
-            self.set_ssaid_type(ssa_id, r#type.clone());
+            self.set_ssaid_type(ssa_id, *r#type);
         }
         self.add_instruction(updated_block_id, assign_instruction);
         self.add_instruction(updated_block_id, self.get_access_instruction(result_id));
@@ -751,7 +732,7 @@ impl IrGenerator {
                     .get_function_declaration_id_from_identifier(function_id.clone())
                     .unwrap();
 
-                let function_type_id = *self.type_db.function_declaration_types.get(function_declaration_id).expect(&format!("expected find type for function in {:?} {:?}", function_declaration_id, self.type_db.function_declaration_types));
+                let function_type_id = *self.type_db.function_declaration_types.get(function_declaration_id).unwrap_or_else(|| panic!("expected find type for function in {:?} {:?}", function_declaration_id, self.type_db.function_declaration_types));
 
                 let function_declaration = self
                     .node_db
@@ -850,7 +831,7 @@ impl IrGenerator {
                     return (current_block, Some(ssa_var));
                 }
                 _ => {
-                    let ssa_var = self.declare_static_value(val, current_block, self.expression_types.get(&expression_id).unwrap().clone());
+                    let ssa_var = self.declare_static_value(val, current_block, *self.expression_types.get(&expression_id).unwrap());
                     return (current_block, Some(ssa_var));
                 }
             },
@@ -1113,7 +1094,7 @@ impl IrGenerator {
     fn declare_static_value(&mut self, val: Value, current_block: BlockId, expression_type: types::Type) -> SSAID {
         let static_ssa_id = self.add_ssa_variable(Identifier("anonymous".to_string()));
         self.static_values.insert(static_ssa_id, val);
-        self.set_ssaid_type(static_ssa_id, expression_type.clone());
+        self.set_ssaid_type(static_ssa_id, expression_type);
         self.add_instruction(current_block, Instruction::AnonymousValue(static_ssa_id));
 
         static_ssa_id

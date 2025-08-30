@@ -27,7 +27,7 @@ impl Type {
             Type::Integer => IntegerType::new(context, 32).into(),
             Type::Unit => llvm::r#type::void(context),
             Type::Struct(StructType { identifier: _, fields }) => llvm::r#type::r#struct(
-                &context,
+                context,
                 fields
                     .iter()
                     .map(|f| f.field_type.as_mlir_type(context, types))
@@ -35,7 +35,7 @@ impl Type {
                     .as_slice(),
                 true,
             ),
-            Type::Named(id) => types.get(id).expect(&format!("failed to find named type {}", id.0.clone())).as_mlir_type(context, types) ,
+            Type::Named(id) => types.get(id).unwrap_or_else(|| panic!("failed to find named type {}", id.0.clone())).as_mlir_type(context, types) ,
             Type::Array(item_type, length ) => llvm::r#type::array(item_type.as_mlir_type(context, types), *length as u32),
             Type::UnsignedInteger => IntegerType::unsigned(context, 8).into(),
             _ => todo!("unimplemented type to mlir type {:?}", self),
@@ -350,7 +350,7 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
 
                         for arg in arguments {
                             let ty = if let Type::Named(ty_id) = arg.r#type {
-                                types.get(&ty_id).expect(&format!("failed to find {}", ty_id.0)).clone()
+                                types.get(&ty_id).unwrap_or_else(|| panic!("failed to find {}", ty_id.0)).clone()
                             } else {
                                 arg.r#type
                             };
@@ -382,7 +382,7 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
             type_id,
             fields
                 .into_iter()
-                .map(|f| Ok(type_expression(f)?))
+                .map(type_expression)
                 .collect::<Result<Vec<TypedExpression>>>()?,
         ),
         TSExpression::Value(val) => match val.clone() {
@@ -396,7 +396,7 @@ fn type_expression(exp: TSExpression) -> Result<TypedExpression> {
             function_id,
             arguments
                 .into_iter()
-                .map(|arg| Ok(type_expression(arg)?))
+                .map(type_expression)
                 .collect::<Result<Vec<TypedExpression>>>()?,
         ),
         TSExpression::StructFieldRef(struct_id, field_id) => {
@@ -422,7 +422,7 @@ fn type_array(array: parser::Array) -> Result<Array> {
     let items = array.items.into_iter().map(type_expression).collect::<Result<Vec<TypedExpression>>>()?;
     let item_type = items[0].r#type(&BTreeMap::new())?;
 
-    Ok(Array { item_type: item_type, items })
+    Ok(Array { item_type, items })
 }
 
 fn type_return(r#return: parser::Return) -> Result<Return>{
