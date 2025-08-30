@@ -246,15 +246,15 @@ pub struct Function {
 pub fn resolve_types(
     ast: &Ast,
     db: &NodeDatabase,
-    scopes: &HashMap<ScopeID, Scope>,
-    root_scope: ScopeID,
+    _scopes: &HashMap<ScopeID, Scope>,
+    _root_scope: ScopeID,
 ) -> (HashMap<ExpressionID, Type>, TypeDB) {
     let mut type_db = TypeDB::new();
     let mut types = HashMap::new();
 
     let mut gather_type_declarations = |db: &NodeDatabase,
                             node_id: NodeID,
-                            parent_node_id: Option<NodeID>,
+                            _parent_node_id: Option<NodeID>,
                             output: &mut TypeDB| {
         match node_id {
             NodeID::Declaration(DeclarationID::StructDeclaration(ref id)) => {
@@ -338,9 +338,9 @@ pub fn resolve_types(
                             _ => todo!(),
                         },
                         Expression::Assignment(Assignment {
-                            id, expression
+                            id: _, expression: _
                         }) =>  Type::Unit, 
-                        Expression::Array(array) => {
+                        Expression::Array(_array) => {
                             //let array_type = ArrayType {length: array.items.len(), element_type:  //NEXT evaluate the experession type inside the array.};
                             todo!();
                         }

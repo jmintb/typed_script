@@ -185,7 +185,7 @@ impl Instruction {
                     "array_lookup_result_{:?} = ArrayLookup({})",
                     result,
                     vec![array, index, result].iter()
-                        .map(|(variable_id)| format!(
+                        .map(|variable_id| format!(
                             "{}_{},",
                             variable_id.0,
                             ssa_variables.get(variable_id).unwrap().original_variable.0
@@ -198,7 +198,7 @@ impl Instruction {
                     "array_init_result_{:?} = InitArray[{}]",
                     result,
                     items.iter()
-                        .map(|(variable_id)| format!(
+                        .map(|variable_id| format!(
                             "{}_{},",
                             variable_id.0,
                             ssa_variables.get(variable_id).unwrap().original_variable.0
@@ -285,7 +285,7 @@ impl Instruction {
                     static_ssa_values[id].to_debug_string()
                 )
             }
-            Self::AssignFnArg(to, position) => {
+            Self::AssignFnArg(to, _position) => {
                 format!(
                     "{}_{} = fnarg",
                     to.0,
@@ -515,12 +515,12 @@ impl IrGenerator {
     }
 
     pub fn generate_ir_program(
-        mut self,
-        ast: &Ast,
-        node_db: &NodeDatabase,
-        scopes: &HashMap<ScopeID, Scope>,
-        types: &HashMap<ExpressionID, Type>,
-        type_db: &TypeDB,
+        self,
+        _ast: &Ast,
+        _node_db: &NodeDatabase,
+        _scopes: &HashMap<ScopeID, Scope>,
+        _types: &HashMap<ExpressionID, Type>,
+        _type_db: &TypeDB,
     ) -> IrProgram {
         // NEXT: move node_db and type_db into ir generator
 
@@ -785,7 +785,7 @@ impl IrGenerator {
                             .get_inverse_instruction()
                         {
                             match release_instruction {
-                                Instruction::BorrowEnd(borrowd_var) => {
+                                Instruction::BorrowEnd(_borrowd_var) => {
                                     if !free_instructions.contains(&release_instruction) {
                                         free_instructions.push(release_instruction);
                                     }
@@ -856,7 +856,7 @@ impl IrGenerator {
             },
 
             Expression::Struct(StructInit {
-                struct_id,
+                struct_id: _,
                 field_values,
             }) => {
                 for field in field_values {
@@ -866,7 +866,7 @@ impl IrGenerator {
 
             Expression::StructFieldRef(StructFieldPath {
                 struct_indentifier,
-                field_identifier,
+                field_identifier: _,
             }) => {
                 let ssa_var = self.latest_gen_variable(struct_indentifier).unwrap();
                 self.add_instruction(current_block, self.get_access_instruction(ssa_var));

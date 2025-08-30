@@ -5,7 +5,7 @@ use tracing::{debug};
 
 use crate::{
     analysis::liveness_analysis::AbstractAddress,
-    ir::{BlockId, FunctionId, Instruction, IrProgram}, ast::identifiers::FunctionDeclarationID,
+    ir::{BlockId, Instruction, IrProgram}, ast::identifiers::FunctionDeclarationID,
 };
 
 use super::liveness_analysis::VariableLiveness;
@@ -87,9 +87,7 @@ pub fn insert_free(
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        cli::load_program, ir::IrGenerator,
-    };
+    
 
     
     use anyhow::{bail, Result};
@@ -101,7 +99,7 @@ mod test {
     fn test_ir_output_with_drops(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast, compiler::produce_ir};
+        use crate::{compiler::produce_ir};
 
 
         let ir_program = produce_ir(path.to_str().unwrap())?;
@@ -123,7 +121,7 @@ mod test {
     fn test_all_variables_are_dropped(
         #[files("./ir_test_programs/test_*.ts")] path: PathBuf,
     ) -> Result<()> {
-        use crate::{parser::parse, typed_ast::type_ast, compiler::produce_ir};
+        use crate::{compiler::produce_ir};
 
         let ir_program = produce_ir(path.to_str().unwrap())?;
         let liveness = crate::analysis::liveness_analysis::calculate_livenss(&ir_program)?;

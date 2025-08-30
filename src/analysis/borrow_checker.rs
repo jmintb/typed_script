@@ -149,13 +149,13 @@ impl BorrowChecker {
                     Instruction::ArrayLookup {result, .. } => {
                         variable_states.insert(*result, VariableState::Ready);
                     }
-                    Instruction::AssignFnArg(id, position) => {
+                    Instruction::AssignFnArg(id, _position) => {
                         variable_states.insert(*id, VariableState::Ready);
                     }
                     Instruction::Call(_function_id, _args, result) => {
                         variable_states.insert(*result, VariableState::Ready);
                     }
-                    Instruction::Assign(to, from) => {
+                    Instruction::Assign(to, _from) => {
                         variable_states.insert(*to, VariableState::Ready);
                     }
                     Instruction::AnonymousValue(id) => {
@@ -265,10 +265,10 @@ impl BorrowChecker {
 
 #[cfg(test)]
 mod test {
-    use crate::{cli::load_program, ir::FunctionId};
+    
 
     use super::*;
-    use crate::{ir::IrGenerator, parser::parse, typed_ast::type_ast};
+    
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;

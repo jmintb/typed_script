@@ -74,7 +74,7 @@ pub fn exec_cli() -> Result<()> {
 
         }
         SubCommands::Build {
-            emit_mlir,
+            emit_mlir: _,
             emit_llvmir,
             path,
         } => {

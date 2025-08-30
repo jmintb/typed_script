@@ -6,7 +6,7 @@ use tracing::debug;
 
 use crate::{
     control_flow_graph::ControlFlowGraph,
-    ir::{BlockId, FunctionId, Instruction, IrProgram, SSAID}, ast::identifiers::FunctionDeclarationID,
+    ir::{BlockId, Instruction, IrProgram, SSAID}, ast::identifiers::FunctionDeclarationID,
 };
 
 use super::ir_transformer::IrInterpreter;
@@ -167,7 +167,7 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDecl
                 };
 
                 match instruction {
-                    Instruction::Assign(to, from) => variable_livness.insert_variable_start(
+                    Instruction::Assign(to, _from) => variable_livness.insert_variable_start(
                         *to,
                         AbstractAddress {
                             block_id: *block_id,
@@ -224,10 +224,10 @@ pub fn calculate_livenss(ir_program: &IrProgram) -> Result<BTreeMap<FunctionDecl
 
 #[cfg(test)]
 mod test {
-    use crate::cli::load_program;
+    
 
     use super::*;
-    use crate::ir::IrGenerator;
+    
     use anyhow::Result;
     use rstest::rstest;
     use std::path::PathBuf;
@@ -235,7 +235,7 @@ mod test {
     #[rstest]
     #[test_log::test]
     fn test_liveness(#[files("./ir_test_programs/test_*.ts")] path: PathBuf) -> Result<()> {
-        use crate::{ast::{parser::parse, identifiers::ScopeID, scopes::build_program_scopes}, types::resolve_types, compiler::produce_ir};
+        use crate::{compiler::produce_ir};
 
         let ir_program = produce_ir(path.to_str().unwrap())?;
         let analysis_result = calculate_livenss(&ir_program);

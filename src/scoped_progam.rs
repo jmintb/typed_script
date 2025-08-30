@@ -6,11 +6,11 @@ use std::collections::BTreeSet;
 use crate::parser::AccessModes;
 use crate::parser::TSIdentifier;
 use crate::parser::TSValue;
-use crate::typed_ast::Assign;
+
 use crate::typed_ast::Decl;
 use crate::typed_ast::Type;
 use crate::typed_ast::TypedAst;
-use crate::typed_ast::TypedExpression;
+
 use crate::typed_ast::TypedProgram;
 
 pub struct ModuleID(usize);
@@ -175,7 +175,7 @@ impl ScopedProgramBuilder {
         let mut builder = Self::new();
 
         for typed_module in typed_modules {
-            let mut module = Module::new("main".to_string());
+            let _module = Module::new("main".to_string());
             for r#type in typed_module.types {
                 builder.store_type(r#type.0, r#type.1);
             }
@@ -205,18 +205,18 @@ impl ScopedProgramBuilder {
         id
     }
 
-    fn new_scope(&self, function_id: FunctionID) -> ScopeID {
+    fn new_scope(&self, _function_id: FunctionID) -> ScopeID {
         todo!()
     }
 
     fn scope_function(&mut self, function_id: FunctionID, scope_id: ScopeID) -> Result<()> {
         // NEXT: each block is really interested in the parent scope and building the current scope;
         let Decl::Function {
-            keywords,
-            id,
+            keywords: _,
+            id: _,
             arguments,
             body,
-            return_type,
+            return_type: _,
         } = self.functions.get(&function_id).cloned().unwrap()
         else {
             todo!()
@@ -229,7 +229,7 @@ impl ScopedProgramBuilder {
             scope.declare_variable(variable_id)?;
         }
 
-        for node in body {
+        for _node in body {
             // match node {
             //     TypedAst::Expression(TypedExpression::Assign(Assign { id, expression })) => {
             //         self.store_variable(id, expression.r#type(&BTreeMap::new())?, AccessModes::Let);

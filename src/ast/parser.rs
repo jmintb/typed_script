@@ -47,7 +47,7 @@ pub fn parse(input: &str) -> Result<(Ast, NodeDatabase, Vec<String>)> {
 
 fn parse_program(
     program: Pairs<'_, Rule>,
-    mut builder: &mut AstBuilder,
+    builder: &mut AstBuilder,
 ) -> Result<(Ast, NodeDatabase, Vec<String>)> {
     let mut module = ModuleDeclaration::new(Identifier::new("main".to_string()));
 
@@ -395,7 +395,7 @@ fn parse_return(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<Return> {
     })
 }
 
-fn parse_struct_init(builder: &mut AstBuilder, pair: Pair<Rule>) -> Result<StructInit> {
+fn parse_struct_init(_builder: &mut AstBuilder, _pair: Pair<Rule>) -> Result<StructInit> {
     todo!()
 }
 

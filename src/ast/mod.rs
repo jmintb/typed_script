@@ -8,7 +8,7 @@ use std::collections::{HashMap, VecDeque};
 use anyhow::{Result, bail};
 use tracing::debug;
 
-use crate::{identifiers::{IDGenerator, ID}, parser::TSIdentifier};
+use crate::{identifiers::{IDGenerator, ID}};
 
 use self::{
     declarations::ModuleDeclaration,
@@ -51,7 +51,7 @@ impl Ast {
     pub fn get_node_relationships(&self, db: &NodeDatabase) -> HashMap<NodeID, Vec<NodeID>> {
         let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
         let mut walker =
-            |db: &NodeDatabase,
+            |_db: &NodeDatabase,
              node_id: NodeID,
              parent_node_id: Option<NodeID>,
              output: &mut (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>)| {
@@ -77,7 +77,7 @@ impl Ast {
     pub fn to_string(&self, db: &NodeDatabase) -> String {
         let mut output: (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>) = (HashMap::new(), None);
         let mut walker =
-            |db: &NodeDatabase,
+            |_db: &NodeDatabase,
              node_id: NodeID,
              parent_node_id: Option<NodeID>,
              output: &mut (HashMap<NodeID, Vec<NodeID>>, Option<NodeID>)| {
@@ -176,14 +176,14 @@ impl Ast {
             })
             .collect();
 
-        let mut process_block =
+        let process_block =
             |block_id: &BlockID,
              parent_id: Option<NodeID>,
              queue: &mut VecDeque<(NodeID, Option<NodeID>)>| {
                  let block = db.blocks.get(block_id).unwrap();
                 for &statement in block.statements.iter() {
                     match statement {
-                        StatementID::Declaration(decl) => todo!(),
+                        StatementID::Declaration(_decl) => todo!(),
                         StatementID::Expression(expression_id) => {
                             queue.push_front((expression_id.into(), parent_id));
                         }
@@ -227,7 +227,7 @@ impl Ast {
 
                     match expression {
                         Expression::If(IfStatement {
-                            condition, // TODO:conditions need  to be pressed by walker.
+                            condition: _, // TODO:conditions need  to be pressed by walker.
                             then_block,
                         }) => process_block(then_block, parent, &mut queue),
                         Expression::Ifelse(IfElseStatement {
@@ -245,7 +245,7 @@ impl Ast {
                             queue.push_front(((*condition).into(), parent));
                             process_block(body, parent, &mut queue);
                         }
-                        expression => {
+                        _expression => {
                             walker(db, expression_id.into(), parent, walker_context).unwrap();
                         },
                     }
@@ -368,7 +368,7 @@ impl NodeDatabase {
                 .expressions
                 .get(&expression_id)
                 .map(|expression| Node::Statement(Statement::Expression(expression.clone()))),
-            NodeID::Block(block_id) => self.blocks.get(&block_id).map(|block| {
+            NodeID::Block(block_id) => self.blocks.get(&block_id).map(|_block| {
                 Node::Statement(Statement::Expression(Expression::Block(block_id)))
             }),
             _ => todo!("not implemented {:?}", node_id),

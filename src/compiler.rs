@@ -13,7 +13,7 @@ use crate::analysis::type_evaluation::evaluate_types;
 
 pub fn produce_ir(src: &str) -> Result<IrProgram> {
     let input = load_program(Some(src.to_string()))?;
-    let (ast, mut node_db, messages) = parse(&input)?;
+    let (ast, mut node_db, _messages) = parse(&input)?;
     let program_scopes = build_program_scopes(&ast, &mut node_db);
     let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
     let ir_generator = IrGenerator::new(ast, node_db, program_scopes, expression_types, type_db);
@@ -22,7 +22,7 @@ pub fn produce_ir(src: &str) -> Result<IrProgram> {
 
 pub fn produce_ir_without_std(src: &str) -> Result<IrProgram> {
     let input = load_program_without_std_lib(Some(src.to_string()))?;
-    let (ast, mut node_db, messages) = parse(&input)?;
+    let (ast, mut node_db, _messages) = parse(&input)?;
     let program_scopes = build_program_scopes(&ast, &mut node_db);
     let (expression_types, type_db) = resolve_types(&ast, &node_db, &program_scopes, ScopeID(0));
     debug!("type db: {:#?}", expression_types);
@@ -30,7 +30,7 @@ pub fn produce_ir_without_std(src: &str) -> Result<IrProgram> {
     Ok(ir_generator.convert_to_ssa())
 }
 
-pub fn compile(input: &str) -> Result<(ExecutionEngine)> {
+pub fn compile(input: &str) -> Result<ExecutionEngine> {
     let ir = produce_ir(input)?;
     let types = evaluate_types(&ir)?;
 

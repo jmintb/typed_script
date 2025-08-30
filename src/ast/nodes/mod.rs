@@ -35,7 +35,7 @@ pub enum Type {
 
 // TODO: this should really happen in the types module.
 impl Type {
-    pub fn as_mlir_type<'c, 'a>(&self, context: &'c Context, types: &HashMap<Identifier, Type>) -> melior::ir::Type<'a> where 'c: 'a {
+    pub fn as_mlir_type<'c, 'a>(&self, context: &'c Context, _types: &HashMap<Identifier, Type>) -> melior::ir::Type<'a> where 'c: 'a {
         match self {
             Type::Pointer => llvm::r#type::opaque_pointer(context),
             Type::String => llvm::r#type::opaque_pointer(context),
@@ -215,7 +215,7 @@ impl Expression {
                 let index_debug_string = db.expressions.get(&array_lookup.index_expression).unwrap().to_debug_string(db)?;
                 format!("arraylookup({}, {})", array_lookup.array_identifier.0, index_debug_string) 
             }
-            Expression::Ifelse(if_else_statement) => {
+            Expression::Ifelse(_if_else_statement) => {
                 let debug_string = "if_else_start";
                 debug_string.to_string()
             }

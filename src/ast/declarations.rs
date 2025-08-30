@@ -28,7 +28,7 @@ impl ModuleDeclaration {
             DeclarationID::FunctionDeclaration(id) => {
                 self.function_declarations.push(id);
             }
-            DeclarationID::ModuleDeclarationID(id) => todo!(),
+            DeclarationID::ModuleDeclarationID(_id) => todo!(),
         }
     }
 }
