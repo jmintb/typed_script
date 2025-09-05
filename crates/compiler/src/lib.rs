@@ -1,0 +1,12 @@
+mod analysis;
+pub mod ast;
+pub mod backend;
+pub mod cli;
+pub mod codegen;
+pub mod compiler;
+pub mod control_flow_graph;
+pub mod identifiers;
+mod ir;
+pub mod parser;
+pub mod typed_ast;
+pub mod types;
