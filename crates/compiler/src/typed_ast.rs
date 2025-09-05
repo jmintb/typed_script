@@ -335,31 +335,27 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
             break;
         };
 
-        match node {
-            TypedAst::Decl(decl) => {
-                match decl {
-                    Decl::Struct(t) => {
-                        types.insert(t.identifier.clone(), Type::Struct(t));
-                    }
-                    Decl::Function {
-                        keywords,
+        if let TypedAst::Decl(decl) = node {
+            match decl {
+                Decl::Struct(t) => {
+                    types.insert(t.identifier.clone(), Type::Struct(t));
+                }
+                Decl::Function {
+                    keywords,
+                    id,
+                    arguments,
+                    body,
+                    return_type,
+                } => {
+                    types.insert(
                         id,
-                        arguments,
-                        body,
-                        return_type,
-                    } => {
-                        types.insert(
-                            id,
-                            Type::Function(keywords, arguments, Box::new(return_type)),
-                        );
-                        if let Some(mut body) = body {
-                            nodes.append(&mut body);
-                        }
+                        Type::Function(keywords, arguments, Box::new(return_type)),
+                    );
+                    if let Some(mut body) = body {
+                        nodes.append(&mut body);
                     }
-                };
-            }
-
-            _ => (),
+                }
+            };
         }
     }
 
@@ -371,27 +367,25 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
 
         match node {
             TypedAst::Decl(decl) => {
-                match decl {
-                    Decl::Function {
-                        body, arguments, ..
-                    } => {
-                        if let Some(mut body) = body {
-                            nodes.append(&mut body);
-                        }
-
-                        for arg in arguments {
-                            let ty = if let Type::Named(ty_id) = arg.r#type {
-                                types
-                                    .get(&ty_id)
-                                    .unwrap_or_else(|| panic!("failed to find {}", ty_id.0))
-                                    .clone()
-                            } else {
-                                arg.r#type
-                            };
-                            variable_types.insert(arg.name, ty);
-                        }
+                if let Decl::Function {
+                    body, arguments, ..
+                } = decl
+                {
+                    if let Some(mut body) = body {
+                        nodes.append(&mut body);
                     }
-                    _ => (),
+
+                    for arg in arguments {
+                        let ty = if let Type::Named(ty_id) = arg.r#type {
+                            types
+                                .get(&ty_id)
+                                .unwrap_or_else(|| panic!("failed to find {}", ty_id.0))
+                                .clone()
+                        } else {
+                            arg.r#type
+                        };
+                        variable_types.insert(arg.name, ty);
+                    }
                 };
             }
 

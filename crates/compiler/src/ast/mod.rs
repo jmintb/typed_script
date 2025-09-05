@@ -119,24 +119,24 @@ impl Ast {
                     parent
                         .iter()
                         .rev()
-                        .map(|parent| match parent {
-                            &NodeID::Declaration(DeclarationID::ModuleDeclarationID(id)) => {
+                        .map(|parent| match *parent {
+                            NodeID::Declaration(DeclarationID::ModuleDeclarationID(id)) => {
                                 format!("module_{}", id.0)
                             }
-                            &NodeID::Block(BlockID(id)) => format!("block_{id}"),
-                            &NodeID::Statement(StatementID::Expression(id)) => db
+                            NodeID::Block(BlockID(id)) => format!("block_{id}"),
+                            NodeID::Statement(StatementID::Expression(id)) => db
                                 .expressions
                                 .get(&id)
                                 .unwrap()
                                 .to_debug_string(db)
                                 .unwrap(),
-                            &NodeID::Statement(StatementID::Declaration(_)) => db
+                            NodeID::Statement(StatementID::Declaration(_)) => db
                                 .ids
                                 .get(parent)
                                 .map(|id| id.0.clone())
                                 .unwrap_or("unnamed".to_string())
                                 .clone(),
-                            &NodeID::Declaration(_) => db
+                            NodeID::Declaration(_) => db
                                 .ids
                                 .get(parent)
                                 .map(|id| id.0.clone())

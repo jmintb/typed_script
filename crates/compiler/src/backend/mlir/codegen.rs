@@ -270,7 +270,7 @@ impl<'ctx> CodeGen<'ctx> {
         let mut locals = HashMap::<SSAID, Value<'c, 'a>>::new();
         let local_ir_variables = &self.program.ssa_variables[function_decl_id];
 
-        for (ssa_id, _value) in local_ir_variables {
+        for ssa_id in local_ir_variables.keys() {
             let fusion_type = if self.program.ssa_variable_types.contains_key(ssa_id) {
                 self.program
                     .ssa_variable_types

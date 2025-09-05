@@ -250,13 +250,10 @@ pub fn resolve_types(
          node_id: NodeID,
          _parent_node_id: Option<NodeID>,
          output: &mut TypeDB| {
-            match node_id {
-                NodeID::Declaration(DeclarationID::StructDeclaration(ref id)) => {
-                    let struct_decl = db.struct_declarations.get(id).unwrap();
+            if let NodeID::Declaration(DeclarationID::StructDeclaration(ref id)) = node_id {
+                let struct_decl = db.struct_declarations.get(id).unwrap();
 
-                    output.insert_struct_type(struct_decl.clone(), ScopeID(0));
-                }
-                _ => (),
+                output.insert_struct_type(struct_decl.clone(), ScopeID(0));
             }
             Ok(())
         };

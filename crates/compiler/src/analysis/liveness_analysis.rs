@@ -88,20 +88,15 @@ impl VariableLiveness {
             return Ok(());
         } else {
             let entry_clone = entry.clone();
-            if entry_clone
-                .end_addresses
-                .iter()
-                .enumerate()
-                .any(|(_, end_address)| {
-                    control_flow_graph
-                        .cycle_aware_successors(&address.block_id)
-                        .unwrap()
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<BlockId>>()
-                        .contains(&end_address.block_id)
-                })
-            {
+            if entry_clone.end_addresses.iter().any(|end_address| {
+                control_flow_graph
+                    .cycle_aware_successors(&address.block_id)
+                    .unwrap()
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<BlockId>>()
+                    .contains(&end_address.block_id)
+            }) {
                 return Ok(());
             }
             entry.end_addresses.push(address);
