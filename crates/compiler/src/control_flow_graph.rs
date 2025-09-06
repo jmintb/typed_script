@@ -403,8 +403,8 @@ where
 
         // In this case we find the closest common successor in the cycle.
         // They are in the same cycle.
-        if cycle_successor_a.is_some() && cycle_successor_b.is_some() {
-            let mut predecessor = cycle_successor_a.unwrap();
+        if let (Some(predecessor), Some(_)) = (cycle_successor_a, cycle_successor_b) {
+            let mut predecessor = predecessor;
 
             loop {
                 let prev_predecessor = predecessor;

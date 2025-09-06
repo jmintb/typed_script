@@ -1,5 +1,5 @@
 ---
-source: src/ir.rs
+source: crates/compiler/src/ir.rs
 expression: "format!(\"{}\", ir_progam)"
 ---
 IR:
@@ -11,7 +11,7 @@ block_1
 3: borrow(4_anonymous)
 4: 5_anonymous := "w"
 5: borrow(5_anonymous)
-6: receiver_SSAID(6) = @0( let 4_anonymous, let 5_anonymous,)
+6: receiver_Ssaid(6) = @0( let 4_anonymous, let 5_anonymous,)
 7: borrow_end(4_anonymous)
 8: borrow_end(5_anonymous)
 9: 7_stdoutptr = 6_fdopen_result
@@ -21,7 +21,7 @@ block_1
 13: 8_anonymous := Int(1)
 14: borrow(8_anonymous)
 15: borrow(7_stdoutptr)
-16: receiver_SSAID(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
+16: receiver_Ssaid(9) = @2( let 2_val, let 3_len, let 8_anonymous, let 7_stdoutptr,)
 17: borrow_end(2_val)
 18: borrow_end(3_len)
 19: borrow_end(8_anonymous)

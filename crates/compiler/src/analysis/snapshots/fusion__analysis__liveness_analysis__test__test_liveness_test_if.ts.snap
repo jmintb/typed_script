@@ -1,5 +1,5 @@
 ---
-source: src/analysis/liveness_analysis.rs
+source: crates/compiler/src/analysis/liveness_analysis.rs
 expression: "format!(\"{:#?}\", analysis_result)"
 ---
 Ok(
@@ -8,7 +8,7 @@ Ok(
             17,
         ): VariableLiveness {
             variables: {
-                SSAID(
+                Ssaid(
                     2,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -26,7 +26,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     3,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -44,7 +44,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     4,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -62,7 +62,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     5,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -80,7 +80,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     6,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -98,7 +98,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     7,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -116,7 +116,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     8,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -134,7 +134,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     9,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -154,7 +154,7 @@ Ok(
                 },
             },
             variable_moved: {
-                SSAID(
+                Ssaid(
                     6,
                 ): {
                     BlockId(
@@ -162,13 +162,12 @@ Ok(
                     ),
                 },
             },
-            loans: {},
         },
         FunctionDeclarationID(
             29,
         ): VariableLiveness {
             variables: {
-                SSAID(
+                Ssaid(
                     11,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -186,7 +185,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     12,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -204,7 +203,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     13,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -222,7 +221,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     14,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -242,28 +241,28 @@ Ok(
                 },
             },
             variable_moved: {
-                SSAID(
+                Ssaid(
                     11,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     12,
                 ): {
                     BlockId(
                         16,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     13,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     14,
                 ): {
                     BlockId(
@@ -271,14 +270,12 @@ Ok(
                     ),
                 },
             },
-            loans: {},
         },
         FunctionDeclarationID(
             32,
         ): VariableLiveness {
             variables: {},
             variable_moved: {},
-            loans: {},
         },
     },
 )

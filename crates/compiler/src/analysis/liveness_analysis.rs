@@ -7,7 +7,7 @@ use tracing::debug;
 use crate::{
     ast::identifiers::FunctionDeclarationID,
     control_flow_graph::ControlFlowGraph,
-    ir::{BlockId, Instruction, IrProgram, SSAID},
+    ir::{BlockId, Instruction, IrProgram, Ssaid},
 };
 
 use super::ir_transformer::IrInterpreter;
@@ -35,15 +35,14 @@ impl AbstractAddressRange {
 
 #[derive(Clone, Debug, Default)]
 pub struct VariableLiveness {
-    pub variables: BTreeMap<SSAID, AbstractAddressRange>,
-    pub variable_moved: BTreeMap<SSAID, BTreeSet<BlockId>>,
-    pub loans: BTreeMap<SSAID, Vec<SSAID>>,
+    pub variables: BTreeMap<Ssaid, AbstractAddressRange>,
+    pub variable_moved: BTreeMap<Ssaid, BTreeSet<BlockId>>,
 }
 
 impl VariableLiveness {
     fn insert_variable_start(
         &mut self,
-        variable_id: SSAID,
+        variable_id: Ssaid,
         address: AbstractAddress,
     ) -> Result<()> {
         self.variables
@@ -54,7 +53,7 @@ impl VariableLiveness {
         Ok(())
     }
 
-    fn insert_move(&mut self, variable_id: SSAID, block_id: BlockId) {
+    fn insert_move(&mut self, variable_id: Ssaid, block_id: BlockId) {
         self.variable_moved
             .entry(variable_id)
             .and_modify(|drop_ids| {
@@ -65,7 +64,7 @@ impl VariableLiveness {
 
     fn insert_variable_end(
         &mut self,
-        id: SSAID,
+        id: Ssaid,
         address: AbstractAddress,
         moved: bool,
         control_flow_graph: &ControlFlowGraph<BlockId>,
@@ -110,7 +109,7 @@ impl VariableLiveness {
 
     // TODO: next use reverse traverself to calcuate liveness. If two blocks diverge keep end addresses.
 
-    pub fn variabled_moved(&self, id: &SSAID, block_id: BlockId) -> bool {
+    pub fn variabled_moved(&self, id: &Ssaid, block_id: BlockId) -> bool {
         self.variable_moved
             .get(id)
             .map(|block_ids| block_ids.contains(&block_id))

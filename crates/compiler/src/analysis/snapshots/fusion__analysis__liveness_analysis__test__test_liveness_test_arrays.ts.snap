@@ -1,5 +1,5 @@
 ---
-source: src/analysis/liveness_analysis.rs
+source: crates/compiler/src/analysis/liveness_analysis.rs
 expression: "format!(\"{:#?}\", analysis_result)"
 ---
 Ok(
@@ -8,7 +8,7 @@ Ok(
             17,
         ): VariableLiveness {
             variables: {
-                SSAID(
+                Ssaid(
                     2,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -26,7 +26,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     3,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -44,7 +44,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     4,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -62,7 +62,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     5,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -80,7 +80,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     6,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -98,7 +98,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     7,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -116,7 +116,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     8,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -134,7 +134,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     9,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -154,7 +154,7 @@ Ok(
                 },
             },
             variable_moved: {
-                SSAID(
+                Ssaid(
                     6,
                 ): {
                     BlockId(
@@ -162,13 +162,12 @@ Ok(
                     ),
                 },
             },
-            loans: {},
         },
         FunctionDeclarationID(
             35,
         ): VariableLiveness {
             variables: {
-                SSAID(
+                Ssaid(
                     11,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -186,7 +185,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     12,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -204,7 +203,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     13,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -222,7 +221,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     14,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -240,7 +239,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     15,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -258,7 +257,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     16,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -276,7 +275,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     17,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -294,7 +293,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     18,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -312,7 +311,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     19,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -330,7 +329,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     20,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -348,7 +347,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     21,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -366,7 +365,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     22,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -384,7 +383,7 @@ Ok(
                         },
                     ],
                 },
-                SSAID(
+                Ssaid(
                     23,
                 ): AbstractAddressRange {
                     start_address: AbstractAddress {
@@ -404,56 +403,56 @@ Ok(
                 },
             },
             variable_moved: {
-                SSAID(
+                Ssaid(
                     11,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     13,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     14,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     15,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     16,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     17,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     18,
                 ): {
                     BlockId(
                         10,
                     ),
                 },
-                SSAID(
+                Ssaid(
                     21,
                 ): {
                     BlockId(
@@ -461,7 +460,6 @@ Ok(
                     ),
                 },
             },
-            loans: {},
         },
     },
 )

@@ -7,7 +7,7 @@ use crate::analysis::ir_transformer::IrInterpreter;
 use crate::analysis::ir_transformer::TransformContext;
 use crate::ir::BlockId;
 
-use crate::ir::{Instruction, IrProgram, SSAID};
+use crate::ir::{Instruction, IrProgram, Ssaid};
 
 #[derive(Debug, Clone, Copy)]
 pub enum VariableState {
@@ -19,7 +19,7 @@ pub enum VariableState {
 
 #[derive(Clone, Default, Debug)]
 struct BorrowCheckerState {
-    block_states: BTreeMap<BlockId, BTreeMap<SSAID, VariableState>>,
+    block_states: BTreeMap<BlockId, BTreeMap<Ssaid, VariableState>>,
 }
 
 pub fn ge_variable_state(lhs: VariableState, rhs: VariableState) -> bool {
@@ -97,7 +97,7 @@ fn check_instruction(
             parents
         };
 
-        let mut ctx: BTreeMap<SSAID, VariableState> = BTreeMap::new();
+        let mut ctx: BTreeMap<Ssaid, VariableState> = BTreeMap::new();
         for state in parents
             .into_iter()
             .map(|parent| bc_ctx.block_states.get(&parent).unwrap())

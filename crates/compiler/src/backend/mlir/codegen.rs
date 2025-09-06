@@ -37,7 +37,7 @@ use crate::analysis::type_evaluation::IrProgramTypes;
 use crate::ast::nodes;
 use crate::ast::nodes::FunctionKeyword;
 use crate::ir::Instruction;
-use crate::ir::SSAID;
+use crate::ir::Ssaid;
 
 pub struct MlirGenerationConfig {
     pub program: IrProgram,
@@ -45,9 +45,15 @@ pub struct MlirGenerationConfig {
     pub program_types: BTreeMap<FunctionDeclarationID, IrProgramTypes>,
 }
 
+struct ArithOperationVaribles {
+    left_hand_side: Ssaid,
+    right_hand_side: Ssaid,
+    reciever: Ssaid,
+}
+
 // TODO: Figure out how we can share the module generation code without dropping references.
 
-pub fn generate_mlir<'c>(config: MlirGenerationConfig) -> Result<ExecutionEngine> {
+pub fn generate_mlir(config: MlirGenerationConfig) -> Result<ExecutionEngine> {
     let context = prepare_mlir_context();
     let mut module = Module::new(melior::ir::Location::unknown(&context));
     let mut code_gen = Box::new(CodeGen::new(
@@ -215,7 +221,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    fn declare_function(&self, function_decl_id: &FunctionDeclarationID) -> Result<Operation> {
+    fn declare_function(&self, function_decl_id: &FunctionDeclarationID) -> Result<Operation<'_>> {
         let function_declaration = self
             .program
             .node_db
@@ -263,11 +269,11 @@ impl<'ctx> CodeGen<'ctx> {
         &self,
         entry_block: &'c BlockRef<'c, 'a>,
         function_decl_id: &FunctionDeclarationID,
-    ) -> HashMap<SSAID, Value<'c, 'a>>
+    ) -> HashMap<Ssaid, Value<'c, 'a>>
     where
         'ctx: 'c,
     {
-        let mut locals = HashMap::<SSAID, Value<'c, 'a>>::new();
+        let mut locals = HashMap::<Ssaid, Value<'c, 'a>>::new();
         let local_ir_variables = &self.program.ssa_variables[function_decl_id];
 
         for ssa_id in local_ir_variables.keys() {
@@ -455,14 +461,7 @@ impl<'ctx> CodeGen<'ctx> {
                     && (cfg.dominates3(block_id, cfg.entry_point) || block_id == cfg.entry_point)
                 {
                     debug!("generating code for block {}", block_id);
-                    self.gen_block(
-                        block_id,
-                        &result,
-                        &local_variable_store,
-                        block_db,
-                        cfg,
-                        &vec![local_variable_store.clone()],
-                    )?;
+                    self.gen_block(block_id, &result, &local_variable_store, block_db)?;
                 }
             }
         }
@@ -543,9 +542,9 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_variable_load<'a, 'c>(
         &self,
-        id: SSAID,
+        id: Ssaid,
         block_references: &'a HashMap<usize, BlockRef<'c, 'a>>,
-        variable_store: &HashMap<SSAID, Value<'c, 'a>>,
+        variable_store: &HashMap<Ssaid, Value<'c, 'a>>,
         current_block: usize,
     ) -> Result<Value<'c, 'a>>
     where
@@ -570,9 +569,9 @@ impl<'ctx> CodeGen<'ctx> {
     fn gen_resultless_function_call<'a, 'c>(
         &self,
         function_id: FunctionId,
-        arguments: Vec<(SSAID, AccessModes)>,
+        arguments: Vec<(Ssaid, AccessModes)>,
         block_references: &'a HashMap<usize, BlockRef<'c, 'a>>,
-        variable_store: &HashMap<SSAID, Value<'c, 'a>>,
+        variable_store: &HashMap<Ssaid, Value<'c, 'a>>,
         current_block_id: usize,
     ) -> Result<()>
     where
@@ -666,11 +665,11 @@ impl<'ctx> CodeGen<'ctx> {
     fn gen_function_call<'a, 'c>(
         &self,
         function_id: FunctionId,
-        arguments: Vec<(SSAID, AccessModes)>,
+        arguments: Vec<(Ssaid, AccessModes)>,
         block_references: &'a HashMap<usize, BlockRef<'c, 'a>>,
-        variable_store: &HashMap<SSAID, Value<'c, 'a>>,
+        variable_store: &HashMap<Ssaid, Value<'c, 'a>>,
         current_block_id: usize,
-        result_receiver: &SSAID,
+        result_receiver: &Ssaid,
     ) -> Result<()>
     where
         'a: 'c,
@@ -815,10 +814,8 @@ impl<'ctx> CodeGen<'ctx> {
         &self,
         block_id: BlockId,
         block_references: &'blocks HashMap<usize, BlockRef<'context, 'region>>,
-        variable_store: &'vars HashMap<SSAID, Value<'varc, 'region>>,
+        variable_store: &'vars HashMap<Ssaid, Value<'varc, 'region>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
-        cfg: &ControlFlowGraph<BlockId>,
-        variable_stores: &'vars Vec<HashMap<SSAID, Value<'varc, 'region>>>,
     ) -> Result<()>
     where
         'ctx: 'context,
@@ -833,10 +830,8 @@ impl<'ctx> CodeGen<'ctx> {
             self.gen_instruction(
                 instruction,
                 block_id.0,
-                cfg,
                 block_references,
                 variable_store,
-                variable_stores,
                 block_db,
             )?;
         }
@@ -849,9 +844,7 @@ impl<'ctx> CodeGen<'ctx> {
         condition_block_id: usize,
         body_block_id: usize,
         location: Location<'parent_context>,
-        cfg: &ControlFlowGraph<BlockId>,
-        variable_store: &HashMap<SSAID, Value<'parent_block, 'parent_block>>,
-        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        variable_store: &HashMap<Ssaid, Value<'parent_block, 'parent_block>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<Operation<'context>>
     where
@@ -881,8 +874,6 @@ impl<'ctx> CodeGen<'ctx> {
             &block_references,
             variable_store,
             block_db,
-            cfg,
-            variable_stores,
         )?;
         let condition_result = self.gen_variable_load(
             self.program
@@ -902,8 +893,6 @@ impl<'ctx> CodeGen<'ctx> {
             &block_references,
             variable_store,
             block_db,
-            cfg,
-            variable_stores,
         )?;
         body_block_ref.append_operation(scf::r#yield(&[], location));
 
@@ -921,9 +910,7 @@ impl<'ctx> CodeGen<'ctx> {
         if_block_id: usize,
         condition: Value<'parent_context, 'parent_block>,
         location: Location<'parent_context>,
-        cfg: &ControlFlowGraph<BlockId>,
-        variable_store: &HashMap<SSAID, Value<'parent_block, 'parent_block>>,
-        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        variable_store: &HashMap<Ssaid, Value<'parent_block, 'parent_block>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<Operation<'context>>
     where
@@ -946,8 +933,6 @@ impl<'ctx> CodeGen<'ctx> {
             &block_references,
             variable_store,
             block_db,
-            cfg,
-            variable_stores,
         )?;
 
         if_block_ref.append_operation(scf::r#yield(&[], location));
@@ -968,9 +953,7 @@ impl<'ctx> CodeGen<'ctx> {
         else_block_id: usize,
         condition: Value<'parent_context, 'parent_block>,
         location: Location<'parent_context>,
-        cfg: &ControlFlowGraph<BlockId>,
-        variable_store: &HashMap<SSAID, Value<'parent_block, 'parent_block>>,
-        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        variable_store: &HashMap<Ssaid, Value<'parent_block, 'parent_block>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<Operation<'context>>
     where
@@ -1000,8 +983,6 @@ impl<'ctx> CodeGen<'ctx> {
             &block_references,
             variable_store,
             block_db,
-            cfg,
-            variable_stores,
         )?;
         // TODO: is there a scoping issue here? Could if block interefere with else block.
         self.gen_block(
@@ -1009,8 +990,6 @@ impl<'ctx> CodeGen<'ctx> {
             &block_references,
             variable_store,
             block_db,
-            cfg,
-            variable_stores,
         )?;
 
         if_block_ref.append_operation(scf::r#yield(&[], location));
@@ -1027,24 +1006,22 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn generate_arith_comparion<'context, 'region>(
         &self,
-        left_hand_side: SSAID,
-        right_hand_side: SSAID,
-        reciever: SSAID,
+        operation_variables: ArithOperationVaribles,
         predicate: arith::CmpiPredicate,
         block_references: &HashMap<usize, BlockRef<'context, 'region>>,
-        variable_store: &HashMap<SSAID, Value<'context, 'region>>,
+        variable_store: &HashMap<Ssaid, Value<'context, 'region>>,
         current_block_id: usize,
     ) -> Result<()> {
         let current_block = block_references.get(&current_block_id).unwrap();
         let location = melior::ir::Location::unknown(self.context);
         let first_operand_value = self.gen_variable_load(
-            left_hand_side,
+            operation_variables.left_hand_side,
             block_references,
             variable_store,
             current_block_id,
         )?;
         let second_operand_value = self.gen_variable_load(
-            right_hand_side,
+            operation_variables.right_hand_side,
             block_references,
             variable_store,
             current_block_id,
@@ -1059,7 +1036,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let value = current_block.append_operation(operation).result(0)?;
 
-        let ptr_val = variable_store[&reciever];
+        let ptr_val = variable_store[&operation_variables.reciever];
         let store_op = melior::dialect::memref::store(
             value.into(),
             ptr_val,
@@ -1076,10 +1053,8 @@ impl<'ctx> CodeGen<'ctx> {
         &self,
         instruction: &Instruction,
         current_block_id: usize,
-        cfg: &ControlFlowGraph<BlockId>,
         block_references: &'blocks HashMap<usize, BlockRef<'context, 'parent_block>>,
-        variable_store: &'vars HashMap<SSAID, Value<'varc, 'this>>,
-        variable_stores: &'this Vec<HashMap<SSAID, Value<'parent_context, 'parent_block>>>,
+        variable_store: &'vars HashMap<Ssaid, Value<'varc, 'this>>,
         block_db: &BTreeMap<BlockId, ir::Block>,
     ) -> Result<Option<Value<'context, 'parent_block>>>
     where
@@ -1223,10 +1198,14 @@ impl<'ctx> CodeGen<'ctx> {
             }
 
             Instruction::GreaterThan(lhs, rhs, result_reciever) => {
+                let operation_variables = ArithOperationVaribles {
+                    left_hand_side: *lhs,
+                    right_hand_side: *rhs,
+                    reciever: *result_reciever,
+                };
+
                 self.generate_arith_comparion(
-                    *lhs,
-                    *rhs,
-                    *result_reciever,
+                    operation_variables,
                     arith::CmpiPredicate::Sgt,
                     block_references,
                     variable_store,
@@ -1237,10 +1216,14 @@ impl<'ctx> CodeGen<'ctx> {
             }
 
             Instruction::LessThan(lhs, rhs, result_reciever) => {
+                let operation_variables = ArithOperationVaribles {
+                    left_hand_side: *lhs,
+                    right_hand_side: *rhs,
+                    reciever: *result_reciever,
+                };
+
                 self.generate_arith_comparion(
-                    *lhs,
-                    *rhs,
-                    *result_reciever,
+                    operation_variables,
                     arith::CmpiPredicate::Slt,
                     block_references,
                     variable_store,
@@ -1258,28 +1241,14 @@ impl<'ctx> CodeGen<'ctx> {
                     current_block_id,
                 )?;
 
-                // let then_mlir_block = block_references.get(&then_block.0).unwrap();
-                // let else_mlir_block = block_references.get(&else_block.0).unwrap();
-
-                // block_map.insert(*then_block, then_mlir_block_reference);
-                // block_map.insert(*else_block, else_mlir_block_reference);
-                // NEXT NEXT: make it so we can just return the next bock_id and have gen_block retrieve the write mlirblockref.
-                // How do we get the followup block id here? Find the dominator
-
                 // TODO: what is if/else is the last expression?
-                // let next_block = cfg.find_first_common_successor(then_block, else_block).unwrap();
-
-                // TODO: Will we ever need to reuse the
-                // TODO: Next ish check if this architecture can handle scoping -> conclusion it should
 
                 let if_operation = self.generate_if_else_operation(
                     then_block.0,
                     else_block.0,
                     condition,
                     location,
-                    cfg,
                     variable_store,
-                    variable_stores,
                     block_db,
                 );
                 current_block.append_operation(if_operation?);
@@ -1295,27 +1264,11 @@ impl<'ctx> CodeGen<'ctx> {
                     current_block_id,
                 )?;
 
-                // let then_mlir_block = block_references.get(&then_block.0).unwrap();
-                // let else_mlir_block = block_references.get(&else_block.0).unwrap();
-
-                // block_map.insert(*then_block, then_mlir_block_reference);
-                // block_map.insert(*else_block, else_mlir_block_reference);
-                // NEXT NEXT: make it so we can just return the next bock_id and have gen_block retrieve the write mlirblockref.
-                // How do we get the followup block id here? Find the dominator
-
-                // TODO: what is if/else is the last expression?
-                // let next_block = cfg.find_first_common_successor(then_block, else_block).unwrap();
-
-                // TODO: Will we ever need to reuse the
-                // TODO: Next ish check if this architecture can handle scoping -> conclusion it should
-
                 let if_operation = self.generate_if_operation(
                     then_block.0,
                     condition,
                     location,
-                    cfg,
                     variable_store,
-                    variable_stores,
                     block_db,
                 );
                 current_block.append_operation(if_operation?);
@@ -1327,9 +1280,7 @@ impl<'ctx> CodeGen<'ctx> {
                     condition.0,
                     body.0,
                     location,
-                    cfg,
                     variable_store,
-                    variable_stores,
                     block_db,
                 )?;
 
@@ -1558,11 +1509,11 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn gen_assignment<'parent_block, 'context, 'varc, 'this>(
         &self,
-        lhs_id: &SSAID,
-        rhs_id: &SSAID,
+        lhs_id: &Ssaid,
+        rhs_id: &Ssaid,
         current_block: usize,
         block_references: &'this HashMap<usize, BlockRef<'context, 'parent_block>>,
-        variable_store: &'this HashMap<SSAID, Value<'varc, 'parent_block>>,
+        variable_store: &'this HashMap<Ssaid, Value<'varc, 'parent_block>>,
     ) -> Result<()>
     where
         'ctx: 'context,

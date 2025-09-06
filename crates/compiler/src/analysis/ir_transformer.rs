@@ -1,14 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use crate::ast::nodes::AccessModes;
-use crate::ir::{Block, IrProgram, Variable, SSAID};
+use crate::ir::{Block, IrProgram, Ssaid, Variable};
 use crate::types;
 
 use crate::{control_flow_graph::ControlFlowGraph, ir::BlockId};
 use anyhow::Result;
 use tracing::debug;
-
-use super::borrow_checker::VariableState;
 
 #[derive(Clone, Debug)]
 pub struct IrScope {
@@ -20,11 +17,10 @@ pub struct IrScope {
 pub struct IrInterpreter<'a, Ctx> {
     scope: IrScope,
     control_flow_graph: &'a ControlFlowGraph<BlockId>,
-    pub ssa_variables: BTreeMap<SSAID, Variable>,
-    pub access_modes: BTreeMap<SSAID, AccessModes>,
+    pub ssa_variables: BTreeMap<Ssaid, Variable>,
     context: Ctx,
     reverse_traversel: bool,
-    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
+    pub ssa_variable_types: BTreeMap<Ssaid, types::Type>,
 }
 
 pub struct ReverseCycleAwareBlockIterator {
@@ -225,10 +221,8 @@ impl ControlFlowGraph<BlockId> {
 
 pub struct TransformContext {
     pub scope: IrScope,
-    pub ssa_variables: BTreeMap<SSAID, Variable>,
-    pub access_modes: BTreeMap<SSAID, AccessModes>,
-    pub variable_states: BTreeMap<SSAID, VariableState>,
-    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
+    pub ssa_variables: BTreeMap<Ssaid, Variable>,
+    pub ssa_variable_types: BTreeMap<Ssaid, types::Type>,
 }
 
 type TransformFn<Ctx> =
@@ -244,7 +238,6 @@ impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
             control_flow_graph,
             scope,
             ssa_variables: program.get_all_ssa_variables(),
-            access_modes: program.access_modes.clone(),
             context: Ctx::default(),
             reverse_traversel: false,
             ssa_variable_types: program.ssa_variable_types.clone(),
@@ -262,7 +255,6 @@ impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
         Self {
             control_flow_graph,
             scope,
-            access_modes: program.access_modes.clone(),
             ssa_variables: program.get_all_ssa_variables(),
             context: Ctx::default(),
             reverse_traversel: true,
@@ -274,8 +266,6 @@ impl<'a, Ctx: Clone + Default> IrInterpreter<'a, Ctx> {
         let mut ctx = TransformContext {
             scope: self.scope.clone(),
             ssa_variables: self.ssa_variables.clone(),
-            access_modes: self.access_modes.clone(),
-            variable_states: BTreeMap::new(),
             ssa_variable_types: self.ssa_variable_types.clone(),
         };
 

@@ -20,8 +20,8 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Hash, Default)]
-pub struct SSAID(pub usize);
-impl From<usize> for SSAID {
+pub struct Ssaid(pub usize);
+impl From<usize> for Ssaid {
     fn from(ssaid: usize) -> Self {
         Self(ssaid)
     }
@@ -48,17 +48,17 @@ impl Display for BlockId {
 
 #[derive(Clone, Debug)]
 pub struct IrProgram {
-    pub ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<SSAID, Variable>>,
+    pub ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<Ssaid, Variable>>,
     pub blocks: BTreeMap<BlockId, Block>,
-    pub access_modes: BTreeMap<SSAID, AccessModes>,
+    pub access_modes: BTreeMap<Ssaid, AccessModes>,
     pub control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     pub entry_block: BlockId,
     pub entry_function_id: FunctionDeclarationID,
     pub node_db: NodeDatabase,
-    pub static_values: HashMap<SSAID, Value>,
+    pub static_values: HashMap<Ssaid, Value>,
     pub external_function_declaraitons: Vec<FunctionDeclarationID>,
-    pub ssa_variable_types: BTreeMap<SSAID, types::Type>,
-    block_results: BTreeMap<BlockId, SSAID>,
+    pub ssa_variable_types: BTreeMap<Ssaid, types::Type>,
+    block_results: BTreeMap<BlockId, Ssaid>,
 }
 
 impl IrProgram {
@@ -69,7 +69,7 @@ impl IrProgram {
             .clone()
     }
 
-    pub fn get_all_ssa_variables(&self) -> BTreeMap<SSAID, Variable> {
+    pub fn get_all_ssa_variables(&self) -> BTreeMap<Ssaid, Variable> {
         let mut all_ssa_variable = BTreeMap::new();
 
         for (_, variable_map) in self.ssa_variables.iter() {
@@ -81,7 +81,7 @@ impl IrProgram {
         all_ssa_variable
     }
 
-    pub fn get_block_result(&self, block_id: &BlockId) -> Option<SSAID> {
+    pub fn get_block_result(&self, block_id: &BlockId) -> Option<Ssaid> {
         self.block_results.get(block_id).cloned()
     }
 }
@@ -140,30 +140,30 @@ impl Block {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Instruction {
-    Addition(SSAID, SSAID, SSAID),
-    Subtraction(SSAID, SSAID, SSAID),
-    GreaterThan(SSAID, SSAID, SSAID),
-    LessThan(SSAID, SSAID, SSAID),
-    InitArray(Vec<SSAID>, SSAID), // TODO: Could this be something more general like calling a function?, do we need access modes here, in in function calls?
+    Addition(Ssaid, Ssaid, Ssaid),
+    Subtraction(Ssaid, Ssaid, Ssaid),
+    GreaterThan(Ssaid, Ssaid, Ssaid),
+    LessThan(Ssaid, Ssaid, Ssaid),
+    InitArray(Vec<Ssaid>, Ssaid), // TODO: Could this be something more general like calling a function?, do we need access modes here, in in function calls?
     ArrayLookup {
-        array: SSAID,
-        index: SSAID,
-        result: SSAID,
+        array: Ssaid,
+        index: Ssaid,
+        result: Ssaid,
     },
-    Assign(SSAID, SSAID),
-    Move(SSAID),
-    Borrow(SSAID),
-    BorrowEnd(SSAID),
-    MutBorrow(SSAID),
-    MutBorrowEnd(SSAID),
-    Drop(SSAID),
-    Call(FunctionId, Vec<(SSAID, AccessModes)>, SSAID),
-    ResultlessCall(FunctionId, Vec<(SSAID, AccessModes)>),
-    AssignFnArg(SSAID, usize),
-    Return(Option<SSAID>),
-    IfElse(SSAID, BlockId, BlockId),
-    If(SSAID, BlockId),
-    AnonymousValue(SSAID),
+    Assign(Ssaid, Ssaid),
+    Move(Ssaid),
+    Borrow(Ssaid),
+    BorrowEnd(Ssaid),
+    MutBorrow(Ssaid),
+    MutBorrowEnd(Ssaid),
+    Drop(Ssaid),
+    Call(FunctionId, Vec<(Ssaid, AccessModes)>, Ssaid),
+    ResultlessCall(FunctionId, Vec<(Ssaid, AccessModes)>),
+    AssignFnArg(Ssaid, usize),
+    Return(Option<Ssaid>),
+    IfElse(Ssaid, BlockId, BlockId),
+    If(Ssaid, BlockId),
+    AnonymousValue(Ssaid),
     WhileLoop {
         condition: BlockId,
         body: BlockId,
@@ -181,8 +181,8 @@ impl Instruction {
 
     pub fn to_display_string(
         &self,
-        ssa_variables: &BTreeMap<SSAID, Variable>,
-        static_ssa_values: &HashMap<SSAID, Value>,
+        ssa_variables: &BTreeMap<Ssaid, Variable>,
+        static_ssa_values: &HashMap<Ssaid, Value>,
     ) -> String {
         match self {
             Self::WhileLoop {
@@ -390,26 +390,26 @@ impl Instruction {
 pub struct Variable {
     // TODO: avoid storing a copy of the identifier here
     pub original_variable: Identifier,
-    id: SSAID,
+    id: Ssaid,
 }
 
 #[derive(Clone, Debug)]
 pub struct IrGenerator {
-    ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<SSAID, Variable>>,
+    ssa_variables: BTreeMap<FunctionDeclarationID, BTreeMap<Ssaid, Variable>>,
     blocks: BTreeMap<BlockId, Block>,
-    block_results: BTreeMap<BlockId, SSAID>,
+    block_results: BTreeMap<BlockId, Ssaid>,
     id_count: usize,
     entry_block: BlockId,
-    access_modes: BTreeMap<SSAID, AccessModes>,
+    access_modes: BTreeMap<Ssaid, AccessModes>,
     control_flow_graphs: BTreeMap<FunctionDeclarationID, ControlFlowGraph<BlockId>>,
     current_function: FunctionDeclarationID,
     node_db: NodeDatabase,
     type_db: TypeDB,
     entry_point_function: FunctionDeclarationID,
-    static_values: HashMap<SSAID, Value>,
+    static_values: HashMap<Ssaid, Value>,
     external_function_declaraitons: Vec<FunctionDeclarationID>,
     expression_types: HashMap<ExpressionID, types::Type>,
-    ssaid_variable_types: BTreeMap<SSAID, types::Type>,
+    ssaid_variable_types: BTreeMap<Ssaid, types::Type>,
 }
 
 use crate::types;
@@ -450,24 +450,24 @@ impl IrGenerator {
         }
     }
 
-    fn store_current_fn_variable(&mut self, id: SSAID, ssa_var: Variable) {
+    fn store_current_fn_variable(&mut self, id: Ssaid, ssa_var: Variable) {
         self.ssa_variables
             .entry(self.current_function)
             .or_default()
             .insert(id, ssa_var);
     }
 
-    fn current_fn_variables(&self) -> &BTreeMap<SSAID, Variable> {
+    fn current_fn_variables(&self) -> &BTreeMap<Ssaid, Variable> {
         &self.ssa_variables[&self.current_function]
     }
 
-    fn new_ssa_id(&mut self) -> SSAID {
+    fn new_ssa_id(&mut self) -> Ssaid {
         let new_id = self.id_count;
         self.id_count += 1;
-        SSAID(new_id)
+        Ssaid(new_id)
     }
 
-    fn add_ssa_variable(&mut self, original_variable_id: Identifier) -> SSAID {
+    fn add_ssa_variable(&mut self, original_variable_id: Identifier) -> Ssaid {
         let id = self.new_ssa_id();
         let ssa_var = Variable {
             original_variable: original_variable_id,
@@ -505,7 +505,7 @@ impl IrGenerator {
         id
     }
 
-    fn set_block_result(&mut self, block_id: BlockId, ssaid: SSAID) {
+    fn set_block_result(&mut self, block_id: BlockId, ssaid: Ssaid) {
         if self.block_results.contains_key(&block_id) {
             panic!("block results should only be set once")
         }
@@ -513,7 +513,7 @@ impl IrGenerator {
         self.block_results.insert(block_id, ssaid);
     }
 
-    fn latest_gen_variable(&self, var_id: Identifier) -> Option<SSAID> {
+    fn latest_gen_variable(&self, var_id: Identifier) -> Option<Ssaid> {
         self.current_fn_variables()
             .clone()
             .into_values()
@@ -606,7 +606,7 @@ impl IrGenerator {
         &mut self,
         statement_id: StatementID,
         current_block: BlockId,
-    ) -> (BlockId, Option<SSAID>) {
+    ) -> (BlockId, Option<Ssaid>) {
         match statement_id {
             StatementID::Expression(expression_id) => {
                 self.convert_expression(expression_id, current_block)
@@ -720,7 +720,7 @@ impl IrGenerator {
         current_block
     }
 
-    fn get_access_instruction(&self, variable_id: SSAID) -> Instruction {
+    fn get_access_instruction(&self, variable_id: Ssaid) -> Instruction {
         match self
             .access_modes
             .get(&variable_id)
@@ -737,7 +737,7 @@ impl IrGenerator {
         &mut self,
         expression_id: ExpressionID,
         current_block: BlockId,
-    ) -> (BlockId, Option<SSAID>) {
+    ) -> (BlockId, Option<Ssaid>) {
         let mut current_block = current_block;
         let expression = self
             .node_db
@@ -1081,7 +1081,7 @@ impl IrGenerator {
             Expression::Array(Array { items }) => {
                 let result_ssa_id =
                     self.add_ssa_variable(Identifier::new("@array_init_result".to_string()));
-                let mut item_ssaids: Vec<SSAID> = Vec::new();
+                let mut item_ssaids: Vec<Ssaid> = Vec::new();
                 for item in items {
                     let (next_block, result) = self.convert_expression(item, current_block);
                     let item_ssaid = result.unwrap();
@@ -1172,7 +1172,7 @@ impl IrGenerator {
         val: Value,
         current_block: BlockId,
         expression_type: types::Type,
-    ) -> SSAID {
+    ) -> Ssaid {
         let static_ssa_id = self.add_ssa_variable(Identifier("anonymous".to_string()));
         self.static_values.insert(static_ssa_id, val);
         self.set_ssaid_type(static_ssa_id, expression_type);
@@ -1181,7 +1181,7 @@ impl IrGenerator {
         static_ssa_id
     }
 
-    fn set_ssaid_type(&mut self, ssaid: SSAID, r#type: types::Type) {
+    fn set_ssaid_type(&mut self, ssaid: Ssaid, r#type: types::Type) {
         self.ssaid_variable_types.insert(ssaid, r#type);
     }
 }

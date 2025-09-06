@@ -138,18 +138,18 @@ impl TypedExpression {
         match self {
             Self::Value(_, r#type ) => Ok(r#type.clone()),
             Self::Call(type_id, _  ) => types.get(type_id).map(|expression_type| match expression_type.clone() {
-               Type::Function(_, _, ref return_type ) => Ok((**return_type).clone()), 
+               Type::Function(_, _, ref return_type ) => Ok((**return_type).clone()),
                 _ => bail!("expected to a function type for a call expression, instead found {:#?} for type id {}", expression_type, type_id.0)
             }).unwrap(),
             Self::Struct(type_id, _ ) => { types.get(type_id).map(|expression_type| match expression_type {
-               Type::Struct(..) => Ok(expression_type.clone()), 
+               Type::Struct(..) => Ok(expression_type.clone()),
                 _ => bail!("expected to a struct type, instead found {:#?} for type id {}", expression_type, type_id.0)
             }).unwrap()
             },
         Self::StructFieldRef( .. ) => Ok(Type::Unknown),
             Self::Operation(operation) => match operation.as_ref() {
                 Operation::Binary(first_operand,_ ,_ ) => first_operand.r#type(types)
-            } 
+            }
             Self::If(_) => Ok(Type::Unit),
             Self::While(_) => Ok(Type::Unit),
             Self::Assign(_) => Ok(Type::Unit),
@@ -366,27 +366,24 @@ pub fn type_ast(ast: Ast) -> Result<TypedProgram> {
         };
 
         match node {
-            TypedAst::Decl(decl) => {
-                if let Decl::Function {
-                    body, arguments, ..
-                } = decl
-                {
-                    if let Some(mut body) = body {
-                        nodes.append(&mut body);
-                    }
+            TypedAst::Decl(Decl::Function {
+                arguments, body, ..
+            }) => {
+                if let Some(mut body) = body {
+                    nodes.append(&mut body);
+                }
 
-                    for arg in arguments {
-                        let ty = if let Type::Named(ty_id) = arg.r#type {
-                            types
-                                .get(&ty_id)
-                                .unwrap_or_else(|| panic!("failed to find {}", ty_id.0))
-                                .clone()
-                        } else {
-                            arg.r#type
-                        };
-                        variable_types.insert(arg.name, ty);
-                    }
-                };
+                for arg in arguments {
+                    let ty = if let Type::Named(ty_id) = arg.r#type {
+                        types
+                            .get(&ty_id)
+                            .unwrap_or_else(|| panic!("failed to find {}", ty_id.0))
+                            .clone()
+                    } else {
+                        arg.r#type
+                    };
+                    variable_types.insert(arg.name, ty);
+                }
             }
 
             TypedAst::Assignment(Assignment {

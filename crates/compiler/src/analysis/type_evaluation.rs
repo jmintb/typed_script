@@ -4,7 +4,7 @@ use crate::ast::identifiers::FunctionDeclarationID;
 use crate::ir::BlockId;
 use crate::ir::Instruction;
 use crate::ir::IrProgram;
-use crate::ir::SSAID;
+use crate::ir::Ssaid;
 use crate::types::ArrayType;
 use crate::types::ArrayTypeID;
 use crate::types::FlatEntityStore;
@@ -17,7 +17,7 @@ use tracing::debug;
 #[derive(Clone, Default)]
 pub struct IrProgramTypes {
     pub array_types: FlatEntityStore<ArrayType, ArrayTypeID>,
-    pub variable_types: BTreeMap<SSAID, Type>,
+    pub variable_types: BTreeMap<Ssaid, Type>,
 }
 
 pub fn evaluate_types(
